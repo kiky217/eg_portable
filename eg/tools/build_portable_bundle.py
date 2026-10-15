@@ -181,8 +181,16 @@ No secret/private-key/runtime data is included in the archive.
     write_text(root/'MANIFEST.json',json.dumps({'version':'3.1.0-beta.1','platform':'linux-amd64',
       'build_python':'CPython 3.12','files':manifest},sort_keys=True,indent=2))
     archive=WORK/(bundle.name+'.tar.gz')
-    with tarfile.open(archive,'w:gz',compresslevel=6) as tar:
-        tar.add(bundle,arcname=bundle.name,recursive=True)
+    import gzip
+    def deterministic_header(info):
+        info.mtime=0
+        info.uid=info.gid=0
+        info.uname=info.gname=''
+        return info
+    with archive.open('wb') as fp:
+        with gzip.GzipFile(fileobj=fp,mode='wb',filename='',mtime=0,compresslevel=6) as zipped:
+            with tarfile.open(fileobj=zipped,mode='w') as tar:
+                tar.add(bundle,arcname=bundle.name,recursive=True,filter=deterministic_header)
     print(json.dumps({'archive':str(archive),'sha256':filehash(archive),
                       'size_bytes':archive.stat().st_size,'entries':len(files),
                       'uncompressed_bytes':sum(x.stat().st_size for x in files)}))

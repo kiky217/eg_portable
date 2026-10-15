@@ -55,8 +55,12 @@ def stop():
         proc=None
 def main():
     check('archive_exists',ARCH.is_file())
+    with ARCH.open('rb') as stream:
+        header=stream.read(10)
+    check('gzip_mtime_normalized',len(header)==10 and header[:2]==b'\x1f\x8b' and header[4:8]==b'\0'*4)
     A.mkdir();B.mkdir()
     with tarfile.open(ARCH,'r:gz') as tf:
+        check('tar_metadata_normalized',all(item.mtime==0 and item.uid==0 and item.gid==0 and not item.uname and not item.gname for item in tf.getmembers()))
         for item in tf.getmembers():
             path=Path(item.name)
             check('archive_member_safe_'+str(path)[:48],
