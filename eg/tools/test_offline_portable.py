@@ -70,6 +70,9 @@ def main():
     extracted=next(A.glob('eg-portable-*-linux-amd64'))
     manifest=json.loads((extracted/'MANIFEST.json').read_text())
     check('manifest_coverage',len(manifest['files'])>1000)
+    project_license=extracted/'eg/LICENSE'
+    check('project_license_present',project_license.is_file() and project_license.read_text(encoding='utf-8').startswith('MIT License\n'))
+    check('project_license_hash',manifest['files'].get('eg/LICENSE')==hexhash(project_license))
     for rel,expected in manifest['files'].items():
         p=extracted/rel
         if not p.is_file() or hexhash(p)!=expected:
