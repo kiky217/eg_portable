@@ -43,3 +43,37 @@ PRE/POST action is denied with
 execution. Move signing/execution to a separate root-privilege domain before
 allowing `ADMISSION_MODE=enabled`; never generate a dummy public key to
 pretend a remote executor is configured.
+
+## Rehearse migration without cutover
+
+The canonical, read-only rehearsal is `tools/rehearse_ledger_migration.py`.
+Run with explicit source paths and task IDs from the administrative host:
+
+```sh
+python tools/rehearse_ledger_migration.py \
+  --db "$EG_STATE_DIR/data/gateway.db" \
+  --anchor "$EG_STATE_DIR/anchor/audit.anchor" \
+  --evidence "$EG_STATE_DIR/evidence" \
+  --runtime-env-file "$EG_STATE_DIR/runtime.env" \
+  --historical-task "$HISTORICAL_TASK_ID" \
+  --open-task "$MIGRATION_TASK_ID" \
+  --uid "$EG_RUNTIME_UID" --gid "$EG_RUNTIME_GID" \
+  --report "$REPORT_PATH"
+```
+
+The rehearsal uses a transactionally consistent SQLite copy and a copied
+anchor. A temporary nonroot EG process runs the current canonical code only
+against that COPY, using `ADMISSION_MODE=disabled`. It authenticates the
+historical SATISFIED task and in-flight gate, checks audit integrity, and
+proves that concrete actions without an independently protected executor
+fail closed with HTTP 409. It verifies the source ledger and anchor are
+unchanged, closes the temporary process, and never writes to the live EG.
+The report contains no secret keys. A report path that already exists is
+rejected rather than overwritten.
+
+A successful rehearsal is **not** production cutover or approval of a
+host-root-controlled signer. Never treat the staging process as a second
+production EG, and never mark migration VERIFIED merely because a rehearsal
+passed. The live upgrade still requires independent executor trust, a
+quiesced single-writer transaction, checked rollback, and authenticated
+post-cutover state and anchor verification.
