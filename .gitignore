@@ -1,40 +1,27 @@
-# Secrets and credentials
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
 .env
-.env.*
-!.env.example
-*private*.pem
+runtime.env
+*.pem
 *.key
-*.p12
-*.pfx
-gh-config/
-hosts.yml
-notary/
-secrets/
-credential*
-*token*.docx
-# Runtime evidence and state
 *.db
-*.sqlite
-*.sqlite3
 *.db-wal
 *.db-shm
-*.anchor
-*.log
-data/
-anchor/
-evidence/*
-!evidence/.gitkeep
-**/tests/_runtime/
-*.jsonl
-*.pid
-# Python env/cache
-.venv/
-venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-# Tooling
-node_modules/
-.DS_Store
+*.sqlite*
+/dist/
+/artifacts/
+/data/
+/evidence/
+/secrets/
+*.tar.gz
+
+# All generated test state is local-only and never packaged or published
+**/_runtime/
+**/runtime-state/
+**/.pytest_cache/
+**/__pycache__/
+**/evidence/knid-task-*/
+**/logs/
+**/*.jsonl

@@ -1,5 +1,0 @@
-# Direct runtime dependencies. Production/container builds MUST use requirements.lock.
-fastapi==0.142.2
-uvicorn==0.54.0
-pydantic==2.13.5
-cryptography==50.0.2
