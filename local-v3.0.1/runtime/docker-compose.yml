@@ -1,0 +1,41 @@
+services:
+  evaluation-gateway-local:
+    build: .
+    image: evaluation-gateway-local:3.0.1-local-anchor-failclosed
+    user: "${EVALUATION_GATEWAY_UID:-10001}:${EVALUATION_GATEWAY_GID:-10001}"
+    read_only: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18765:8765"
+    environment:
+      EVALUATION_GATEWAY_API_KEY: ${EVALUATION_GATEWAY_API_KEY:?required}
+      EVALUATION_GATEWAY_HITL_KEY: ${EVALUATION_GATEWAY_HITL_KEY:?required}
+      EVALUATION_GATEWAY_AUDIT_HMAC_KEY: ${EVALUATION_GATEWAY_AUDIT_HMAC_KEY:?required}
+      EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64: ${EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64:?required}
+      EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID: ${EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID:-10001}
+      # Optional tunables: passed through only when set in the host environment / .env (defaults live in app/main.py).
+      EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS:
+      EVALUATION_GATEWAY_CLOCK_SKEW_SECONDS:
+      EVALUATION_GATEWAY_INTEGRITY_CACHE_SECONDS:
+    volumes:
+      - gateway_data:/data
+      - gateway_anchor:/anchor
+      - ./evidence:/evidence:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request; j=json.load(urllib.request.urlopen('http://127.0.0.1:8765/health',timeout=3)); assert j['status']=='PASS'"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+volumes:
+  gateway_data:
+  gateway_anchor:

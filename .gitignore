@@ -1,0 +1,40 @@
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*private*.pem
+*.key
+*.p12
+*.pfx
+gh-config/
+hosts.yml
+notary/
+secrets/
+credential*
+*token*.docx
+# Runtime evidence and state
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.anchor
+*.log
+data/
+anchor/
+evidence/*
+!evidence/.gitkeep
+**/tests/_runtime/
+*.jsonl
+*.pid
+# Python env/cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# Tooling
+node_modules/
+.DS_Store
