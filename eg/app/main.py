@@ -44,6 +44,9 @@ HITL_KEY = os.getenv("EVALUATION_GATEWAY_HITL_KEY", "")
 AUDIT_HMAC_KEY = os.getenv("EVALUATION_GATEWAY_AUDIT_HMAC_KEY", "")
 NOTARY_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64", "")
 EXECUTOR_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64", "")
+# Explicit fail-closed deployment mode. Disabled admission serves only
+# historical task reconciliation and authenticated audit.
+ADMISSION_MODE = os.getenv("EVALUATION_GATEWAY_ADMISSION_MODE", "enabled")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
 CLOCK_SKEW_SECONDS = env_int("EVALUATION_GATEWAY_CLOCK_SKEW_SECONDS", 30, 0, 300)
@@ -410,6 +413,8 @@ def validate_secret(name: str, value: str) -> None:
 
 
 def require_config() -> None:
+    if ADMISSION_MODE not in ("enabled", "disabled"):
+        raise RuntimeError("invalid EG admission mode")
     if not os.getenv("EVALUATION_GATEWAY_DB_PATH") or not os.getenv("EVALUATION_GATEWAY_EVIDENCE_ROOT"):
         raise RuntimeError("external canonical DB/evidence configuration required")
     validate_secret("API key", API_KEY)
@@ -426,17 +431,18 @@ def require_config() -> None:
         Ed25519PublicKey.from_public_bytes(raw)
     except Exception as exc:
         raise RuntimeError("invalid evidence notary public key") from exc
-    if not EXECUTOR_PUBLIC_KEY_B64:
-        raise RuntimeError("independent executor public key missing")
-    try:
-        raw_exec = base64.b64decode(EXECUTOR_PUBLIC_KEY_B64, validate=True)
-        if len(raw_exec) != 32:
-            raise ValueError("invalid executor trust root")
-        Ed25519PublicKey.from_public_bytes(raw_exec)
-        if ct(NOTARY_PUBLIC_KEY_B64, EXECUTOR_PUBLIC_KEY_B64):
-            raise ValueError("executor and evidence notary trust roots must differ")
-    except Exception as exc:
-        raise RuntimeError("invalid or shared independent executor trust root") from exc
+    if ADMISSION_MODE == "enabled" and not EXECUTOR_PUBLIC_KEY_B64:
+        raise RuntimeError("independent executor public key missing: fail closed")
+    if EXECUTOR_PUBLIC_KEY_B64:
+        try:
+            raw_exec = base64.b64decode(EXECUTOR_PUBLIC_KEY_B64, validate=True)
+            if len(raw_exec) != 32:
+                raise ValueError("invalid executor trust root")
+            Ed25519PublicKey.from_public_bytes(raw_exec)
+            if ct(NOTARY_PUBLIC_KEY_B64, EXECUTOR_PUBLIC_KEY_B64):
+                raise ValueError("executor and evidence notary trust roots must differ")
+        except Exception as exc:
+            raise RuntimeError("invalid or shared independent executor trust root") from exc
     if not PROTOCOL_PATH.is_file():
         raise RuntimeError("protocol missing")
     EVIDENCE_ROOT.mkdir(parents=True, exist_ok=True)
@@ -1213,7 +1219,41 @@ def health():
 
 @app.get("/v1/protocol", dependencies=[Depends(require_key)])
 def protocol():
-    return {"version": PROTOCOL_VERSION, "hash": protocol_hash(), "document": PROTOCOL_PATH.read_text(encoding="utf-8")}
+    return {"version": PROTOCOL_VERSION, "hash": protocol_hash(),
+            "admission_mode": ADMISSION_MODE,
+            "document": PROTOCOL_PATH.read_text(encoding="utf-8")}
+
+
+def _registered_protocol_hash(c: sqlite3.Connection, task_id: str) -> str | None:
+    """Only the original authenticated registration can authorize an old hash."""
+    row = c.execute(
+        "SELECT request_json FROM audit WHERE task_id=? AND event_type='TASK_INTAKE' "
+        "ORDER BY seq ASC LIMIT 1", (task_id,)).fetchone()
+    if row is None:
+        return None
+    try:
+        request = json.loads(row["request_json"])
+        return request["protocol_hash"]
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def _require_registered_protocol(
+    c: sqlite3.Connection, task_id: str, supplied_hash: str
+) -> None:
+    """One validation engine, immutable task-specific protocol provenance.
+
+    The user task's original protocol is a signed registration field.
+    Old hashes never grant access to an alternate/older code path.
+    """
+    original = _registered_protocol_hash(c, task_id)
+    if original is None or not ct(supplied_hash, original):
+        raise HTTPException(428, {"code": "IMMUTABLE_TASK_PROTOCOL_MISMATCH"})
+
+
+def _require_action_admission(action: Action | None) -> None:
+    if action is not None and ADMISSION_MODE != "enabled":
+        raise HTTPException(409, {"code": "TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED"})
 
 
 @app.post("/v1/tasks/register", dependencies=[Depends(require_key)])
@@ -1281,8 +1321,6 @@ def register(req: RegisterRequest):
 
 @app.post("/v1/evaluate", dependencies=[Depends(require_key)])
 def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(default=None)):
-    if not ct(req.protocol_hash, protocol_hash()):
-        raise HTTPException(428, "protocol bootstrap required")
     rh = sha(canon(req.model_dump(mode="json")))
     c = conn()
     try:
@@ -1294,6 +1332,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         t = c.execute("SELECT * FROM task_registry WHERE task_id=?", (req.task_id,)).fetchone()
         if not t:
             raise HTTPException(404, "task not registered")
+        _require_registered_protocol(c, req.task_id, req.protocol_hash)
         if t["contract_status"] in TERMINAL_STATUSES:
             raise HTTPException(409, "task terminal")
         if t["status"] == "PAUSED":
@@ -1348,6 +1387,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         if req.phase == "POST_EXECUTION" and unverified_before == 1 and not req.finalize_task:
             raise HTTPException(409, {"code": "FINAL_STEP_REQUIRES_FINALIZATION"})
 
+        _require_action_admission(req.action)
         fp = action_fingerprint(req.action); intent_fp = action_intent_fingerprint(req.action)
         gate = None
         if req.phase == "PRE_EXECUTION":
@@ -1462,8 +1502,6 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
 def pause_task(task_id: str, req: SuspensionRequest):
     if not ID_RE.fullmatch(task_id):
         raise HTTPException(422, "invalid identifier")
-    if not ct(req.protocol_hash, protocol_hash()):
-        raise HTTPException(428, "protocol bootstrap required")
     body={"task_id":task_id,**req.model_dump(mode="json")}
     rh=sha(canon(body))
     c=conn()
@@ -1475,6 +1513,7 @@ def pause_task(task_id: str, req: SuspensionRequest):
         t=c.execute("SELECT * FROM task_registry WHERE task_id=?",(task_id,)).fetchone()
         if not t:
             raise HTTPException(404,"task not registered")
+        _require_registered_protocol(c, task_id, req.protocol_hash)
         if t["contract_status"]!="OPEN" or t["status"]=="PAUSED":
             raise HTTPException(409,{"code":"TASK_NOT_PAUSABLE"})
         if t["contract_hash"]!=req.contract_hash or t["checkpoint_no"]!=req.checkpoint_no:
@@ -1504,6 +1543,7 @@ def resume_task(task_id: str, req: SuspensionRequest):
             c.commit();return repeated
         t=c.execute("SELECT * FROM task_registry WHERE task_id=?",(task_id,)).fetchone()
         if not t:raise HTTPException(404,"task not registered")
+        _require_registered_protocol(c, task_id, req.protocol_hash)
         if t["contract_status"]!="OPEN" or t["status"]!="PAUSED":
             raise HTTPException(409,{"code":"TASK_NOT_PAUSED"})
         if t["contract_hash"]!=req.contract_hash or t["checkpoint_no"]!=req.checkpoint_no:
@@ -1530,8 +1570,6 @@ def abort_task(task_id: str, req: AbortRequest, x_evaluation_hitl_key: str | Non
         raise HTTPException(422, "invalid identifier")
     if not require_hitl_key(x_evaluation_hitl_key):
         raise HTTPException(403, "abort requires separate HITL authorization")
-    if not ct(req.protocol_hash, protocol_hash()):
-        raise HTTPException(428, "protocol bootstrap required")
     request = {"task_id": task_id, **req.model_dump(mode="json")}
     rh = sha(canon(request))
     c = conn()
@@ -1544,6 +1582,7 @@ def abort_task(task_id: str, req: AbortRequest, x_evaluation_hitl_key: str | Non
         t = c.execute("SELECT * FROM task_registry WHERE task_id=?", (task_id,)).fetchone()
         if not t:
             raise HTTPException(404, "task not registered")
+        _require_registered_protocol(c, task_id, req.protocol_hash)
         if t["contract_status"] in TERMINAL_STATUSES:
             raise HTTPException(409, "task terminal")
         if t["contract_hash"] != req.contract_hash:
@@ -1621,4 +1660,5 @@ def audit_verify():
         n, head = db_head(c)
     finally:
         c.close()
-    return {"status": "PASS", "version": APP_VERSION, "protocol_version": PROTOCOL_VERSION, "protocol_hash": protocol_hash(), "evidence_policy": "NOTARIZED_ONLY", "hitl_policy": "SEPARATE_KEY_REQUIRED", "records": n, "head": head, "chain": "AUTHENTICATED_VALID", "anchor": "VALID", "materialized_state": "VALID"}
+    return {"status": "PASS", "version": APP_VERSION, "protocol_version": PROTOCOL_VERSION, "protocol_hash": protocol_hash(), "evidence_policy": "NOTARIZED_ONLY", "hitl_policy": "SEPARATE_KEY_REQUIRED",
+            "admission_mode": ADMISSION_MODE, "records": n, "head": head, "chain": "AUTHENTICATED_VALID", "anchor": "VALID", "materialized_state": "VALID"}

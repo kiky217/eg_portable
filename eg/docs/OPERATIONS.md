@@ -27,3 +27,19 @@
 run by a host-root agent. Secure deployment requires moving the effective
 execution identity outside the agent's root privilege domain. Colab host root
 is currently not a provably isolated production target.
+
+## Safe historical task migration
+
+Existing task contract hashes remain immutable; the single EG evaluator
+checks the protocol hash originally authenticated in the TASK_INTAKE event
+and applies CURRENT receipt and audit validations without dispatching any
+previous evaluator. New registrations must use the current protocol hash.
+
+On a host with no independently administered trusted executor, set
+`EVALUATION_GATEWAY_ADMISSION_MODE=disabled` and leave the executor public
+key unset. The service can verify historical ledgers, but EVERY concrete
+PRE/POST action is denied with
+`TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED`. This is not production-ready
+execution. Move signing/execution to a separate root-privilege domain before
+allowing `ADMISSION_MODE=enabled`; never generate a dummy public key to
+pretend a remote executor is configured.
