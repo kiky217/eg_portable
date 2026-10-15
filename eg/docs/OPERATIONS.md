@@ -77,3 +77,29 @@ production EG, and never mark migration VERIFIED merely because a rehearsal
 passed. The live upgrade still requires independent executor trust, a
 quiesced single-writer transaction, checked rollback, and authenticated
 post-cutover state and anchor verification.
+
+## Read-only canonical cutover blocker check
+
+Before a cutover or any further POST for a pending concrete action, run:
+
+```sh
+python -m tools.check_live_cutover_readiness \
+  --db "$EG_STATE_DIR/data/gateway.db" \
+  --task "$CANONICAL_TASK_ID" \
+  --live-url http://127.0.0.1:18765 \
+  --runtime-env-file "$EG_RUNTIME_ENV_FILE" \
+  --report "$READINESS_REPORT_JSON"
+```
+
+This tool makes read-only DB and authenticated GET calls, compares the live
+checkpoint, gate, fingerprint and audit count, and checks the 300-second new
+effect authorization lease against the original PRE timestamp. It verifies
+whether the concrete target already exists, but does not replay or create it.
+It writes only a new report file (0600), refuses overwrites, and does not
+expose secrets. A result of `BLOCKED` is not an EG task mutation.
+
+The script **never** asserts signer isolation from a public key, a UID change
+or a QEMU guest sharing the same host root. A separate, verifiable root
+security domain is required. An expired PRE with no observed action requires
+a new PRE after native executor admission; an effect already present instead
+requires reconciliation, not re-execution or a retrospective receipt.
