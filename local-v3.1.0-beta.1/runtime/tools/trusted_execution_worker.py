@@ -15,6 +15,8 @@ import socketserver
 import stat
 import sys
 import time
+import threading
+from datetime import datetime
 from pathlib import Path
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
@@ -23,7 +25,14 @@ from app.execution_receipts import body, sign
 
 MAX_PAYLOAD = 1024 * 1024
 MAX_CONTENT = 512 * 1024
+# Task lifetime can be unbounded; authorization to START NEW effects cannot.
+MAX_NEW_WRITE_LEASE_SECONDS = 300
 class WorkerDenied(RuntimeError): pass
+
+def gate_allows_new_effect(created_at: str, now_ns: int | None = None) -> bool:
+    timestamp_ns=int(datetime.fromisoformat(created_at).timestamp()*1_000_000_000)
+    elapsed_ns=(time.time_ns() if now_ns is None else now_ns)-timestamp_ns
+    return 0 <= elapsed_ns <= MAX_NEW_WRITE_LEASE_SECONDS*1_000_000_000
 
 def canon(data):
     return json.dumps(data,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
@@ -51,12 +60,18 @@ class TrustedWriter:
             mode=stat.S_IMODE(d.stat().st_mode)
             if mode&0o077 or d.is_symlink():raise WorkerDenied('WORKER_DIRECTORY_NOT_ISOLATED')
         self.private=load_pem_private_key(Path(private_key).read_bytes(),password=None)
+        self.lock=threading.RLock()
         self.url=eg_url.rstrip('/')
         self.key=api_key
         if not executor_id.startswith('trusted-worker-'):raise WorkerDenied('INVALID_WORKER_ID')
         self.executor_id=executor_id
 
     def execute(self,request):
+        # Serialize both intent lookup and exclusive WRITE across worker RPC threads.
+        with self.lock:
+            return self._execute_locked(request)
+
+    def _execute_locked(self,request):
         if not isinstance(request,dict) or set(request)!={'task_id','step_key','action','data_b64'}:
             raise WorkerDenied('INVALID_WORKER_REQUEST')
         task=request['task_id'];step=request['step_key'];action=request['action']
@@ -88,19 +103,51 @@ class TrustedWriter:
             raise WorkerDenied('TASK_PAUSED_NO_EXECUTION')
         if state.get('status') == 'RECOVERY_PENDING' and not intent.exists():
             raise WorkerDenied('UNKNOWN_EFFECT_NO_NEW_EXECUTION_ON_RESUME')
+        digest=hashlib.sha256(data).hexdigest()
         if intent.exists():
-            old=json.loads(intent.read_text())
-            if old.get('stage')=='RECEIPT_SEALED' and old.get('data_sha256')==hashlib.sha256(data).hexdigest() and target.read_bytes()==data:
-                return old['receipt']
-            raise WorkerDenied('UNKNOWN_OR_CHANGED_EFFECT_NO_DUPLICATE_WRITE')
-        # No existing output may be turned into a retroactive execution receipt.
-        if target.exists():raise WorkerDenied('PREEXISTING_EFFECT_RETROACTIVE_DENIED')
-        initial={'stage':'INTENT_DURABLE','task_id':task,'step_key':step,
-                 'gate':gate['pre_checkpoint_no'],'target':str(target),
-                 'data_sha256':hashlib.sha256(data).hexdigest()}
-        store_exclusive(intent,canon(initial))
-        # Only this privileged worker performs the physical write after EG gate.
-        store_exclusive(target,data)
+            initial=json.loads(intent.read_text())
+            if (initial.get('task_id')!=task or initial.get('step_key')!=step
+                or initial.get('gate')!=gate['pre_checkpoint_no']
+                or initial.get('target')!=str(target)
+                or initial.get('data_sha256')!=digest
+                or initial.get('action_fingerprint')!=gate['action_fingerprint']):
+                raise WorkerDenied('INTENT_REPLAY_OR_MISMATCH')
+            if initial.get('stage')=='RECEIPT_SEALED':
+                if not target.is_file() or target.read_bytes()!=data:
+                    raise WorkerDenied('RECEIPT_EFFECT_MISMATCH')
+                return initial['receipt']
+            if initial.get('stage')!='INTENT_DURABLE':
+                raise WorkerDenied('UNKNOWN_JOURNAL_STATE')
+            # A crash after exclusive WRITE but before receipt sealing: the worker
+            # can recover from its own fsynced intent and independently read back.
+            if not target.exists():
+                raise WorkerDenied('NO_EFFECT_AFTER_CRASH_REQUIRES_FRESH_AUTHORIZATION')
+            stat_result=target.stat()
+            gate_ns=int(datetime.fromisoformat(
+                 next(g['created_at'] for g in detail['checkpoints']
+                      if g['checkpoint_no']==gate['pre_checkpoint_no'])
+                ).timestamp()*1_000_000_000)
+            if (stat_result.st_uid!=os.geteuid() or not stat.S_ISREG(stat_result.st_mode)
+                or stat_result.st_mtime_ns < gate_ns
+                or target.read_bytes()!=data):
+                raise WorkerDenied('RECOVERY_EFFECT_NOT_INDEPENDENTLY_PROVEN')
+            # No second WRITE. Only sign the reconciled output.
+        else:
+            # A paused task can resume in months, but no *new* WRITE may start
+            # under an aged PRE authorization. Reconciliation remains allowed.
+            gate_entry=next((g for g in detail['checkpoints']
+                             if g['checkpoint_no']==gate['pre_checkpoint_no']),None)
+            if not gate_entry or not gate_allows_new_effect(gate_entry['created_at']):
+                raise WorkerDenied('EXECUTION_LEASE_EXPIRED_REAUTHORIZE_SAFELY')
+            # No existing output may be converted to a retroactive receipt.
+            if target.exists():raise WorkerDenied('PREEXISTING_EFFECT_RETROACTIVE_DENIED')
+            initial={'stage':'INTENT_DURABLE','task_id':task,'step_key':step,
+                     'gate':gate['pre_checkpoint_no'],'target':str(target),
+                     'action_fingerprint':gate['action_fingerprint'],
+                     'data_sha256':digest}
+            store_exclusive(intent,canon(initial))
+            # Only privileged worker performs physical WRITE, after PRE.
+            store_exclusive(target,data)
         observed=target.read_bytes()
         if observed!=data:raise WorkerDenied('INDEPENDENT_READBACK_MISMATCH')
         receipt=sign(body(task,step,gate['pre_checkpoint_no'],
@@ -110,6 +157,9 @@ class TrustedWriter:
         tmp=intent.with_suffix('.sealed')
         store_exclusive(tmp,canon(final))
         os.replace(tmp,intent)
+        dfd=os.open(self.journal,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(dfd)
+        finally:os.close(dfd)
         return receipt
 
 def serve(config):

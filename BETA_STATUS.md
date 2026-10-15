@@ -5,7 +5,7 @@ an **experimental vNext runtime** under `local-v3.1.0-beta.1/runtime/`.
 
 ## Colab-stage verification (2026-10-15)
 
-- 117/117 Python unit + regression tests passed before the final metadata change; subsequent single-source version consistency correction was verified separately.
+- 118/118 Python unit + regression tests PASS, including a new hardcoded 300-second execution-lease boundary test.
 - 25/25 real-process end-to-end checks: PASS.
 - Independent worker E2 tests: 10 pre-existing effects rejected; forged/missing executor receipt HTTP 409; 10 proper PRE→worker→POST steps VERIFIED / checkpoint 20 / audit PASS.
 - Pause after WRITE before POST: PAUSED → RECOVERY_PENDING → sealed receipt reconciliation → same effect, no repeated WRITE, audit PASS.
@@ -32,3 +32,11 @@ an **experimental vNext runtime** under `local-v3.1.0-beta.1/runtime/`.
 criteria are independently VERIFIED.**
 
 See `local-v3.1.0-beta.1/runtime/docs/VNEXT_STAGING.md`.
+
+## Canonical Evaluation Gateway task status
+
+- Task: `task-eg-portable-self-audit-remediation-20261015-v1`
+- 22/24 required EG steps independently re-evaluated through their own PRE/POST checkpoints (checkpoint 44), authenticated audit `PASS`.
+- Phase 12 remains intentionally `NOT VERIFIED` because stable portable deployment, stronger isolation from Colab host root, and full release acceptance remain outstanding.
+- All source changes in this branch are **beta only**, not promoted to canonical EG 3.0.1 or GitHub `main`.
+- Additional fault injection: durable intent recovery after a simulated crash-after-WRITE-before-receipt is successful without repeated write.

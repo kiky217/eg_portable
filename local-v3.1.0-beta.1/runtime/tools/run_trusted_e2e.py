@@ -229,9 +229,24 @@ def positive():
         assert attested['status']=='PASS',attested
         receipt=attested['receipt']
         if i==5:
+            # Fault injection: emulate crash after output write but BEFORE
+            # durable receipt sealing. The trusted worker must reconcile,
+            # independently verify the file and NEVER write it again.
+            journal=WORK/'journals'/(task+'-'+key+'.json')
+            signed_intent=json.loads(journal.read_text())
+            assert signed_intent['stage']=='RECEIPT_SEALED'
+            signed_intent.pop('receipt')
+            signed_intent['stage']='INTENT_DURABLE'
+            journal.write_text(canon(signed_intent))
+            os.chown(journal,WORK_USER,WORK_USER)
+            os.chmod(journal,0o600)
+            output_mtime=file.stat().st_mtime_ns
+            resealed=worker(task,key,action,data(task,key))
+            assert resealed['status']=='PASS',resealed
+            assert file.stat().st_mtime_ns==output_mtime
+            receipt=resealed['receipt']
             # Worker has executed but EG POST has not yet arrived. This is the
             # high-risk interrupted execution, not a safe blind retry.
-            output_mtime=file.stat().st_mtime_ns
             pause=eg_req('POST','/v1/tasks/'+task+'/pause',{
                 'event_id':id('pause'),'contract_hash':contract,
                 'protocol_hash':PH,'checkpoint_no':pre['checkpoint_no'],

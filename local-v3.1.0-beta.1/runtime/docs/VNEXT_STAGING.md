@@ -55,3 +55,25 @@ audit, state, evidence, anchor, and task contracts remain unchanged.
 
 **Promotion gate:** do not replace canonical EG or publish this as stable
 until these blockers are resolved and owner acceptance is independently proven.
+
+## October 15 post-audit continuation (Colab)
+
+- Canonical EG task `task-eg-portable-self-audit-remediation-20261015-v1`:
+  **22/24 VERIFIED**, checkpoint 44, EG audit PASS; stage `12.01` and its
+  final parent are deliberately not promoted to VERIFIED (full release and
+  trust-boundary acceptance outstanding).
+- Each verified phase/substep received its own new EG PRE and POST with
+  signed evidence tied to the checkpoint; initial `01.01` reused its original
+  PRE gate without repeating the staged E2 copy.
+- Trusted E2 worker now serializes operations, validates its durable intent,
+  recovers an existing WRITE after a simulated crash-before-seal without
+  executing twice, and rejects new effect starts after a hardcoded 300-second
+  authorization lease. Task PAUSE itself has no wall-clock expiry.
+- Negative 10 preexisting outputs remain rejected; worker and notary
+  signer trust roots remain distinct. Unknown effects require reconciliation.
+- Caveat: Colab host root remains able to bypass worker isolation. These are
+  verified capabilities of the **managed beta scope**, not OS-wide hardening.
+
+No production migration or stable release has been performed. The canonical
+Colab EG 3.0.1 on 127.0.0.1:18765 remains online and has its original audit
+and database. No credential or private key is included in this branch.

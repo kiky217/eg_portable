@@ -64,3 +64,20 @@ def test_no_cross_task_suspend_or_wrong_contract():
         'checkpoint_no':0,'reason':'cross task'})
     assert bad.status_code==409
     assert CLIENT.get('/v1/audit/verify',headers=HEAD).json()['status']=='PASS'
+
+
+def test_indefinite_pause_with_bounded_execution_lease():
+    import importlib.util
+    from datetime import datetime, timezone
+    from pathlib import Path
+    path=Path(__file__).parents[1]/'tools/trusted_execution_worker.py'
+    spec=importlib.util.spec_from_file_location('trusted_worker_for_test',path)
+    module=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    created='2026-10-15T12:00:00+00:00'
+    anchor=int(datetime.fromisoformat(created).timestamp()*1e9)
+    assert module.gate_allows_new_effect(created, anchor+int(299e9))
+    assert module.gate_allows_new_effect(created, anchor+int(300e9))
+    assert not module.gate_allows_new_effect(created, anchor+int(301e9))
+    assert not module.gate_allows_new_effect(created, anchor-int(1e9))
+    assert module.MAX_NEW_WRITE_LEASE_SECONDS==300
