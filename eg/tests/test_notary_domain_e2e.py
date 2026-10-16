@@ -89,8 +89,6 @@ sys.stdout.buffer.write(key.sign(b'EG separate-UID domain test'))
 
     # Verify the same independent signer through the actual gateway verifier.
     from harness import gw
-    from cryptography.hazmat.primitives.serialization import PublicFormat
-    from cryptography.hazmat.primitives.serialization import Encoding
     from unittest.mock import patch
     pub = base64.b64encode(key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)).decode()
     with patch.object(gw, "EVIDENCE_ROOT", shared), patch.object(gw, "TRUSTED_UID", NOTARY_UID), patch.object(gw, "NOTARY_PUBLIC_KEY_B64", pub):
