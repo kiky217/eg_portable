@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -15,7 +16,10 @@ NOTARY_UID = 65533
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="requires disposable CI root to switch UIDs")
 def test_private_notary_key_unreadable_to_gateway_identity(tmp_path):
-    private_dir = tmp_path / "independent-notary"
+    # pytest parent directories are mode 0700; use a disposable traversable root.
+    shared = Path(tempfile.mkdtemp(prefix="eg-notary-domain-", dir="/tmp"))
+    shared.chmod(0o755)
+    private_dir = shared / "independent-notary"
     private_dir.mkdir(mode=0o700)
     os.chown(private_dir, NOTARY_UID, NOTARY_UID)
     key = Ed25519PrivateKey.generate()
@@ -23,7 +27,7 @@ def test_private_notary_key_unreadable_to_gateway_identity(tmp_path):
     pem.write_bytes(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
     os.chown(pem, NOTARY_UID, NOTARY_UID)
     pem.chmod(0o600)
-    tmp_path.chmod(0o755)
+    assert not (shared / 'key.pem').exists()
 
     script = """import sys
 from pathlib import Path
