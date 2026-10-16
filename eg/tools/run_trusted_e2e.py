@@ -164,10 +164,11 @@ def e2_action(task,key,cp,target,payload=None):
     return {**skeleton,'proofs':[{'purpose':purpose,'evidence':ev} for purpose in values]}
 def eval_step(task,contract,key,criterion,phase,cp,refcp,action,final=False,receipt=None,extra=None):
     marker=('PRE_'+key+'=PASS' if phase=='PRE_EXECUTION' else 'POST_'+key+'=PASS')
-    bindings=[binding(task,key,criterion,phase,refcp,marker)]
+    phase_criterion=(PRE_CRIT[key] if phase=='PRE_EXECUTION' and action is not None else criterion)
+    bindings=[binding(task,key,phase_criterion,phase,refcp,marker)]
     if final:bindings.append(binding(task,key,GLOBAL,phase,refcp,'TASK=PASS','task'))
     ev=notarize(bindings,marker+('\nTASK=PASS' if final else ''))
-    claims=[{'criterion_index':0,'claim':criterion,'evidence':[ev]}]
+    claims=[{'criterion_index':0,'claim':phase_criterion,'evidence':[ev]}]
     payload={'event_id':id('eval'),'task_id':task,'contract_hash':contract,
        'protocol_hash':PH,'checkpoint_no':cp,'step_key':key,
        'agent':'EGHardeningE2ETest','phase':phase,'action':action,
@@ -192,10 +193,11 @@ PH=sha((STAGE/'docs/EXECUTOR_PROTOCOL.md').read_bytes())
 GLOBAL='Every canonical step independently and non-retroactively executed and verified'
 KEYS=[f'01.{i:02d}' for i in range(1,10)]+['01']
 CRIT={k:'Physical runtime evidence for step '+k for k in KEYS}
+PRE_CRIT={k:'Independent readiness evidence before physical step '+k for k in KEYS}
 def register(label):
     task=PROJECT+'-'+label
-    steps=[{'step_key':'01','title':'Final step','required':True,'acceptance_criteria':[CRIT['01']],"execution_required":False}]
-    steps.extend({'step_key':k,'title':'Physical step '+k,'required':True,'acceptance_criteria':[CRIT[k]],"execution_required":False}
+    steps=[{'step_key':'01','title':'Final physical step','required':True,'acceptance_criteria':[CRIT['01']], 'preconditions':[PRE_CRIT['01']], "execution_required":True}]
+    steps.extend({'step_key':k,'title':'Physical step '+k,'required':True,'acceptance_criteria':[CRIT[k]],'preconditions':[PRE_CRIT[k]],"execution_required":True}
                  for k in KEYS[:-1])
     result=eg_req('POST','/v1/tasks/register',{
         'event_id':id('register'),'task_id':task,'agent':'EGHardeningE2ETest',
@@ -333,7 +335,7 @@ def verified_read(previous_task):
       'steps':[{'step_key':'01','title':'Finalize E0 read','required':True,
                 'acceptance_criteria':[CRIT['01']],"execution_required":False},
                {'step_key':'01.01','title':'Read previously verified E2 output',
-                'required':True,'acceptance_criteria':[CRIT['01.01']],"execution_required":False}]})
+                'required':True,'acceptance_criteria':[CRIT['01.01']],'preconditions':[PRE_CRIT['01.01']],"execution_required":True}]})
     contract=reg['contract_hash']
     source=target(previous_task,'01.01')
     assert source.exists() and source.is_file()
