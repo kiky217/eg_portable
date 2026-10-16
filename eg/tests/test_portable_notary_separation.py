@@ -33,7 +33,7 @@ def test_generated_init_uses_external_notary_root_and_no_private_key(tmp_path):
     script.write_text(generated_script("installer"))
     script.chmod(0o755)
     runner=tmp_path/"python.sh"
-    runner.write_text(f"#!/bin/sh\\nexec '{sys.executable}' \"$@\"\\n")
+    runner.write_text(f"#!/bin/sh\nexec '{sys.executable}' \"$@\"\n")
     runner.chmod(0o755)
     state=tmp_path/"state"
     first=base64.b64encode(b"a"*32).decode()
