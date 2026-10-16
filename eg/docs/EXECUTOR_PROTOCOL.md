@@ -48,3 +48,15 @@ Normative rules. "MUST" violations are rejected fail-closed by the gateway.
 33. A sealed execution receipt may remain valid after a lengthy pause, but newly claimed state still requires fresh signed POST criterion evidence. Authorization leases remain bounded independently of task lifetime.
 34. Remedial LOCAL_REPAIR and REPLAN MUST preserve immutable original acceptance, use linked tasks and obey all PRE/POST and signed-receipt controls; owner authorization is needed to change baseline or acceptance.
 35. This protocol governs registered gateway/worker operations only. Host root, ungoverned shell commands and other external effects require independent isolation, not merely a policy declaration.
+
+## Immutable E2 write payload admission (v3.1.7 extension)
+
+- Every new `write/E2` PRE MUST include `payload_sha256` (lowercase SHA-256)
+  and `payload_bytes` (1..524288) of the exact bytes to be written.
+- Both fields bind the action fingerprint and the notary-verified
+  `action_intent_fingerprint` for sandbox, rollback and reversibility proofs.
+- The worker MUST compare bytes and digest BEFORE new journal or filesystem
+  effects. Payload mismatch or absent commitment is denied fail-closed.
+- An older already-sealed receipt may only be recovered by independently
+  validating the original signer, target, output and existing gate.
+  No older PRE may be reused to start an uncommitted write.

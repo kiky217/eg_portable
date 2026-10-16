@@ -134,10 +134,14 @@ def binding(task,key,criterion,phase,cp,mark,scope='step'):
     if scope=='step':data['step_key']=key
     return data
 def e2_action(task,key,cp,target):
+    actual=data(task,key)
     skeleton={'action_type':'write','target':str(target),'effect_class':'E2',
-              'reversible':True,'real_world_effect':False,'proofs':[]}
+              'reversible':True,'real_world_effect':False,
+              'payload_sha256':hashlib.sha256(actual).hexdigest(),
+              'payload_bytes':len(actual),'proofs':[]}
     intent={field:skeleton[field] for field in
-       ('action_type','target','effect_class','reversible','real_world_effect')}
+       ('action_type','target','effect_class','reversible','real_world_effect',
+        'payload_sha256','payload_bytes')}
     fp=sha(canon(intent).encode())
     values={'sandbox_pass':'SANDBOX=PASS','rollback_ready':'ROLLBACK=READY',
             'reversible':'REVERSIBLE=YES'}
@@ -238,6 +242,12 @@ def positive():
         action=e2_action(task,key,cp,file)
         pre=eval_step(task,contract,key,CRIT[key],'PRE_EXECUTION',cp,cp,action)
         assert pre['verdict']=='READY_TO_EXECUTE',pre
+        if i==1:
+            # A review of payload A must never authorize payload B.
+            denied=worker(task,key,action,b'UNREVIEWED_PAYLOAD_B')
+            assert denied['status']=='DENIED' and 'PAYLOAD_NOT_AUTHORIZED' in denied['reason'],denied
+            assert not file.exists()
+            assert not (WORK/'journals'/(task+'-'+key+'.json')).exists()
         attested=worker(task,key,action,data(task,key))
         assert attested['status']=='PASS',attested
         receipt=attested['receipt']

@@ -159,10 +159,11 @@ def intent_fp(action):
     return gw.action_intent_fingerprint(gw.Action(**action))
 
 
-def e2_action(task, cp, step="01.01", target="sandbox-target", wrong_binding=False):
+def e2_action(task, cp, step="01.01", target="sandbox-target", wrong_binding=False, payload=b"TEST_RUNTIME_OUTPUT"):
     if not str(target).startswith("/"):
         target=str(WORKER_OUTPUT/(str(target)+".txt"))
-    skeleton = {"action_type": "write", "target": target, "effect_class": "E2", "reversible": True, "real_world_effect": False, "proofs": []}
+    skeleton = {"action_type": "write", "target": target, "effect_class": "E2", "reversible": True, "real_world_effect": False,
+                "payload_sha256":hashlib.sha256(payload).hexdigest(),"payload_bytes":len(payload),"proofs": []}
     bound = {**skeleton, "target": "unrelated-target"} if wrong_binding else skeleton
     values = {"sandbox_pass": "SANDBOX=PASS", "rollback_ready": "ROLLBACK=READY", "reversible": "REVERSIBLE=YES"}
     ref = notarized(eid("knid-task"), stdout="\n".join(values.values()), bindings=[pb(task, step, p, bound, cp, v) for p, v in values.items()])

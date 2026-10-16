@@ -88,6 +88,12 @@ class TrustedWriter:
         if not (is_write or is_read):raise WorkerDenied('UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED')
         if is_write and not (0<len(data)<=MAX_CONTENT):
             raise WorkerDenied('INVALID_DATA_LENGTH')
+        if is_write and (action.get('payload_sha256') is not None
+                         or action.get('payload_bytes') is not None):
+            if (action.get('payload_sha256')!=hashlib.sha256(data).hexdigest()
+                    or type(action.get('payload_bytes')) is not int
+                    or action['payload_bytes']!=len(data)):
+                raise WorkerDenied('PAYLOAD_NOT_AUTHORIZED_BY_PRE')
         if is_read and data:raise WorkerDenied('READ_MUST_HAVE_EMPTY_INPUT')
         target=Path(action.get('target',''))
         resolved=target.resolve(strict=False)
@@ -206,6 +212,8 @@ class TrustedWriter:
                 raise WorkerDenied('EXECUTION_LEASE_EXPIRED_REAUTHORIZE_SAFELY')
             # No existing output may be converted to a retroactive receipt.
             if target.exists():raise WorkerDenied('PREEXISTING_EFFECT_RETROACTIVE_DENIED')
+            if action.get('payload_sha256') is None or action.get('payload_bytes') is None:
+                raise WorkerDenied('EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE')
             initial={'stage':'INTENT_DURABLE','task_id':task,'step_key':step,
                      'gate':gate['pre_checkpoint_no'],'target':str(target),
                      'action_fingerprint':gate['action_fingerprint'],

@@ -17,7 +17,8 @@ def test_sealed_receipt_survives_failed_post_and_retries_without_new_effect(tmp_
     # This isolated worker provisions a different legitimate output_root.
     monkeypatch.setattr(H.gw, 'EXECUTOR_OUTPUT_ROOT', str(output))
     target=output/'result.txt'
-    action=e2_action(task,0,target=str(target))
+    payload=b'AFTER_PRE_ONLY'
+    action=e2_action(task,0,target=str(target),payload=payload)
     key=tmp_path/'worker.key'
     key.write_bytes(H.EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
     key.chmod(0o600)
@@ -31,7 +32,6 @@ def test_sealed_receipt_survives_failed_post_and_retries_without_new_effect(tmp_
     w=worker.TrustedWriter(output,journal,key,'http://127.0.0.1:18766','fixture-key','trusted-worker-replay-test')
     pre,_=do_pre(task,contract,0,action=action)
     assert pre.json()['verdict']=='READY_TO_EXECUTE'
-    payload=b'AFTER_PRE_ONLY'
     request={'task_id':task,'step_key':'01.01','action':action,
              'data_b64':base64.b64encode(payload).decode()}
     receipt=w.execute(request)
@@ -46,7 +46,7 @@ def test_sealed_receipt_survives_failed_post_and_retries_without_new_effect(tmp_
     assert target.read_bytes()==payload
     assert target.stat().st_ino==original_inode
     assert target.stat().st_mtime_ns==original_mtime
-    with pytest.raises(worker.WorkerDenied,match='INTENT_REPLAY_OR_MISMATCH'):
+    with pytest.raises(worker.WorkerDenied,match='PAYLOAD_NOT_AUTHORIZED_BY_PRE'):
         w.execute({**request,'data_b64':base64.b64encode(b'UNAPPROVED').decode()})
     final,_=do_post(task,contract,pre,action=action,req_cp=failed.json()['checkpoint_no'],
                     execution_receipt=again)

@@ -214,6 +214,8 @@ class Action(Strict):
     effect_class: Literal["E0", "E1", "E2", "E3", "E4", "E5"]
     reversible: bool = False
     real_world_effect: bool = False
+    payload_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
+    payload_bytes: int | None = Field(default=None, ge=1, le=512*1024)
     proofs: list[ActionProof] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
@@ -556,7 +558,14 @@ def task_identity(task_id: str, criterion_index: int, criterion: str, phase: str
 def action_intent_fingerprint(action: Action | None) -> str:
     if action is None:
         return sha(canon(None))
-    return sha(canon({"action_type": action.action_type, "target": action.target, "effect_class": action.effect_class, "reversible": action.reversible, "real_world_effect": action.real_world_effect}))
+    intent={"action_type":action.action_type,"target":action.target,
+            "effect_class":action.effect_class,"reversible":action.reversible,
+            "real_world_effect":action.real_world_effect}
+    if action.payload_sha256 is not None:
+        intent["payload_sha256"]=action.payload_sha256
+    if action.payload_bytes is not None:
+        intent["payload_bytes"]=action.payload_bytes
+    return sha(canon(intent))
 
 
 def proof_identity(task_id: str, step_key: str, purpose: str, action: Action, checkpoint_ref: int) -> dict[str, Any]:
@@ -1135,7 +1144,9 @@ def current_step(c: sqlite3.Connection, task_id: str) -> tuple[list[sqlite3.Row]
 
 
 def action_fingerprint(action: Action | None) -> str:
-    return sha(canon(action.model_dump(mode="json") if action is not None else None))
+    # Excluding absent v3.1.7 fields retains the *original* fingerprint for
+    # historical signed pending PRE gates; never backfill an old authorization.
+    return sha(canon(action.model_dump(mode="json",exclude_none=True) if action is not None else None))
 
 
 def action_check(task_id: str, step_key: str, action: Action | None, checkpoint_ref: int) -> tuple[Verdict, str, list[tuple[str, Evidence, EvidenceResult]]]:
@@ -1313,6 +1324,9 @@ def _require_action_admission(action: Action | None, phase: str) -> None:
         raise HTTPException(409, {"code": "TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED"})
     # POST for existing signed historical gates does not authorize new effects.
     if phase=="PRE_EXECUTION":
+        if action.action_type=="write" and action.effect_class=="E2" and (
+            action.payload_sha256 is None or action.payload_bytes is None):
+            raise HTTPException(409,{"code":"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"})
         ok,reason=worker_capability(action)
         if not ok:raise HTTPException(409,{"code":reason})
 

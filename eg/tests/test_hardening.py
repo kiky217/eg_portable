@@ -85,7 +85,8 @@ def test_15_finalize_before_all_steps_blocked_and_post_rolled_back():
 def test_16_e2_without_proofs_blocked():
     task,ch=register()
     action={'action_type':'write','target':str(H.WORKER_OUTPUT/'without-proof.txt'),
-            'effect_class':'E2','reversible':True,'real_world_effect':False,'proofs':[]}
+            'effect_class':'E2','reversible':True,'real_world_effect':False,
+            'payload_sha256':'a'*64,'payload_bytes':1,'proofs':[]}
     r,_=do_pre(task,ch,0,action=action)
     assert r.json()['verdict']=='UNVERIFIED'
 
@@ -122,7 +123,8 @@ def test_21_hitl_key_must_differ_from_api_key(monkeypatch):
 
 def test_22_real_world_e2_not_supported_by_bounded_worker():
     task,ch=register()
-    action={'action_type':'write','target':str(H.WORKER_OUTPUT/'real.txt'),'effect_class':'E2','reversible':True,'real_world_effect':True,'proofs':[]}
+    action={'action_type':'write','target':str(H.WORKER_OUTPUT/'real.txt'),'effect_class':'E2','reversible':True,'real_world_effect':True,
+            'payload_sha256':'a'*64,'payload_bytes':1,'proofs':[]}
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=action,headers=HITL)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
