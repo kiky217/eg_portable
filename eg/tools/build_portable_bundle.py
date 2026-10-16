@@ -164,6 +164,7 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 [ -n "${EG_STATE_DIR:-}" ] || { echo "DENIED: set EG_STATE_DIR to durable persistent storage" >&2; exit 77; }
 [ -n "${EG_EXECUTOR_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: externally administered executor root required" >&2; exit 77; }
+[ -n "${EG_NOTARY_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: independently administered evidence notary public key required" >&2; exit 77; }
 if [ -e "$EG_STATE_DIR" ]; then
   echo "DENIED: refuse to overwrite existing state or identity" >&2
   exit 77
@@ -173,20 +174,21 @@ for dir in data anchor evidence; do mkdir -m 700 "$EG_STATE_DIR/$dir"; done
 "$ROOT/python.sh" - <<'PY'
 import base64,os,secrets
 from pathlib import Path
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,NoEncryption,PublicFormat
 d=Path(os.environ['EG_STATE_DIR'])
-# Operator-supplied remote executor root; no worker signing key generated here.
 executor=os.environ.get('EG_EXECUTOR_PUBLIC_KEY_B64','')
-if not executor:
-    raise SystemExit('DENIED: independent executor public key required')
-assert len(base64.b64decode(executor,validate=True))==32
-priv=Ed25519PrivateKey.generate()
-p=priv.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption())
-key=d/'notary-private.pem'
-f=key.open('xb');f.write(p);f.close();key.chmod(0o600)
-pub=base64.b64encode(priv.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
-assert executor != pub
+notary=os.environ.get('EG_NOTARY_PUBLIC_KEY_B64','')
+try:
+    if len(base64.b64decode(executor,validate=True))!=32:
+        raise ValueError('executor public key invalid')
+    if len(base64.b64decode(notary,validate=True))!=32:
+        raise ValueError('notary public key invalid')
+except (ValueError,TypeError) as exc:
+    raise SystemExit('DENIED: independent public keys invalid') from exc
+if executor == notary:
+    raise SystemExit('DENIED: executor and evidence notary trust roots must be distinct')
+if (d/'notary-private.pem').exists():
+    raise SystemExit('DENIED: evidence notary private key accessible in EG state')
+pub=notary
 values={'EVALUATION_GATEWAY_API_KEY':secrets.token_urlsafe(48),
 'EVALUATION_GATEWAY_HITL_KEY':secrets.token_urlsafe(48),
 'EVALUATION_GATEWAY_AUDIT_HMAC_KEY':secrets.token_urlsafe(48),
@@ -195,7 +197,7 @@ values={'EVALUATION_GATEWAY_API_KEY':secrets.token_urlsafe(48),
 with (d/'runtime.env').open('x') as stream:
   for key,value in values.items():stream.write(key+'='+value+'\\n')
 (d/'runtime.env').chmod(0o600)
-print('STATE_INITIALIZED_SEPARATE_EXECUTOR_TRUST_ROOT_REQUIRED')
+print('STATE_INITIALIZED_SEPARATE_EXECUTOR_AND_NOTARY_TRUST_ROOTS_REQUIRED')
 PY
 '''
     write_text(root/'init.sh',installer);(root/'init.sh').chmod(0o755)
@@ -203,6 +205,10 @@ PY
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 [ -n "${EG_STATE_DIR:-}" ] || exit 77
+if [ -e "$EG_STATE_DIR/notary-private.pem" ]; then
+  echo "DENIED: notary private key must not be accessible to EG runtime" >&2
+  exit 77
+fi
 if [ ! -f "$EG_STATE_DIR/runtime.env" ]; then
   echo "DENIED: runtime credentials not initialized" >&2
   exit 77
@@ -223,11 +229,14 @@ Use as a **dedicated non-root identity**, and set EG_STATE_DIR to secure,
 durable and separately backed-up storage. It MUST be outside this immutable
 installation directory. The executor signing root must be independently
 administered: supply its raw 32-byte Ed25519 public key via
-EG_EXECUTOR_PUBLIC_KEY_B64. This package NEVER generates the executor private
-key, and execution is fail-closed without a configured trust root.
+EG_EXECUTOR_PUBLIC_KEY_B64. The evidence notary private key must also live in
+a separate independent signer/UID or domain; supply ONLY its public key through
+EG_NOTARY_PUBLIC_KEY_B64. Neither signing key is generated or stored by EG.
+Execution and evidence verification fail closed without both trust roots.
 
   export EG_STATE_DIR=/durable/eg/state
   export EG_EXECUTOR_PUBLIC_KEY_B64=<remote-verified-base64-public-key>
+  export EG_NOTARY_PUBLIC_KEY_B64=<independent-notary-base64-public-key>
   ./init.sh
   ./start.sh
 
