@@ -1070,6 +1070,18 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
                 if not gates:
                     return False
             derived[tid]["status"]=rs["status"]
+        elif (rs["status"] == "RECOVERY_PENDING"
+              and derived[tid]["contract_status"] == "OPEN"):
+            # A signed resume remains in RECOVERY_PENDING across any number of
+            # failed POST checks on the SAME gate; only VERIFIED POST consumes it.
+            # Rebuild this from the append-only audit, never trust mutable status.
+            subsequent=[event for event in evals.get(tid,[]) if event[0]>last_seq]
+            if subsequent and all(
+                event[2]["phase"]=="POST_EXECUTION"
+                and event[3]["step_verified"] is False
+                for event in subsequent
+            ):
+                derived[tid]["status"]="RECOVERY_PENDING"
     for tid, (aseq, ars) in aborts.items():
         if tid not in derived or derived[tid]["contract_status"] in ("SATISFIED", "UNRESOLVED"):
             return False
