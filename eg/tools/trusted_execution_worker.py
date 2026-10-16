@@ -22,6 +22,7 @@ from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
 from app.execution_receipts import body, sign, verify
+from app.no_effect_receipts import sign_no_effect
 
 MAX_PAYLOAD = 1024 * 1024
 MAX_CONTENT = 512 * 1024
@@ -65,6 +66,39 @@ class TrustedWriter:
         self.key=api_key
         if not executor_id.startswith('trusted-worker-'):raise WorkerDenied('INVALID_WORKER_ID')
         self.executor_id=executor_id
+
+    def reconcile(self, request):
+        """Only the isolated worker may assert no intent AND no effect."""
+        with self.lock:
+            if not isinstance(request,dict) or set(request)!={"operation","task_id","step_key","action"}:
+                raise WorkerDenied("INVALID_RECONCILIATION_REQUEST")
+            if request["operation"]!="reconcile_no_effect":
+                raise WorkerDenied("UNSUPPORTED_RECONCILIATION")
+            task=request["task_id"]; step=request["step_key"]; action=request["action"]
+            if not isinstance(task,str) or not isinstance(step,str) or not isinstance(action,dict):
+                raise WorkerDenied("INVALID_RECONCILIATION_FIELDS")
+            if len(task)>127 or len(step)>18 or action.get("action_type")!="write" or action.get("effect_class")!="E2":
+                raise WorkerDenied("NO_EFFECT_PROOF_REQUIRES_BOUNDED_WRITE")
+            target=Path(action.get("target",""))
+            resolved=target.resolve(strict=False)
+            if (target.is_symlink() or resolved.parent!=self.root or
+                resolved.suffix not in (".txt",".json")):
+                raise WorkerDenied("RECONCILIATION_TARGET_OUTSIDE_BOUNDS")
+            state,detail=api(self.url,self.key,task)
+            gate=state.get("pending_execution_gate")
+            if (state.get("status")!="RECOVERY_PENDING"
+                or state.get("current_step")!=step or not gate or
+                gate["action_fingerprint"]!=fingerprint(action) or
+                detail["task"]["contract_status"]!="OPEN"):
+                raise WorkerDenied("NO_PENDING_RECOVERY_GATE")
+            intent=self.journal/(task.replace("/","_")+"-"+step+".json")
+            if intent.is_symlink() or intent.exists() or target.is_symlink() or target.exists():
+                raise WorkerDenied("NO_EFFECT_UNPROVEN_OR_DURABLE_INTENT_PRESENT")
+            return sign_no_effect(
+                self.private,task_id=task,step_key=step,
+                gate_checkpoint_no=gate["pre_checkpoint_no"],
+                action_fingerprint=gate["action_fingerprint"],
+                target=str(target),executor_id=self.executor_id)
 
     def execute(self,request):
         # Serialize both intent lookup and exclusive WRITE across worker RPC threads.
@@ -249,8 +283,12 @@ def serve(config):
                 line=self.rfile.readline(MAX_PAYLOAD+1)
                 if not line.endswith(b'\n') or len(line)>MAX_PAYLOAD:
                     raise WorkerDenied('INVALID_RPC_SIZE')
-                receipt=worker.execute(json.loads(line))
-                answer={'status':'PASS','receipt':receipt}
+                request=json.loads(line)
+                if isinstance(request,dict) and request.get('operation')=='reconcile_no_effect':
+                    answer={'status':'PASS','reconciliation':worker.reconcile(request)}
+                else:
+                    receipt=worker.execute(request)
+                    answer={'status':'PASS','receipt':receipt}
             except Exception as e:
                 answer={'status':'DENIED','reason':type(e).__name__+':'+str(e)}
             self.wfile.write(canon(answer)+b'\n')
