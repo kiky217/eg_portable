@@ -38,9 +38,12 @@ jobs:
         env:
           PYTHONPATH: ".:tests"
         run: python -m pytest -q -p no:cacheprovider tests
+      - name: Prepare world-readable source for separate-UID test runners
+        run: |
+          sudo install -d -m 0755 /tmp/eg-ci-source
+          sudo cp -R eg/app eg/docs eg/tools eg/VERSION /tmp/eg-ci-source/
+          sudo chmod -R a+rX /tmp/eg-ci-source
       - name: Trusted executor E2E (isolated test runtime only)
-        working-directory: eg
-        run: sudo env PYTHONPATH=. "$(command -v python)" tools/run_trusted_e2e.py
+        run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
       - name: Remediation E2E (isolated test runtime only)
-        working-directory: eg
-        run: sudo env PYTHONPATH=. "$(command -v python)" tools/run_remedial_e2e.py
+        run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
