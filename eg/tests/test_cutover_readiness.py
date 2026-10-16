@@ -46,20 +46,21 @@ def test_canonical_reader_does_not_mutate_ledger(tmp_path):
         CREATE TABLE task_registry (task_id TEXT, status TEXT,
              contract_status TEXT, checkpoint_no INTEGER);
         INSERT INTO task_registry VALUES ('eg-task','IN_PROGRESS','OPEN',26);
-        CREATE TABLE task_registry_steps (task_id TEXT,verified INTEGER);
-        INSERT INTO task_registry_steps VALUES ('eg-task',1);
-        INSERT INTO task_registry_steps VALUES ('eg-task',0);
+        CREATE TABLE task_registry_steps (task_id TEXT,step_no INTEGER,
+             step_key TEXT,verified INTEGER);
+        INSERT INTO task_registry_steps VALUES ('eg-task',1,'07',0);
+        INSERT INTO task_registry_steps VALUES ('eg-task',2,'07.01',0);
         CREATE TABLE audit (seq INTEGER,event_type TEXT,task_id TEXT,request_json TEXT);
         INSERT INTO audit VALUES (1,'EVALUATION','eg-task',
           '{"phase":"PRE_EXECUTION","checkpoint_no":24,"step_key":"07.01","action":{"action_type":"write","target":"/tmp/file.txt"}}');
-        CREATE TABLE execution_gates (task_id TEXT,step_key TEXT,pre_checkpoint_no INTEGER,
-          created_at TEXT,action_fingerprint TEXT,consumed INTEGER);
-        INSERT INTO execution_gates VALUES ('eg-task','07.01',25,
-          '2026-10-15T19:23:13+00:00','f',0);
+        CREATE TABLE execution_gates (gate_id INTEGER,task_id TEXT,step_key TEXT,pre_checkpoint_no INTEGER,
+          created_at TEXT,action_fingerprint TEXT,pre_verdict TEXT,consumed INTEGER);
+        INSERT INTO execution_gates VALUES (1,'eg-task','07.01',25,
+          '2026-10-15T19:23:13+00:00','f','READY_TO_EXECUTE',0);
         """)
     snapshot=db.read_bytes()
     data=canonical(db,"eg-task")
-    assert data["checkpoint"]==26 and data["verified"]==1 and data["total"]==2
+    assert data["checkpoint"]==26 and data["verified"]==0 and data["total"]==2
     assert data["gate"]["pre_checkpoint_no"]==25
     assert data["action"]["action_type"]=="write"
     assert db.read_bytes()==snapshot
