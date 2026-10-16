@@ -47,8 +47,11 @@ def manual_post_failure(task,ch,crit,cp,gate):
     return X.eg_req('POST','/v1/evaluate',body)
 def remediate(original,origin_cp,strategy,revision):
     task=X.PROJECT+'-'+strategy.lower()+'-remedial'
+    X.PRE_CRIT['02.01']='Independent readiness to perform a bounded remedial repair'
     steps=[{'step_key':k,'title':TITLES[k],
-            'acceptance_criteria':[k+' evidenced'],'required':True,"execution_required":False}
+            'acceptance_criteria':[k+' evidenced'],'required':True,
+            'execution_required':k=='02.01',
+            **({'preconditions':[X.PRE_CRIT['02.01']]} if k=='02.01' else {})}
            for k in ['01','01.01','01.02','01.03','02','02.01','02.02',
                      '03','03.01','03.02']]
     result=X.eg_req('POST','/v1/tasks/register',{
