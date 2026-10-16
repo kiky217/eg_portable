@@ -88,3 +88,35 @@ A validated GitHub release requires regressions, signed worker E2E, remedial
 E2E, SHA-256 archive build, offline relocation and clean Debian startup on
 its exact commit. Source release success is not evidence of live production
 admission.
+
+
+## Reconciled execution and independent cutover evidence
+
+New `REGISTER` payloads MUST set `execution_required` explicitly on each
+plan step. Execution-required steps MUST also declare `preconditions` distinct
+from `acceptance_criteria`; immutable `invariants`, when supplied, are
+checked in both PRE and POST. A physical step cannot be recast as logical by
+omitting `action` at evaluation. Historical registrations are not rewritten.
+
+When a reversible E2 write is interrupted, use the *same registered worker*
+`reconcile_no_effect` operation (not the normal WRITE RPC). It checks the
+canonical `RECOVERY_PENDING` gate, protected journal and target. Absent
+journal/target yields a signed `NOT_EXECUTED` proof. A durable journal without
+an output can be retired under the worker lock while preserving its bytes;
+the proof can then be submitted to
+`POST /v1/tasks/{task_id}/reconcile` with the exact action and pinned executor
+public key. EG consumes the old gate in an append-only event, does NOT advance
+step acceptance and requires a fresh PRE. A created target is recovered with
+the original worker receipt, never replayed. Ambiguous or foreign journal /
+target remains blocked; no HITL flag turns UNKNOWN into NOT_EXECUTED.
+
+For independent cutover verification, provide an externally signed
+`--cutover-attestation` and a separately provisioned
+`EVALUATION_GATEWAY_CUTOVER_PUBLIC_KEY_B64`. The attestation binds report hash,
+rollback archive hash, canonical checkpoint/audit head and all restored member
+hashes. The verifier performs an actual isolated extraction and byte readback;
+missing or changed evidence is denied. The attestor key must not be supplied
+by the report or the agent controlling it. This is verification of the
+reported cutover evidence; it does NOT authorize an unsupported E3 service
+cutover, restore a historical Colab session, or waive the independent EG
+step/capability/runtime checks for a new deployment.
