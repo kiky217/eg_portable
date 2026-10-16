@@ -248,7 +248,18 @@ def positive():
             assert denied['status']=='DENIED' and 'PAYLOAD_NOT_AUTHORIZED' in denied['reason'],denied
             assert not file.exists()
             assert not (WORK/'journals'/(task+'-'+key+'.json')).exists()
-        attested=worker(task,key,action,data(task,key))
+        if i==2:
+            # Real controlled agent dispatcher → canonical EG PRE → isolated worker →
+            # verified independent receipt → EG POST. Never claims VERIFIED itself.
+            from tools.governed_agent_dispatcher import dispatch
+            guarded=dispatch({'task_id':task,'step_key':key,'action':action,
+                              'data_b64':base64.b64encode(data(task,key)).decode()},
+                             eg_url=EG_URL,api_key=EG_API,worker_socket=str(sock),
+                             executor_public_key_b64=raw_pub(EXEC_NOTARY))
+            assert guarded['status']=='RECEIPT_VERIFIED_POST_REQUIRED'
+            attested={'status':'PASS','receipt':guarded['execution_receipt']}
+        else:
+            attested=worker(task,key,action,data(task,key))
         assert attested['status']=='PASS',attested
         receipt=attested['receipt']
         if i==5:
