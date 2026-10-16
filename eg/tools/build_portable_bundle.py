@@ -88,6 +88,30 @@ def main():
     if not libpython.is_file() or '.so' not in libpython.name:
         raise RuntimeError('PORTABLE_SHARED_LIBPYTHON_REQUIRED')
     shutil.copy2(libpython,root/'python/lib'/libpython.name)
+    # Selectively bundle ELF dependencies from the Debian build environment.
+    # Never bundle glibc/the dynamic linker; those define the target ABI.
+    allowed_native={'libssl.so.3','libcrypto.so.3','libsqlite3.so.0',
+                    'libffi.so.8','libbz2.so.1.0','liblzma.so.5',
+                    'libz.so.1','libexpat.so.1','libreadline.so.8',
+                    'libncursesw.so.6','libtinfo.so.6','libgdbm.so.6',
+                    'libgdbm_compat.so.4','libuuid.so.1'}
+    binary_files=[SYSTEM_PY,libpython]
+    binary_files.extend(x for x in (root/'python/lib/python3.12').rglob('*.so')
+                        if x.is_file())
+    for binary in binary_files:
+        result=subprocess.run(['ldd',str(binary)],capture_output=True,text=True,check=False)
+        for line in result.stdout.splitlines():
+            if '=> not found' in line:
+                raise RuntimeError('UNRESOLVED_NATIVE_LIBRARY '+line.strip())
+            parts=line.strip().split()
+            if len(parts)<3 or parts[1]!='=>' or parts[0] not in allowed_native:
+                continue
+            source=Path(parts[2])
+            if not source.is_file():
+                raise RuntimeError('MISSING_NATIVE_LIBRARY '+parts[0])
+            destination=root/'python/lib'/parts[0]
+            if not destination.exists():
+                shutil.copy2(source.resolve(),destination)
     copy_eg_source(STAGE,root/'eg')
     (root/'THIRD_PARTY_LICENSES').mkdir(exist_ok=True)
     license_candidates=[Path(os.getenv('EG_PYTHON_LICENSE_FILE','/nonexistent')),
