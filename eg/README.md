@@ -40,8 +40,10 @@ Never grant the worker signing key to the agent. An EG instance configured
 with a trusted-worker public key that is not backed by an actually isolated
 executor must refuse all actionable effects. Same-host UID separation does
 not constrain a Colab host-root agent. For E0 reads and restricted reversible
-E2 file creates, the worker binds receipts to the EG gate and action. Other
-operations are currently unsupported and must fail closed.
+E2 file creates, the worker binds receipts to the EG gate and action. The
+bounded worker supports `.txt` and valid `.json` output inside its protected
+`output_root`, never an arbitrary host-owned path. Other operations are
+currently unsupported and must fail closed.
 
 Initialize only as nonroot, with an external EG_STATE_DIR on a trusted durable
 volume and externally protected signing roots. The offline bundle ships neither

@@ -183,8 +183,13 @@ def register(label):
         'acceptance_criteria':[GLOBAL],'steps':steps})
     return task,result['contract_hash']
 def target(task,key):
-    return WORK/'outputs'/(task+'-'+key+'.txt')
+    # Exercise structured JSON artefacts inside the same protected worker root.
+    suffix = '.json' if key == '01.05' else '.txt'
+    return WORK/'outputs'/(task+'-'+key+suffix)
 def data(task,key):
+    if key == '01.05':
+        return canon({'result':'TRUSTED_WORK_EXECUTED_AFTER_PRE',
+                      'task_id':task,'step_key':key}).encode()
     return ('TRUSTED_WORK_EXECUTED_AFTER_PRE '+task+' '+key+'\n').encode()
 def negative():
     task,contract=register('negative')

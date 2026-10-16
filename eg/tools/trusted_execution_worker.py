@@ -91,8 +91,14 @@ class TrustedWriter:
         if is_read and data:raise WorkerDenied('READ_MUST_HAVE_EMPTY_INPUT')
         target=Path(action.get('target',''))
         resolved=target.resolve(strict=False)
-        if target.is_symlink() or resolved.parent!=self.root or not resolved.name.endswith('.txt'):
+        if (target.is_symlink() or resolved.parent != self.root
+            or resolved.suffix not in ('.txt', '.json')):
             raise WorkerDenied('TARGET_OUTSIDE_WORKER_BOUNDS')
+        if is_write and resolved.suffix == '.json':
+            try:
+                json.loads(data)
+            except (ValueError, UnicodeDecodeError) as exc:
+                raise WorkerDenied('INVALID_JSON_OUTPUT') from exc
         state,detail=api(self.url,self.key,task)
         gate=state.get('pending_execution_gate')
         if (state.get('current_step')!=step or not gate
