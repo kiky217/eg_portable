@@ -1,7 +1,10 @@
 name: EG release validation
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
 
 permissions:
   contents: read
