@@ -55,6 +55,7 @@ jobs:
             python tools/build_portable_bundle.py
           '
           version="$(cat eg/VERSION)"
+          sudo chown -R "$(id -u):$(id -g)" dist
           cd dist
           sha256sum "eg-portable-${version}-linux-amd64.tar.gz" > "eg-portable-${version}-linux-amd64.tar.gz.sha256"
           sha256sum -c "eg-portable-${version}-linux-amd64.tar.gz.sha256"
