@@ -1,6 +1,6 @@
 """#8: only configured worker capabilities may authorize a new PRE gate."""
 import pytest
-from harness import gw,CLIENT,HEAD,register,raw_eval,claim,step_ref,e2_action,WORKER_OUTPUT
+from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,e2_action,WORKER_OUTPUT
 
 @pytest.mark.parametrize("action_type,effect",[
     ("service_cutover","E3"),("shell","E1"),("delete","E2")])
@@ -36,3 +36,18 @@ def test_missing_worker_configuration_rejects_new_pre(monkeypatch):
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT","")
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
+
+@pytest.mark.parametrize("effect",["E3","E4","E5"])
+def test_hitl_approval_alone_cannot_admit_unsupported_effect(effect):
+    """Hybrid HITL must never convert absent executor capability into READY."""
+    task,ch=register()
+    action={"action_type":"service_cutover","target":"unsupported-service",
+            "effect_class":effect,"reversible":False,
+            "real_world_effect":True,"proofs":[]}
+    r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],
+               action=action,headers=HITL)
+    assert r.status_code==409,r.text
+    assert r.json()["detail"]["code"]=="UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
+    st=CLIENT.get(f"/v1/tasks/{task}/state",headers=HEAD).json()
+    assert st["latest_checkpoint"] is None
+    assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
