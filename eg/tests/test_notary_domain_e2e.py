@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import shutil
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -67,7 +68,9 @@ sys.stdout.buffer.write(key.sign(b'EG separate-UID domain test'))
     bindings.write_text(json.dumps([binding]))
     for item in (bindings, evidence / "state.json", evidence / "stdout.log"):
         item.chmod(0o644)
-    notarizer = Path(__file__).resolve().parents[1] / "tools" / "notarize_evidence.py"
+    notarizer = shared / "notarize_evidence.py"
+    shutil.copyfile(Path(__file__).resolve().parents[1] / "tools" / "notarize_evidence.py", notarizer)
+    notarizer.chmod(0o644)
     signed = subprocess.run([sys.executable, str(notarizer), str(pem),
                              str(evidence), str(bindings)],
                             preexec_fn=lambda: (os.setgroups([]), os.setgid(NOTARY_UID),
