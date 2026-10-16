@@ -1,0 +1,41 @@
+name: EG release validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eg-release-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install hash-locked runtime
+        working-directory: eg
+        run: python -m pip install --only-binary=:all: --require-hashes -r requirements.lock
+      - name: Install test-only dependencies
+        run: python -m pip install "pytest==9.1.1" "httpx==0.28.1"
+      - name: Unit and regression suite
+        working-directory: eg
+        env:
+          PYTHONPATH: ".:tests"
+        run: python -m pytest -q -p no:cacheprovider tests
+      - name: Trusted executor E2E (isolated test runtime only)
+        working-directory: eg
+        run: sudo env PYTHONPATH=. python tools/run_trusted_e2e.py
+      - name: Remediation E2E (isolated test runtime only)
+        working-directory: eg
+        run: sudo env PYTHONPATH=. python tools/run_remedial_e2e.py
