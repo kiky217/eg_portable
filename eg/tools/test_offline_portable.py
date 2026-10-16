@@ -15,7 +15,8 @@ from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 UID=65532
 GID=65532
 DIST=Path(__file__).resolve().parents[2]/'dist'
-ARCH=Path(os.environ.get('EG_PORTABLE_ARCHIVE', str(DIST/'eg-portable-3.1.0-linux-amd64.tar.gz'))).resolve()
+RELEASE_VERSION=(Path(__file__).resolve().parents[1]/'VERSION').read_text().strip()
+ARCH=Path(os.environ.get('EG_PORTABLE_ARCHIVE', str(DIST/f'eg-portable-{RELEASE_VERSION}-linux-amd64.tar.gz'))).resolve()
 RESULT=Path(os.environ.get('EG_PORTABLE_TEST_REPORT',str(DIST/'offline-relocation-e2e.json'))).resolve()
 ROOT=Path(tempfile.mkdtemp(prefix='eg-portable-relocate-'))
 A=ROOT/'a'
@@ -60,6 +61,10 @@ def main():
     check('gzip_mtime_normalized',len(header)==10 and header[:2]==b'\x1f\x8b' and header[4:8]==b'\0'*4)
     A.mkdir();B.mkdir()
     with tarfile.open(ARCH,'r:gz') as tf:
+        forbidden={'.env','runtime.env','id_rsa','id_ed25519','.npmrc','.pypirc',
+                   'evidence','backups','secrets','data','.git','_runtime'}
+        check('no_runtime_data_in_archive',
+              all(not (set(Path(m.name).parts) & forbidden) for m in tf.getmembers()))
         check('tar_metadata_normalized',all(item.mtime==0 and item.uid==0 and item.gid==0 and not item.uname and not item.gname for item in tf.getmembers()))
         for item in tf.getmembers():
             path=Path(item.name)

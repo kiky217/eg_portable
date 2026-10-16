@@ -11,6 +11,9 @@ from pathlib import Path
 
 # Paths resolve from THIS single EG package and its selected Python runtime.
 STAGE=Path(__file__).resolve().parents[1]
+RELEASE_VERSION=(STAGE/'VERSION').read_text().strip()
+if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',RELEASE_VERSION):
+    raise RuntimeError('STABLE_RELEASE_VERSION_REQUIRED')
 WORK=Path(os.environ.get('EG_PORTABLE_OUTPUT_DIR', str(STAGE.parent/'dist'))).expanduser().resolve()
 SITE=Path(sysconfig.get_path('purelib')).resolve()
 SYSTEM_PY=Path(sys._base_executable).resolve()
@@ -19,13 +22,40 @@ PY_RUNTIME=f'{sys.version_info.major}.{sys.version_info.minor}'
 FILTER={'__pycache__','.pytest_cache','.git','_runtime','data','secrets',
         'notary','e2e-instance','worker','journals','outputs','.venv'}
 EXCLUDE_SUFFIX={'.pyc','.pyo','.pem','.db','.sqlite','.sqlite3','.jsonl','.sock','.key','.p12'}
+EXCLUDE_NAMES={'.env','runtime.env','.env.local','.npmrc','.pypirc','id_rsa','id_ed25519'}
 def copy_source(source,target,ignore_large=False,merge=False):
     def ignore(dirname,names):
-        denied={v for v in names if v in FILTER or Path(v).suffix in EXCLUDE_SUFFIX}
+        denied={v for v in names if v in FILTER or v in EXCLUDE_NAMES or Path(v).suffix in EXCLUDE_SUFFIX}
         if ignore_large:
             denied|={v for v in names if v in {'test','tests','ensurepip','idlelib','tkinter','turtledemo'}}
         return denied
     shutil.copytree(source,target,ignore=ignore,dirs_exist_ok=merge,symlinks=False)
+
+# Public source allowlist: never bundle runtime evidence, credentials, backups,
+# arbitrary source sidecars, or symlinks.
+EG_PUBLIC_FILES={'VERSION','LICENSE','README.md','Dockerfile','docker-compose.yml',
+                 'requirements.txt','requirements.lock','.env.example'}
+EG_PUBLIC_DIRS={'app':{'.py','.json'},'tools':{'.py'},
+                'tests':{'.py'},'docs':{'.md','.json'}}
+def copy_eg_source(source,target):
+    target.mkdir()
+    for name in sorted(EG_PUBLIC_FILES):
+        f=source/name
+        if not f.is_file() or f.is_symlink():
+            raise RuntimeError('MISSING_OR_UNSAFE_EG_SOURCE '+name)
+        shutil.copy2(f,target/name)
+    for dirname,suffixes in EG_PUBLIC_DIRS.items():
+        directory=source/dirname
+        if not directory.is_dir() or directory.is_symlink():
+            raise RuntimeError('MISSING_OR_UNSAFE_EG_DIRECTORY '+dirname)
+        for f in sorted(directory.rglob('*')):
+            if f.is_symlink():
+                raise RuntimeError('EG_SOURCE_SYMLINK_DENIED '+str(f.relative_to(source)))
+            if not f.is_file() or f.name.startswith('.') or f.suffix not in suffixes:
+                continue
+            out=target/f.relative_to(source)
+            out.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(f,out)
 
 def write_text(path,data):
     path.write_text(data);path.chmod(0o644)
@@ -41,7 +71,7 @@ def main():
     if not SYSTEM_PY.is_file() or not SITE.is_dir() or not SYSTEM_STDLIB.is_dir():
         raise RuntimeError('INCOMPLETE_PYTHON_RUNTIME')
     WORK.mkdir(parents=True,exist_ok=True)
-    bundle=WORK/'eg-portable-3.1.0-linux-amd64'
+    bundle=WORK/f'eg-portable-{RELEASE_VERSION}-linux-amd64'
     if bundle.exists():shutil.rmtree(bundle)
     bundle.mkdir()
     root=bundle
@@ -50,7 +80,15 @@ def main():
     (root/'python/bin/python3.12').chmod(0o755)
     copy_source(SYSTEM_STDLIB,root/'python/lib/python3.12',ignore_large=True)
     copy_source(SITE,root/'python/lib/python3.12/site-packages',merge=True)
-    copy_source(STAGE,root/'eg')
+    libdir=sysconfig.get_config_var('LIBDIR')
+    library=sysconfig.get_config_var('LDLIBRARY')
+    if not libdir or not library:
+        raise RuntimeError('PORTABLE_LIBPYTHON_NOT_IDENTIFIED')
+    libpython=(Path(libdir)/library).resolve()
+    if not libpython.is_file() or '.so' not in libpython.name:
+        raise RuntimeError('PORTABLE_SHARED_LIBPYTHON_REQUIRED')
+    shutil.copy2(libpython,root/'python/lib'/libpython.name)
+    copy_eg_source(STAGE,root/'eg')
     (root/'THIRD_PARTY_LICENSES').mkdir(exist_ok=True)
     license_candidates=[Path(os.getenv('EG_PYTHON_LICENSE_FILE','/nonexistent')),
                         SYSTEM_STDLIB.parent.parent/'LICENSE',
@@ -65,6 +103,7 @@ def main():
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 export PYTHONHOME="$ROOT/python"
+export LD_LIBRARY_PATH="$ROOT/python/lib"
 export PYTHONPATH="$ROOT/python/lib/python3.12/site-packages:$ROOT/eg"
 exec "$ROOT/python/bin/python3.12" "$@"
 '''
@@ -174,11 +213,11 @@ on shell commands or a fully production-safe deployment.
 
 No secret/private-key/runtime data is included in the archive.
 '''
-    write_text(root/'README_PORTABLE.md',doc)
+    write_text(root/'README_PORTABLE.md',doc.replace('3.1.0',RELEASE_VERSION))
     # Manifest only for contents actually inside bundle; no secrets.
     files=sorted(x for x in root.rglob('*') if x.is_file())
     manifest={str(x.relative_to(root)):filehash(x) for x in files}
-    write_text(root/'MANIFEST.json',json.dumps({'version':'3.1.0','platform':'linux-amd64',
+    write_text(root/'MANIFEST.json',json.dumps({'version':RELEASE_VERSION,'platform':'linux-amd64',
       'build_python':'CPython 3.12','files':manifest},sort_keys=True,indent=2))
     archive=WORK/(bundle.name+'.tar.gz')
     import gzip
