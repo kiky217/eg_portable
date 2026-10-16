@@ -37,11 +37,16 @@ def rehearse_restore(archive_path):
         base=Path(root)
         seen=set()
         with tarfile.open(archive_path,"r:*") as archive:
-            members=archive.getmembers()
-            if not members:raise ValueError("EMPTY_ROLLBACK_ARCHIVE")
-            if len(members)>MAX_ARCHIVE_MEMBERS or sum(m.size for m in members if m.isfile())>MAX_RESTORE_BYTES:
-                raise ValueError("ROLLBACK_EXPANSION_BUDGET_EXCEEDED")
-            for member in members:
+            member_count=0
+            declared_bytes=0
+            for member in archive:
+                member_count+=1
+                if member_count>MAX_ARCHIVE_MEMBERS:
+                    raise ValueError("ROLLBACK_EXPANSION_BUDGET_EXCEEDED")
+                if member.isfile():
+                    declared_bytes+=member.size
+                    if declared_bytes>MAX_RESTORE_BYTES or member.size<0:
+                        raise ValueError("ROLLBACK_EXPANSION_BUDGET_EXCEEDED")
                 name=Path(member.name)
                 if (name.is_absolute() or ".." in name.parts or
                     not (member.isdir() or member.isfile())):
@@ -71,6 +76,8 @@ def rehearse_restore(archive_path):
                 if count!=member.size or _digest(target)!=h.hexdigest():
                     raise ValueError("ROLLBACK_RESTORE_READBACK_MISMATCH")
                 output.append({"path":clean,"sha256":h.hexdigest(),"size":count})
+            if not member_count:
+                raise ValueError("EMPTY_ROLLBACK_ARCHIVE")
     return sorted(output,key=lambda x:x["path"])
 
 def verify_independent_cutover(report_path, archive_path, attest_path, public_key_b64):
