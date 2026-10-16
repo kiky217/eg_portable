@@ -1,86 +1,38 @@
-# Controlled remediation status — 2026-10-16
+# Remediation history and current boundaries
 
-Repository: `kiky217/eg_portable`. Preserve the single `main` branch, immutable
-historic task contracts, existing stable release assets, and append-only audit.
+This file is a **historical issue snapshot**, originally written on 2026-10-16 before completion of issues #2–#18. Do not treat its original "remaining" statements as current instructions. The authoritative current issue state is [GitHub Issues](https://github.com/kiky217/eg_portable/issues).
 
-This document describes **source changes**, not a LIVE production acceptance
-claim. The original Colab runtime expired and its canonical database was not
-restored. A successful test-only signed executor is not a production signer.
+## Completed repository remediation (historical issues)
 
-## Addressed in source and CI
+Issues **#2–#18** were marked closed on GitHub after source and CI remediation. In particular:
 
-- #10 — Native CPython and ELF dependencies bundled from Debian Bookworm;
-  clean Debian container must import Python, ssl, sqlite3 and cryptography
-  without a host Python or network.
-- #11 — Source allowlist excludes collocated runtime state, evidence,
-  backups, credentials, and symlinks; synthetic-leak regression tests run.
-- #17 — A current-source portable build, hash verification, relocation,
-  and clean-container smoke now run before publication on every candidate,
-  regardless of whether a matching release already exists.
-- #12 — Readiness uses current-step/latest-READY/unconsumed gate semantics.
-- #13 — Readiness accepts configured HTTP loopback ports and rejects
-  external URLs and unsafe URL components.
-- #14 — Rollback source archive must have a matching recorded digest and
-  pass tar safety/readability checks. **Remaining:** cryptographic provenance
-  of the archive report and an actual restore rehearsal are not proven.
+- **#2:** PRE readiness has independent preconditions; invariants are verified at PRE and POST.
+- **#3:** New registered steps require explicit immutable `execution_required` classification; physical steps cannot use `action=null`.
+- **#5:** An unresolved actionable READY gate cannot be superseded by a new PRE.
+- **#6:** Independently signed `NOT_EXECUTED` reconciliation is implemented under a verified worker trust root and append-only task audit. UNKNOWN remains BLOCKED.
+- **#14:** Independent signed rollback archive provenance and isolated restore rehearsal are implemented. This verifies archive evidence, **not** a live production service cutover.
+- **#16:** Historical Colab notes are archival; no old session or checkpoint establishes current runtime state.
+- **#17:** Full regression, portable bundling, and relocation tests run even when a release already exists.
+- **#18:** Prior repository audit umbrella was closed. It did **not** certify an external live production cutover.
 
-- #5 — v3.1.4 prevents superseding a pending actionable READY gate and
-  preserves RECOVERY_PENDING through failed same-gate POST. Signed NO_EFFECT
-  reconciliation remains separate issue #6.
-- #7 — v3.1.3 resumes authenticated historical protocol hashes using the
-  current stricter validator without replacing immutable TASK_INTAKE.
-- #9 — v3.1.3 verifies chain/HMAC/anchor/materialized state on the same write
-  transaction and rejects corrupted worker state/detail readback.
-- #15 — v3.1.5 retrieves and validates an already-sealed receipt from durable
-  journal after failed POST; retry never re-writes the file.
+Repository E2E reference: [exact-SHA CI run 38946377609](https://github.com/kiky217/eg_portable/actions/runs/38946377609), HEAD `309f51c0f0235b76a5989777d5483b0f83bc8b44`, 190 tests passed.
 
-## Remaining protocol and governance blockers
+## Open follow-up work (recorded 2026-10-16)
 
-- #2 PRE currently shares postcondition with POST; distinguish readiness,
-  postconditions, invariants, and action authorization in versioned schema.
-- #3 Step action requirement is client-selectable; action=null can misclassify
-  physical work. Lock step execution type at task registration.
-- #6 No signed NOT_EXECUTED reconciliation path for a paused unexecuted gate.
-- #16 Historical Colab notes and protocol beta markers still require a
-  versioned documentation/protocol migration.
+- [#19](https://github.com/kiky217/eg_portable/issues/19): portable E3–E5 executor capability + hybrid HITL; no approval-only READY.
+- [#20](https://github.com/kiky217/eg_portable/issues/20): mandatory EG-gated agent execution within integrated dispatcher boundaries, including staging; no retrospective verification.
+- [#21](https://github.com/kiky217/eg_portable/issues/21): portable notary secret separation.
+- [#22](https://github.com/kiky217/eg_portable/issues/22): immutable release version versus tested HEAD mismatch.
+- [#23](https://github.com/kiky217/eg_portable/issues/23): documentation drift (this file, now identified as historical).
+- [#24](https://github.com/kiky217/eg_portable/issues/24): PRE supersession protocol contradiction.
+- [#25](https://github.com/kiky217/eg_portable/issues/25): archive/resource budget hardening.
 
-These require coordinated state-machine / protocol migrations and adversarial
-E2E tests. Do not silence failures by changing acceptance, faking a receipt,
-bypassing executor admission, or marking an old task SATISFIED.
+Status may change: follow GitHub rather than interpreting this list as a live snapshot.
 
-## Completed release evidence (CI exact SHA)
+## Mandatory operational distinctions
 
-- v3.1.3 (#7, #9):
-  https://github.com/kiky217/eg_portable/actions/runs/38928398664
-- v3.1.4 (#5):
-  https://github.com/kiky217/eg_portable/actions/runs/38929218945
-- v3.1.5 (#15):
-  https://github.com/kiky217/eg_portable/actions/runs/38929818603
+Every registered step requires EG PRE and POST validation **including staging**. An executable step requires an admitted independent executor and a signed execution receipt. Agent claims, command exit codes, and GitHub CI success are not equivalent to EG VERIFIED. When effects are uncertain, reconcile the original gate and durable work evidence without replay.
 
-**Remaining technical issues:** #2, #3, #6, #14.
-Issue #16 awaits this patch's documentation/hash migration E2E result.
-The audit tracking issue #18 stays open until the remediation program is
-finished. No stable source release equals a LIVE production EG task SATISFIED.
+GitHub source CI, published immutable release assets, independently signed rollback evidence, and an authenticated live production EG `SATISFIED` outcome are **four different claims**. A successful one never implies the others. The historical Colab task records are preserved and cannot be recreated from source control.
 
-## Verification discipline
-
-Every change must be tied to an exact commit SHA, regression run and issue
-acceptance. State only `VERIFIED` for the specific test or gate whose
-readback proves it. GitHub release success alone is not production runtime
-SATISFIED, and no Colab checkpoint is reconstructed from this repository.
-
-## Newer verified work
-
-- v3.1.6 #8: worker capability admission, signed E2E PASS:
-  https://github.com/kiky217/eg_portable/actions/runs/38934279298
-- v3.1.7 #4: payload identity bound before PRE, adversarial signed E2E PASS:
-  https://github.com/kiky217/eg_portable/actions/runs/38935737285
-
-## v3.1.9 cutover reporting safeguard — issue #14 remains open
-
-A valid self-reported cutover archive and backup digest may demonstrate file
-consistency only. It no longer generates `verified=true` or
-`production_cutover_performed=true` on its own. Independent signed provenance
-and an actual restore rehearsal remain explicitly **unverified** until a
-separate trusted evidence contract and real execution test are supplied.
-The historical owner's Colab acceptance is left unmodified.
+For current operational instructions, use [PORTABLE_RUNBOOK.md](PORTABLE_RUNBOOK.md), [EXECUTOR_PROTOCOL.md](EXECUTOR_PROTOCOL.md), and [PRODUCTION_PROMOTION.md](PRODUCTION_PROMOTION.md).
