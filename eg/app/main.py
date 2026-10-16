@@ -44,6 +44,7 @@ API_KEY = os.getenv("EVALUATION_GATEWAY_API_KEY", "")
 HITL_KEY = os.getenv("EVALUATION_GATEWAY_HITL_KEY", "")
 AUDIT_HMAC_KEY = os.getenv("EVALUATION_GATEWAY_AUDIT_HMAC_KEY", "")
 NOTARY_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64", "")
+LEGACY_NOTARY_KEYS_JSON = os.getenv("EVALUATION_GATEWAY_LEGACY_NOTARY_KEYS_JSON", "")
 EXECUTOR_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64", "")
 # Explicit fail-closed deployment mode. Disabled admission serves only
 # historical task reconciliation and authenticated audit.
@@ -444,6 +445,34 @@ def validate_secret(name: str, value: str) -> None:
         raise RuntimeError(f"{name} has insufficient entropy")
 
 
+def legacy_notary_keys() -> list[tuple[str,float]]:
+    """Historical evidence roots with explicit signed-evidence timestamp ceilings.
+
+    A retired root is never authorized for new evidence after its cutoff.
+    Old audit and task contracts remain immutable.
+    """
+    if not LEGACY_NOTARY_KEYS_JSON:
+        return []
+    try:
+        entries=json.loads(LEGACY_NOTARY_KEYS_JSON)
+        if not isinstance(entries,list) or not 1<=len(entries)<=8:
+            raise ValueError("legacy evidence root count invalid")
+        out=[];seen={NOTARY_PUBLIC_KEY_B64,EXECUTOR_PUBLIC_KEY_B64}
+        for entry in entries:
+            if not isinstance(entry,dict) or set(entry)!={"public_b64","valid_before"}:
+                raise ValueError("legacy evidence root schema invalid")
+            pub=entry["public_b64"];end=entry["valid_before"]
+            if not isinstance(pub,str) or pub in seen or type(end) not in (int,float) or not math.isfinite(end) or end<=0:
+                raise ValueError("legacy evidence root duplicate or cutoff invalid")
+            raw=base64.b64decode(pub,validate=True)
+            if len(raw)!=32:raise ValueError("legacy evidence public key invalid")
+            Ed25519PublicKey.from_public_bytes(raw)
+            out.append((pub,float(end)));seen.add(pub)
+        return out
+    except (ValueError,TypeError,KeyError) as exc:
+        raise RuntimeError("INVALID_LEGACY_NOTARY_TRUST_CONFIGURATION") from exc
+
+
 def require_config() -> None:
     if ADMISSION_MODE not in ("enabled", "disabled"):
         raise RuntimeError("invalid EG admission mode")
@@ -463,6 +492,7 @@ def require_config() -> None:
         Ed25519PublicKey.from_public_bytes(raw)
     except Exception as exc:
         raise RuntimeError("invalid evidence notary public key") from exc
+    legacy_notary_keys()  # reject malformed historical trust roots at startup
     if ADMISSION_MODE == "enabled" and not EXECUTOR_PUBLIC_KEY_B64:
         raise RuntimeError("independent executor public key missing: fail closed")
     if EXECUTOR_PUBLIC_KEY_B64:
@@ -695,8 +725,21 @@ def verify_evidence(ev: Evidence, identity: dict[str, Any], not_before: float | 
     signed_payload = {"manifest_version": MANIFEST_VERSION, "task_id": ev.reference, "state_sha256": sh, "stdout_sha256": oh, "finished_at": finished, "bindings": bindings}
     sig_b64 = str(meta.get("notary_ed25519_signature_b64", ""))
     try:
-        pub = Ed25519PublicKey.from_public_bytes(base64.b64decode(NOTARY_PUBLIC_KEY_B64, validate=True))
-        pub.verify(base64.b64decode(sig_b64, validate=True), canon(signed_payload).encode())
+        signature=base64.b64decode(sig_b64,validate=True)
+        signed_bytes=canon(signed_payload).encode()
+        valid_signature=False
+        for key_b64,cutoff in [(NOTARY_PUBLIC_KEY_B64,None),*legacy_notary_keys()]:
+            if cutoff is not None and float(finished)>cutoff:
+                continue
+            try:
+                pub=Ed25519PublicKey.from_public_bytes(base64.b64decode(key_b64,validate=True))
+                pub.verify(signature,signed_bytes)
+                valid_signature=True
+                break
+            except Exception:
+                pass
+        if not valid_signature:
+            raise ValueError("notary trust root does not match signature or retirement cutoff")
     except Exception:
         return _reject("invalid notary signature", oh)
     matches = [b for b in bindings if {k: v for k, v in b.items() if k != "matcher"} == identity]
