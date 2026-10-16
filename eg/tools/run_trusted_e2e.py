@@ -133,8 +133,8 @@ def binding(task,key,criterion,phase,cp,mark,scope='step'):
           'phase':phase,'checkpoint_no':cp,'matcher':{'kind':'contains','value':mark}}
     if scope=='step':data['step_key']=key
     return data
-def e2_action(task,key,cp,target):
-    actual=data(task,key)
+def e2_action(task,key,cp,target,payload=None):
+    actual=data(task,key) if payload is None else payload
     skeleton={'action_type':'write','target':str(target),'effect_class':'E2',
               'reversible':True,'real_world_effect':False,
               'payload_sha256':hashlib.sha256(actual).hexdigest(),

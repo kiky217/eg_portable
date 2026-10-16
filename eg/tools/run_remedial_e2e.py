@@ -61,19 +61,21 @@ def remediate(original,origin_cp,strategy,revision):
     ch=result['contract_hash'];cp=0;repair_file=None
     for index,key in enumerate(ORDER,1):
         crit=key+' evidenced'
-        target=None;action=None
+        target=None;action=None;corrected=None
         if key=='02.01':
             target=X.target(task,key)
-            action=X.e2_action(task,key,cp,target)
-        pre=X.eval_step(task,ch,key,crit,'PRE_EXECUTION',cp,cp,action)
-        assert pre['verdict']=='READY_TO_EXECUTE',(key,pre)
-        proof=None
-        if key=='02.01':
+            # Produce and validate the immutable repair artifact BEFORE PRE.
             manifest={'design_version':revision,'recovery_strategy':strategy,
                       'original_task':original,
                       'acceptance_preserved':'Readback repaired configuration is valid',
                       'configuration':{'mode':'strict','enabled':True}}
             corrected=(json.dumps(manifest,sort_keys=True)+'\n').encode()
+            json.loads(corrected)
+            action=X.e2_action(task,key,cp,target,payload=corrected)
+        pre=X.eval_step(task,ch,key,crit,'PRE_EXECUTION',cp,cp,action)
+        assert pre['verdict']=='READY_TO_EXECUTE',(key,pre)
+        proof=None
+        if key=='02.01':
             signed=X.worker(task,key,action,corrected)
             assert signed['status']=='PASS',signed
             proof=signed['receipt']
