@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from tools.trusted_execution_worker import MAX_NEW_WRITE_LEASE_SECONDS
+from tools.cutover_attestation import verify_independent_cutover
 
 def parse_env(path: Path) -> dict[str, str]:
     values = {}
@@ -164,7 +165,9 @@ def classify_gate(gate: dict | None, action: dict | None,
     }
 
 def inspect_completed_cutover(path: Path | None, audit: dict,
-                              state: dict, db_path: Path) -> dict:
+                              state: dict, db_path: Path,
+                              independent_attestation: Path | None = None,
+                              cutover_public_key_b64: str | None = None) -> dict:
     """Check reported cutover file consistency WITHOUT certifying execution.
 
     Self-reported metadata, matching hashes, and a safe tar format do not
@@ -237,12 +240,15 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
                             pass
         except (tarfile.TarError,EOFError) as exc:
             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_INVALID") from exc
+        independent,reason=verify_independent_cutover(
+            path,old,independent_attestation,cutover_public_key_b64)
         return {
-            "verified": False,
+            "verified": bool(independent),
             "file_consistency_checked": True,
-            "independent_provenance_verified": False,
-            "restore_rehearsal_verified": False,
-            "reason": "CUTOVER_REPORT_CONSISTENT_BUT_INDEPENDENT_PROOF_MISSING",
+            "independent_provenance_verified": bool(independent),
+            "restore_rehearsal_verified": bool(independent),
+            "reason": reason if independent else
+                      "CUTOVER_REPORT_CONSISTENT_BUT_"+reason,
             "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         }
     except (OSError, KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -253,7 +259,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "task", "live-url", "runtime-env-file", "report"):
         parser.add_argument("--" + name, required=True)
-    parser.add_argument("--cutover-report", help="Historical cutover report for read-only consistency; never independent proof of execution")
+    parser.add_argument("--cutover-report", help="Cutover report for read-only verification")
+    parser.add_argument("--cutover-attestation", help="Externally signed cutover+restore attestation")
     args = parser.parse_args()
     db = Path(args.db).resolve()
     runtime = Path(args.runtime_env_file).resolve()
@@ -292,7 +299,9 @@ def main() -> int:
     gate_status = classify_gate(gate, before["action"])
     cutover = inspect_completed_cutover(
         Path(args.cutover_report).resolve() if args.cutover_report else None,
-        audit, before, db)
+        audit, before, db,
+        independent_attestation=Path(args.cutover_attestation).resolve() if args.cutover_attestation else None,
+        cutover_public_key_b64=env.get("EVALUATION_GATEWAY_CUTOVER_PUBLIC_KEY_B64"))
     blockers = ["EXTERNAL_EXECUTOR_TRUST_DOMAIN_NOT_VERIFIED"]
     if not cutover["verified"]:
         blockers.append("OPERATIONAL_CUTOVER_NOT_INDEPENDENTLY_CONFIRMED")
