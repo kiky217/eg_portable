@@ -91,6 +91,7 @@ def main():
     copy_eg_source(STAGE,root/'eg')
     (root/'THIRD_PARTY_LICENSES').mkdir(exist_ok=True)
     license_candidates=[Path(os.getenv('EG_PYTHON_LICENSE_FILE','/nonexistent')),
+                        STAGE/'docs/CPYTHON_LICENSE.md',
                         SYSTEM_STDLIB.parent.parent/'LICENSE',
                         Path('/usr/share/doc/python3.12/copyright')]
     copyright_source=next((q for q in license_candidates if q.is_file()),None)
