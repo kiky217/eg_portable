@@ -234,6 +234,7 @@ class PlanStep(Strict):
     required: bool = True
     execution_required: bool = False  # Immutable step contract; legacy plans remain logical.
     preconditions: list[str] | None = Field(default=None, min_length=1, max_length=100)
+    invariants: list[str] = Field(default_factory=list, max_length=100)
 
     @model_validator(mode="after")
     def strict_required(self):
@@ -243,6 +244,8 @@ class PlanStep(Strict):
             raise ValueError("blank acceptance criterion")
         if self.preconditions is not None and any(not x.strip() for x in self.preconditions):
             raise ValueError("blank precondition")
+        if any(not x.strip() for x in self.invariants):
+            raise ValueError("blank invariant")
         if self.execution_required and not self.preconditions:
             raise ValueError("execution-required step must define separate PRE preconditions")
         return self
@@ -1497,6 +1500,9 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             raise HTTPException(409, {"code": "IMMUTABLE_STEP_REQUIRES_ACTION"})
         if req.phase == "PRE_EXECUTION" and step_contract.get("preconditions") is not None:
             criteria = step_contract["preconditions"]
+        # Invariants remain mandatory in BOTH PRE and POST; they cannot be
+        # silently dropped as the workflow crosses the execution boundary.
+        criteria = [*criteria, *step_contract.get("invariants", [])]
         validate_claim_coverage(criteria, req.claims, "ACCEPTANCE_COVERAGE_INCOMPLETE")
 
         if req.phase == "FACT_CHECK":
