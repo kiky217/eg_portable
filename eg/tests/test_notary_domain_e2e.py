@@ -87,3 +87,20 @@ sys.stdout.buffer.write(key.sign(b'EG separate-UID domain test'))
     assert manifest["bindings"] == [binding]
     assert manifest["stdout_sha256"] == hashlib.sha256(b"readiness verified").hexdigest()
 
+    # Verify the same independent signer through the actual gateway verifier.
+    from harness import gw
+    from cryptography.hazmat.primitives.serialization import PublicFormat
+    from cryptography.hazmat.primitives.serialization import Encoding
+    from unittest.mock import patch
+    pub = base64.b64encode(key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)).decode()
+    with patch.object(gw, "EVIDENCE_ROOT", shared), patch.object(gw, "TRUSTED_UID", NOTARY_UID), patch.object(gw, "NOTARY_PUBLIC_KEY_B64", pub):
+        accepted = gw.verify_evidence(gw.Evidence(source_type="knid_task", reference=evidence.name),
+                                      {k: v for k, v in binding.items() if k != "matcher"})
+        assert accepted.ok, accepted.note
+        forged = dict(binding)
+        forged["criterion"] = "not approved"
+        rejected = gw.verify_evidence(gw.Evidence(source_type="knid_task", reference=evidence.name),
+                                      {k: v for k, v in forged.items() if k != "matcher"})
+        assert not rejected.ok
+
+
