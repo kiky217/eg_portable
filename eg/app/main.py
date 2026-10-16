@@ -338,6 +338,7 @@ class ReconcileRequest(Strict):
     step_key: str = Field(pattern=STEP_RE.pattern)
     action: Action
     proof: dict[str, Any]
+    executor_public_key_b64: str = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_reconcile_ids(self):
@@ -958,7 +959,7 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
                 return False
             aborts[tid] = (int(row["seq"]), rs)
         elif et == "TASK_RECONCILE":
-            if (rq.get("task_id")!=tid or rq.get("step_key")!=rs.get("step_key")
+            if (not rq.get("executor_public_key_b64") or rq.get("task_id")!=tid or rq.get("step_key")!=rs.get("step_key")
                 or rq.get("checkpoint_no")!=rs.get("checkpoint_no")
                 or rs.get("status")!="IN_PROGRESS"
                 or rs.get("reconciled_effect")!="NOT_EXECUTED"):
@@ -1068,7 +1069,7 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
                 return False
             saved=c.execute("SELECT created_at FROM execution_gates WHERE task_id=? AND step_key=? AND pre_checkpoint_no=?",gate_key).fetchone()
             if (not saved or not verify_no_effect(rq.get("proof"),
-                    public_b64=EXECUTOR_PUBLIC_KEY_B64,task_id=tid,
+                    public_b64=rq["executor_public_key_b64"],task_id=tid,
                     step_key=rq["step_key"],gate_checkpoint_no=g["pre_checkpoint_no"],
                     action_fingerprint=g["action_fingerprint"],target=rq["action"]["target"],
                     gate_created_at=saved[0])):
@@ -1745,6 +1746,8 @@ def reconcile_task(task_id: str, req: ReconcileRequest):
         if (req.action.action_type!="write" or req.action.effect_class!="E2"
             or not ct(gate["action_fingerprint"],action_fingerprint(req.action))):
             raise HTTPException(409,{"code":"RECONCILIATION_ACTION_MISMATCH"})
+        if not ct(req.executor_public_key_b64, EXECUTOR_PUBLIC_KEY_B64):
+            raise HTTPException(409,{"code":"RECONCILIATION_EXECUTOR_TRUST_MISMATCH"})
         if not verify_no_effect(req.proof,public_b64=EXECUTOR_PUBLIC_KEY_B64,
                 task_id=task_id,step_key=req.step_key,
                 gate_checkpoint_no=int(gate["pre_checkpoint_no"]),
