@@ -1,5 +1,8 @@
 """Separate-UID notary signing, denied EG identity, and public-key verification."""
 import base64
+import json
+import time
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -48,3 +51,34 @@ sys.stdout.buffer.write(key.sign(b'EG separate-UID domain test'))
     authorized = run(NOTARY_UID)
     assert authorized.returncode == 0, authorized.stderr
     key.public_key().verify(authorized.stdout, b"EG separate-UID domain test")
+    # Use the actual manifest-v4 notary under its distinct identity.
+    evidence = shared / "evidence-task"
+    evidence.mkdir(mode=0o755)
+    os.chown(evidence, NOTARY_UID, NOTARY_UID)
+    state = {"task_id": evidence.name, "status": "PASS", "exit_code": 0,
+             "finished_at": time.time()}
+    (evidence / "state.json").write_text(json.dumps(state))
+    (evidence / "stdout.log").write_text("readiness verified")
+    binding = {"kind": "step_criterion", "eg_task_id": "demo-task",
+               "step_key": "01.01", "criterion_index": 0, "criterion": "ready",
+               "phase": "PRE_EXECUTION", "checkpoint_no": 0,
+               "matcher": {"kind": "contains", "value": "readiness verified"}}
+    bindings = shared / "bindings.json"
+    bindings.write_text(json.dumps([binding]))
+    for item in (bindings, evidence / "state.json", evidence / "stdout.log"):
+        item.chmod(0o644)
+    notarizer = Path(__file__).resolve().parents[1] / "tools" / "notarize_evidence.py"
+    signed = subprocess.run([sys.executable, str(notarizer), str(pem),
+                             str(evidence), str(bindings)],
+                            preexec_fn=lambda: (os.setgroups([]), os.setgid(NOTARY_UID),
+                                                os.setuid(NOTARY_UID)),
+                            capture_output=True, timeout=15)
+    assert signed.returncode == 0, signed.stderr
+    manifest = json.loads((evidence / "evidence.json").read_text())
+    signature = base64.b64decode(manifest.pop("notary_ed25519_signature_b64"))
+    payload = json.dumps(manifest, sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False).encode()
+    key.public_key().verify(signature, payload)
+    assert manifest["bindings"] == [binding]
+    assert manifest["stdout_sha256"] == hashlib.sha256(b"readiness verified").hexdigest()
+
