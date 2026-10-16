@@ -92,8 +92,36 @@ class TrustedWriter:
                 detail["task"]["contract_status"]!="OPEN"):
                 raise WorkerDenied("NO_PENDING_RECOVERY_GATE")
             intent=self.journal/(task.replace("/","_")+"-"+step+".json")
-            if intent.is_symlink() or intent.exists() or target.is_symlink() or target.exists():
-                raise WorkerDenied("NO_EFFECT_UNPROVEN_OR_DURABLE_INTENT_PRESENT")
+            retired=self.journal/(task.replace("/","_")+"-"+step+"-"+str(gate["pre_checkpoint_no"])+".no-effect.json")
+            if intent.is_symlink() or retired.is_symlink() or target.is_symlink() or target.exists():
+                raise WorkerDenied("NO_EFFECT_UNPROVEN_OR_TARGET_PRESENT")
+            if intent.exists():
+                if retired.exists() or not intent.is_file():
+                    raise WorkerDenied("AMBIGUOUS_WORKER_RECOVERY_JOURNAL")
+                initial=json.loads(intent.read_text())
+                if (initial.get("stage")!="INTENT_DURABLE" or
+                    initial.get("task_id")!=task or initial.get("step_key")!=step or
+                    initial.get("gate")!=gate["pre_checkpoint_no"] or
+                    initial.get("target")!=str(target) or
+                    initial.get("action_fingerprint")!=gate["action_fingerprint"]):
+                    raise WorkerDenied("INTENT_NOT_SAFE_TO_RETIRE")
+                # This exclusive worker lock is the only writer admission.
+                # No target was ever created; preserve the original durable
+                # intent as a gate-specific retired record rather than delete it.
+                os.replace(intent,retired)
+                dfd=os.open(self.journal,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+                try:os.fsync(dfd)
+                finally:os.close(dfd)
+            elif retired.exists():
+                if not retired.is_file():
+                    raise WorkerDenied("RETIRED_INTENT_NOT_REGULAR")
+                initial=json.loads(retired.read_text())
+                if (initial.get("stage")!="INTENT_DURABLE" or
+                    initial.get("gate")!=gate["pre_checkpoint_no"] or
+                    initial.get("task_id")!=task or initial.get("step_key")!=step or
+                    initial.get("target")!=str(target) or
+                    initial.get("action_fingerprint")!=gate["action_fingerprint"]):
+                    raise WorkerDenied("RETIRED_INTENT_MISMATCH")
             return sign_no_effect(
                 self.private,task_id=task,step_key=step,
                 gate_checkpoint_no=gate["pre_checkpoint_no"],
