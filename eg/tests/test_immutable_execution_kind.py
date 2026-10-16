@@ -10,6 +10,7 @@ def test_immutable_action_required_rejects_null_before_checkpoint():
         "steps":[
             {"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"]},
             {"step_key":"01.01","title":"Verify physical work",
+             "preconditions":["ready to create output"],
              "acceptance_criteria":["output is created"],"execution_required":True}
         ],
     }
