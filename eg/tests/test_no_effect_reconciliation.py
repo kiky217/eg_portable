@@ -20,7 +20,8 @@ def test_signed_no_effect_closes_gate_without_advancing_step():
                          target=action["target"],executor_id="trusted-worker-test-fixture")
     req={"event_id":eid("reconcile"),"contract_hash":ch,
          "protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,
-         "step_key":"01.01","action":action,"proof":proof}
+         "step_key":"01.01","action":action,"proof":proof,
+         "executor_public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
     bad=dict(req,event_id=eid("bad-proof"),proof=dict(proof,signature_b64="invalid"))
     invalid=CLIENT.post("/v1/tasks/"+task+"/reconcile",headers=HEAD,json=bad)
     assert invalid.status_code==409
