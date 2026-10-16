@@ -48,12 +48,14 @@ jobs:
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
       - name: Remedial E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
-      - name: Build portable archive from current source
-        working-directory: eg
+      - name: Build portable archive against Debian Bookworm glibc
         run: |
-          python tools/build_portable_bundle.py
-          version="$(cat VERSION)"
-          cd ../dist
+          docker run --rm -v "$PWD:/source" -w /source/eg python:3.12.15-slim-bookworm /bin/sh -ec '
+            python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.lock
+            python tools/build_portable_bundle.py
+          '
+          version="$(cat eg/VERSION)"
+          cd dist
           sha256sum "eg-portable-${version}-linux-amd64.tar.gz" > "eg-portable-${version}-linux-amd64.tar.gz.sha256"
           sha256sum -c "eg-portable-${version}-linux-amd64.tar.gz.sha256"
       - name: Verify offline relocation
