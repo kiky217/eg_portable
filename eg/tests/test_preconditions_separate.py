@@ -15,13 +15,13 @@ def test_precondition_does_not_require_future_postcondition():
     ch=reg.json()["contract_hash"]
     ref=step_ref(task,"PRE_EXECUTION",0,step="01.01",
                  criteria=[(0,"baseline ready")])
-    pre=raw_eval(task,ch,0,step="01",
+    pre=raw_eval(task,ch,0,step="01.01",
                  claims=[claim(ref,0,"baseline ready")])
     assert pre.status_code==200,pre.text
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
     ref2=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],
-                  step="01",criteria=[(0,"new output exists")])
-    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01",
+                  step="01.01",criteria=[(0,"new output exists")])
+    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
                   claims=[claim(ref2,0,"new output exists")],
                   finalize=True,task_claims=[])
     assert post.status_code==409 or post.json().get("verdict")!="VERIFIED_PASS"
