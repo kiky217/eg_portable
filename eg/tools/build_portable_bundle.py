@@ -19,13 +19,13 @@ PY_RUNTIME=f'{sys.version_info.major}.{sys.version_info.minor}'
 FILTER={'__pycache__','.pytest_cache','.git','_runtime','data','secrets',
         'notary','e2e-instance','worker','journals','outputs','.venv'}
 EXCLUDE_SUFFIX={'.pyc','.pyo','.pem','.db','.sqlite','.sqlite3','.jsonl','.sock','.key','.p12'}
-def copy_source(source,target,ignore_large=False):
+def copy_source(source,target,ignore_large=False,merge=False):
     def ignore(dirname,names):
         denied={v for v in names if v in FILTER or Path(v).suffix in EXCLUDE_SUFFIX}
         if ignore_large:
             denied|={v for v in names if v in {'test','tests','ensurepip','idlelib','tkinter','turtledemo'}}
         return denied
-    shutil.copytree(source,target,ignore=ignore,dirs_exist_ok=False,symlinks=False)
+    shutil.copytree(source,target,ignore=ignore,dirs_exist_ok=merge,symlinks=False)
 
 def write_text(path,data):
     path.write_text(data);path.chmod(0o644)
@@ -49,7 +49,7 @@ def main():
     shutil.copy2(SYSTEM_PY,root/'python/bin/python3.12')
     (root/'python/bin/python3.12').chmod(0o755)
     copy_source(SYSTEM_STDLIB,root/'python/lib/python3.12',ignore_large=True)
-    copy_source(SITE,root/'python/lib/python3.12/site-packages')
+    copy_source(SITE,root/'python/lib/python3.12/site-packages',merge=True)
     copy_source(STAGE,root/'eg')
     (root/'THIRD_PARTY_LICENSES').mkdir(exist_ok=True)
     license_candidates=[Path(os.getenv('EG_PYTHON_LICENSE_FILE','/nonexistent')),
