@@ -63,8 +63,8 @@ consistent SQLite and external-anchor/evidence backups, restore rehearsal,
 single-writer transition, runtime health and authenticated ledger continuity,
 and documented rollback. Each mutation still needs PRE, execution receipt,
 POST. Backup checksums or a self-reported owner PASS alone do not prove the
-effect or mark the EG step VERIFIED. Issue #14 tracks independent archive
-provenance and restore rehearsal.
+effect or mark the EG step VERIFIED. Issue #14 delivered independent archive
+provenance and isolated restore rehearsal; neither proves a live production cutover.
 
 ## Timeout, pause and UNKNOWN effects
 
@@ -73,10 +73,13 @@ gate, task checkpoint, worker journal, signed receipt and target before any
 retry. A sealed valid receipt may be recovered read-only without replay.
 Keep uncertain effects in RECOVERY_PENDING.
 
-**Known limitation #6:** there is not yet a complete independently signed
-NOT_EXECUTED path for an unexecuted unresolved gate. Do not assert no-effect
-or issue a new PRE based merely on an absent HTTP acknowledgement or empty
-file. Keep the task BLOCKED pending authenticated reconciliation.
+**Implemented reconciliation (#6):** the protected worker may independently
+sign `NOT_EXECUTED` only after checking the original gate, durable journal,
+and actual target. Submit that proof via `/v1/tasks/{task_id}/reconcile`;
+this consumes the old gate without verifying the step and permits a fresh
+PRE. A sealed original receipt must instead be recovered for an executed
+effect. Missing acknowledgement alone is never proof of no effect. UNKNOWN
+remains BLOCKED.
 
 ## Historical examples and release verification
 
