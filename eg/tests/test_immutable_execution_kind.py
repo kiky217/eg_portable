@@ -26,3 +26,15 @@ def test_immutable_action_required_rejects_null_before_checkpoint():
     state=CLIENT.get("/v1/tasks/"+task+"/state",headers=HEAD).json()
     assert state["latest_checkpoint"] is None
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
+
+def test_action_step_cannot_register_without_independent_preconditions():
+    task=eid("physical-missing-pre")
+    body={"event_id":eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),
+          "agent":"ChatGPT","original_instruction":"create an output",
+          "acceptance_criteria":["output verified"],
+          "steps":[{"step_key":"01","title":"Parent","acceptance_criteria":["parent"]},
+                   {"step_key":"01.01","title":"Physical action",
+                    "acceptance_criteria":["output exists"],"execution_required":True}]}
+    response=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
+    assert response.status_code==422,response.text
+    assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
