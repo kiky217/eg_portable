@@ -247,8 +247,10 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
             "file_consistency_checked": True,
             "independent_provenance_verified": bool(independent),
             "restore_rehearsal_verified": bool(independent),
-            "reason": reason if independent else
-                      "CUTOVER_REPORT_CONSISTENT_BUT_"+reason,
+            "reason": reason if independent else (
+                "CUTOVER_REPORT_CONSISTENT_BUT_INDEPENDENT_PROOF_MISSING"
+                if reason=="INDEPENDENT_CUTOVER_ATTESTATION_MISSING"
+                else "CUTOVER_REPORT_CONSISTENT_BUT_"+reason),
             "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         }
     except (OSError, KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
