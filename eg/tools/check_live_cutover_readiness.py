@@ -243,11 +243,13 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
         independent,reason=verify_independent_cutover(
             path,old,independent_attestation,cutover_public_key_b64)
         return {
-            "verified": bool(independent),
+            "verified": False,  # independent archive proof != EG execution step
             "file_consistency_checked": True,
             "independent_provenance_verified": bool(independent),
             "restore_rehearsal_verified": bool(independent),
-            "reason": reason if independent else (
+            "operational_cutover_attested": bool(independent),
+            "eg_step_verified": False,
+            "reason": "EG_CUTOVER_STEP_NOT_VERIFIED" if independent else (
                 "CUTOVER_REPORT_CONSISTENT_BUT_INDEPENDENT_PROOF_MISSING"
                 if reason=="INDEPENDENT_CUTOVER_ATTESTATION_MISSING"
                 else "CUTOVER_REPORT_CONSISTENT_BUT_"+reason),
