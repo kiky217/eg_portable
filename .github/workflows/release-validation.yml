@@ -28,7 +28,9 @@ jobs:
           python-version: "3.12"
       - name: Install hash-locked runtime
         working-directory: eg
-        run: python -m pip install --only-binary=:all: --require-hashes -r requirements.lock
+        run: |
+          python -m pip install --only-binary=:all: \
+            --require-hashes -r requirements.lock
       - name: Install test-only dependencies
         run: python -m pip install "pytest==9.1.1" "httpx==0.28.1"
       - name: Unit and regression suite
