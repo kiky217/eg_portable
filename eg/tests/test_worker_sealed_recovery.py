@@ -14,6 +14,8 @@ def test_sealed_receipt_survives_failed_post_and_retries_without_new_effect(tmp_
     journal=tmp_path/'journal'
     output.mkdir(mode=0o700)
     journal.mkdir(mode=0o700)
+    # This isolated worker provisions a different legitimate output_root.
+    monkeypatch.setattr(H.gw, 'EXECUTOR_OUTPUT_ROOT', str(output))
     target=output/'result.txt'
     action=e2_action(task,0,target=str(target))
     key=tmp_path/'worker.key'
