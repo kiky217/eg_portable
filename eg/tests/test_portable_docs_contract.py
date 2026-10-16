@@ -20,7 +20,10 @@ def test_current_protocol_identity_is_stable_and_sha_bound():
     data=r.json()
     assert data["version"]=="3.1"
     assert data["hash"]==hashlib.sha256(raw).hexdigest()
-    assert (ROOT/"VERSION").read_text().strip()=="3.1.8"
+    import re
+    version=(ROOT/"VERSION").read_text().strip()
+    assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+",version)
+    assert gw.APP_VERSION==version
     assert gw.MANIFEST_VERSION==4
     assert "4.0 candidate" not in (ROOT/"app/execution_receipts.py").read_text()
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
