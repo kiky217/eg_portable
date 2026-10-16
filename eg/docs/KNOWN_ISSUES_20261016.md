@@ -75,3 +75,12 @@ SATISFIED, and no Colab checkpoint is reconstructed from this repository.
   https://github.com/kiky217/eg_portable/actions/runs/38934279298
 - v3.1.7 #4: payload identity bound before PRE, adversarial signed E2E PASS:
   https://github.com/kiky217/eg_portable/actions/runs/38935737285
+
+## v3.1.9 cutover reporting safeguard — issue #14 remains open
+
+A valid self-reported cutover archive and backup digest may demonstrate file
+consistency only. It no longer generates `verified=true` or
+`production_cutover_performed=true` on its own. Independent signed provenance
+and an actual restore rehearsal remain explicitly **unverified** until a
+separate trusted evidence contract and real execution test are supplied.
+The historical owner's Colab acceptance is left unmodified.

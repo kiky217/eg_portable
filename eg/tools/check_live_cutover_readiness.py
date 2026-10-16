@@ -165,10 +165,12 @@ def classify_gate(gate: dict | None, action: dict | None,
 
 def inspect_completed_cutover(path: Path | None, audit: dict,
                               state: dict, db_path: Path) -> dict:
-    """Check real completed-service cutover evidence, not worker admission.
+    """Check reported cutover file consistency WITHOUT certifying execution.
 
-    A cutover report cannot attest root isolation or substitute for a signed
-    EG execution receipt. All referenced rollback artefacts must still exist.
+    Self-reported metadata, matching hashes, and a safe tar format do not
+    prove an independently authorized cutover or a rehearsed restore.
+    Never return verified=True until external provenance and actual restore
+    rehearsal have a distinct verifiable contract.
     """
     if path is None:
         return {"verified": False, "reason": "NO_CUTOVER_REPORT_SUPPLIED"}
@@ -235,8 +237,14 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
                             pass
         except (tarfile.TarError,EOFError) as exc:
             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_INVALID") from exc
-        return {"verified": True, "reason": "LIVE_AND_BACKUP_MATCH",
-                "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        return {
+            "verified": False,
+            "file_consistency_checked": True,
+            "independent_provenance_verified": False,
+            "restore_rehearsal_verified": False,
+            "reason": "CUTOVER_REPORT_CONSISTENT_BUT_INDEPENDENT_PROOF_MISSING",
+            "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
     except (OSError, KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
         return {"verified": False, "reason": str(exc)[:180]}
 
@@ -245,7 +253,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "task", "live-url", "runtime-env-file", "report"):
         parser.add_argument("--" + name, required=True)
-    parser.add_argument("--cutover-report", help="Existing completed-cutover report (read-only)")
+    parser.add_argument("--cutover-report", help="Historical cutover report for read-only consistency; never independent proof of execution")
     args = parser.parse_args()
     db = Path(args.db).resolve()
     runtime = Path(args.runtime_env_file).resolve()
@@ -308,6 +316,7 @@ def main() -> int:
         "blockers": blockers,
         "operational_cutover": cutover,
         "production_cutover_performed": cutover["verified"],
+        "owner_reported_cutover_file_consistency": cutover.get("file_consistency_checked",False),
         "external_signer_root_isolation_proven": False,
         "canonical_mutation_performed": False,
     }

@@ -45,11 +45,14 @@ def fixture(tmp_path):
     return receipt, db, audit, state, data
 
 
-def test_verified_cutover_keeps_executor_admission_separate(tmp_path):
+def test_valid_archive_still_does_not_prove_independent_cutover(tmp_path):
     p, db, audit, state, _ = fixture(tmp_path)
     result = inspect_completed_cutover(p, audit, state, db)
-    assert result["verified"]
-    assert result["reason"] == "LIVE_AND_BACKUP_MATCH"
+    assert result["file_consistency_checked"]
+    assert result["verified"] is False
+    assert result["independent_provenance_verified"] is False
+    assert result["restore_rehearsal_verified"] is False
+    assert result["reason"] == "CUTOVER_REPORT_CONSISTENT_BUT_INDEPENDENT_PROOF_MISSING"
 
 
 def test_subsequent_audit_events_do_not_undo_real_cutover(tmp_path):
@@ -58,7 +61,9 @@ def test_subsequent_audit_events_do_not_undo_real_cutover(tmp_path):
         conn.execute("insert into audit values (185, ?)", ("b" * 64,))
     audit.update({"records": 185, "head": "b" * 64})
     state["checkpoint"] = 27
-    assert inspect_completed_cutover(p, audit, state, db)["verified"]
+    result=inspect_completed_cutover(p,audit,state,db)
+    assert result["file_consistency_checked"]
+    assert result["verified"] is False
 
 
 def test_wrong_audit_head_never_claims_completed_cutover(tmp_path):
@@ -101,3 +106,30 @@ def test_malformed_runtime_archive_even_with_digest_rejected(tmp_path):
     data["legacy_source_archive_sha256"]=hashlib.sha256(Path(path).read_bytes()).hexdigest()
     p.write_text(json.dumps(data))
     assert not inspect_completed_cutover(p,audit,state,db)["verified"]
+
+def test_self_declared_independent_success_cannot_override_failed_attestation(tmp_path):
+    p,db,audit,state,data=fixture(tmp_path)
+    data["independent_provenance_verified"]=True
+    data["restore_rehearsal_verified"]=True
+    data["production_cutover_performed"]=True
+    p.write_text(json.dumps(data))
+    result=inspect_completed_cutover(p,audit,state,db)
+    assert result["file_consistency_checked"] is True
+    assert result["verified"] is False
+    assert result["independent_provenance_verified"] is False
+    assert result["restore_rehearsal_verified"] is False
+
+def test_valid_hash_but_changed_archive_not_independent_execution_proof(tmp_path):
+    p,db,audit,state,data=fixture(tmp_path)
+    archive=data["legacy_source_archive"]
+    with tarfile.open(archive,"w:gz") as tar:
+        body=b"arbitrary replacement; valid tar but not a rehearsed rollback"
+        info=tarfile.TarInfo("runtime/main.py")
+        info.size=len(body)
+        tar.addfile(info,io.BytesIO(body))
+    data["legacy_source_archive_sha256"]=hashlib.sha256(
+        __import__("pathlib").Path(archive).read_bytes()).hexdigest()
+    p.write_text(json.dumps(data))
+    result=inspect_completed_cutover(p,audit,state,db)
+    assert result["file_consistency_checked"] is True
+    assert result["verified"] is False
