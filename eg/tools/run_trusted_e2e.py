@@ -82,7 +82,11 @@ def start():
         try:
             if json.loads(urlopen(EG_URL+'/health',timeout=0.4).read()).get('status')=='PASS':break
         except Exception:pass
-        if ep.poll() is not None:raise RuntimeError('EG_STAGING_FAILED_TO_START')
+        if ep.poll() is not None:
+            diagnostics=(SESSION/'eg-process.log').read_text(errors='replace')[-2200:]
+            for sensitive in (EG_API,EG_HITL,EG_AUDIT,raw_pub(EG_NOTARY),raw_pub(EXEC_NOTARY)):
+                diagnostics=diagnostics.replace(sensitive,'[REDACTED]')
+            raise RuntimeError('EG_STAGING_FAILED_TO_START: '+diagnostics)
         time.sleep(0.1)
     else:raise RuntimeError('EG_STAGING_HEALTH_TIMEOUT')
     wp=subprocess.Popen([sys.executable,str(STAGE/'tools/trusted_execution_worker.py'),str(worker_config)],
