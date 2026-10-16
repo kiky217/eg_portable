@@ -14,6 +14,8 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import tarfile
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from tools.trusted_execution_worker import MAX_NEW_WRITE_LEASE_SECONDS
@@ -34,6 +36,38 @@ def get_json(url: str, api_key: str) -> dict:
         assert response.status == 200
         return json.load(response)
 
+def parse_loopback_http_url(value: str) -> str:
+    """Only local HTTP endpoints on explicitly configured valid ports."""
+    try:
+        parsed=urlsplit(value.rstrip('/'))
+        if (parsed.scheme!='http' or parsed.hostname not in
+                ('127.0.0.1','localhost','::1') or
+                parsed.username is not None or parsed.password is not None or
+                parsed.path or parsed.query or parsed.fragment or
+                parsed.port is None or not 1<=parsed.port<=65535):
+            raise ValueError('URL_NOT_RESTRICTED_LOOPBACK')
+        return value.rstrip('/')
+    except ValueError as error:
+        raise RuntimeError('REFUSE_NONLOCAL_OR_UNEXPECTED_LIVE_URL') from error
+
+def _next_current_step(rows) -> str | None:
+    """Same postorder as EG hierarchy: children before parent, siblings numeric."""
+    keys=[row['step_key'] for row in rows]
+    verified={row['step_key'] for row in rows if row['verified']}
+    children={}
+    for key in keys:
+        parent=key.rsplit('.',1)[0] if '.' in key else None
+        children.setdefault(parent,[]).append(key)
+    ordered=[]
+    def walk(key):
+        for child in sorted(children.get(key,[]),
+                            key=lambda v:int(v.rsplit('.',1)[-1])):
+            walk(child)
+        ordered.append(key)
+    for root in sorted(children.get(None,[]),key=lambda v:int(v)):
+        walk(root)
+    return next((key for key in ordered if key not in verified),None)
+
 def canonical(db_path: Path, task: str) -> dict:
     conn = sqlite3.connect("file:" + str(db_path) + "?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
@@ -51,11 +85,22 @@ def canonical(db_path: Path, task: str) -> dict:
         audit = conn.execute(
             "SELECT COUNT(*) AS records,MAX(seq) AS last_seq FROM audit",
         ).fetchone()
-        gate = conn.execute(
-            "SELECT step_key,pre_checkpoint_no,created_at,action_fingerprint "
-            "FROM execution_gates WHERE task_id=? AND consumed=0 "
-            "ORDER BY pre_checkpoint_no DESC LIMIT 1", (task,),
-        ).fetchone()
+        steps=conn.execute(
+            "SELECT step_key,verified FROM task_registry_steps "
+            "WHERE task_id=? ORDER BY step_no",(task,)
+        ).fetchall()
+        current=_next_current_step(steps)
+        gate=None
+        if current:
+            candidate=conn.execute(
+                "SELECT step_key,pre_checkpoint_no,created_at,action_fingerprint,"
+                "pre_verdict,consumed FROM execution_gates "
+                "WHERE task_id=? AND step_key=? ORDER BY gate_id DESC LIMIT 1",
+                (task,current),
+            ).fetchone()
+            if (candidate and candidate["pre_verdict"]=="READY_TO_EXECUTE"
+                    and not candidate["consumed"]):
+                gate=candidate
         action = None
         if gate:
             for event in conn.execute(
@@ -79,7 +124,8 @@ def canonical(db_path: Path, task: str) -> dict:
             "verified": counts["verified"] or 0,
             "audit_records": audit["records"],
             "audit_last_seq": audit["last_seq"],
-            "gate": dict(gate) if gate else None,
+            "gate": {k:gate[k] for k in ("step_key","pre_checkpoint_no",
+                     "created_at","action_fingerprint")} if gate else None,
             "action": action,
         }
     finally:
@@ -165,6 +211,30 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
         old = Path(report["legacy_source_archive"]).resolve(strict=True)
         if not old.is_file() or old.stat().st_size == 0:
             raise ValueError("CUTOVER_ROLLBACK_RUNTIME_NOT_PRESERVED")
+        expected=report.get("legacy_source_archive_sha256")
+        if not isinstance(expected,str) or len(expected)!=64:
+            raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_DIGEST_REQUIRED")
+        archive_digest=hashlib.sha256(old.read_bytes()).hexdigest()
+        if archive_digest!=expected:
+            raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_DIGEST_MISMATCH")
+        try:
+            with tarfile.open(old,mode="r:*") as archive:
+                entries=archive.getmembers()
+                if not entries or any(Path(e.name).is_absolute() or
+                                      '..' in Path(e.name).parts or
+                                      not (e.isfile() or e.isdir())
+                                      for e in entries):
+                    raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_UNSAFE")
+                # Read every file stream to detect truncation/format corruption.
+                for entry in entries:
+                    if entry.isfile():
+                        stream=archive.extractfile(entry)
+                        if stream is None:
+                            raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_UNREADABLE")
+                        for _ in iter(lambda:stream.read(1 << 20),b''):
+                            pass
+        except (tarfile.TarError,EOFError) as exc:
+            raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_INVALID") from exc
         return {"verified": True, "reason": "LIVE_AND_BACKUP_MATCH",
                 "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
     except (OSError, KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -188,9 +258,7 @@ def main() -> int:
     api_key = env.get("EVALUATION_GATEWAY_API_KEY")
     if not api_key:
         raise RuntimeError("API_KEY_UNAVAILABLE")
-    url = args.live_url.rstrip("/")
-    if url not in ("http://127.0.0.1:18765", "http://localhost:18765"):
-        raise RuntimeError("REFUSE_NONLOCAL_OR_UNEXPECTED_LIVE_URL")
+    url = parse_loopback_http_url(args.live_url)
     before = canonical(db, args.task)
     audit = get_json(url + "/v1/audit/verify", api_key)
     live = get_json(url + "/v1/tasks/" + args.task + "/state", api_key)
@@ -198,7 +266,7 @@ def main() -> int:
         raise RuntimeError("LIVE_AUDIT_NOT_VERIFIED")
     if (
         audit["records"] != before["audit_records"]
-        or live["latest_checkpoint"]["checkpoint_no"] != before["checkpoint"]
+        or (live.get("latest_checkpoint") or {}).get("checkpoint_no",0) != before["checkpoint"]
         or live["contract_status"] != before["contract"]
         or live["pending_execution_gate"] is None and before["gate"] is not None
     ):
