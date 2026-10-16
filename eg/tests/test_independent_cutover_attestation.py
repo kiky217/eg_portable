@@ -28,11 +28,13 @@ def test_distinct_attestor_real_restore_and_authenticated_provenance(tmp_path):
     report,db,audit,state,data=fixture(tmp_path)
     attestation,pub=make_attestation(tmp_path,report,data)
     result=inspect_completed_cutover(report,audit,state,db,attestation,pub)
-    assert result["verified"] is True
+    assert result["verified"] is False  # no separate EG step receipt or capability
+    assert result["operational_cutover_attested"] is True
+    assert result["eg_step_verified"] is False
     assert result["file_consistency_checked"] is True
     assert result["independent_provenance_verified"] is True
     assert result["restore_rehearsal_verified"] is True
-    assert result["reason"]=="INDEPENDENT_CUTOVER_AND_RESTORE_ATTESTED"
+    assert result["reason"]=="EG_CUTOVER_STEP_NOT_VERIFIED"
     assert rehearse_restore(data["legacy_source_archive"])
 
 def test_fake_provenance_and_wrong_root_remain_fail_closed(tmp_path):
