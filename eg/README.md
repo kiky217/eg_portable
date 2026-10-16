@@ -1,59 +1,42 @@
-# Evaluation Gateway — one system
+# Evaluation Gateway — application and developer guide
 
-EG has one canonical implementation: `app/main.py`, one schema-backed task
-registry, one authenticated audit chain, and one protocol: `docs/EXECUTOR_PROTOCOL.md`.
-The `tools/trusted_execution_worker.py` is a capability adapter bound to EG
-PRE gates, **not** another task manager or verification implementation.
+Evaluation Gateway (EG) checks work **one step at a time**. An agent registers its plan, proves it is safe and ready to perform the next step, runs an authorized action through a trusted worker, and submits independent evidence that the result meets the plan.
 
-## Supported environments
+**Every step must be verified — including staging, testing, recovery, and cutover steps.** EG does not allow a supported physical action to be presented as verified merely because it was performed or reported afterward.
 
-Portable offline target is Linux x86-64 compatible with bundled CPython 3.12
-and its shared libraries. Other OS/architectures fail closed until a platform
-adapter has been independently tested. No Colab-specific path is required.
+For the project overview, see the [main README](../README.md).
 
-## Lifecycle
+## How a task progresses
 
-REGISTER → sequential PRE → EG-authorized trusted executor → signed execution
-receipt → independently verified POST → VERIFIED_PASS → next step. Completion
-requires every required step and the task-global acceptance; the returned
-SATISFIED status must be read back with authenticated full-chain audit PASS.
+1. **REGISTER:** Create an immutable task with ordered steps, required outcomes, and explicit logical/physical classification.
+2. **PRE_EXECUTION:** Verify readiness using criteria separate from the future result. Required invariants are checked here too.
+3. **EXECUTE:** A supported, independently protected worker checks the authorized gate and performs the effect once.
+4. **POST_EXECUTION:** Verify the actual result and unchanged invariants, using fresh evidence and the original signed execution receipt.
+5. **VERIFIED:** Only a verified step allows advancement. Final task completion additionally checks task-wide acceptance and the audit history.
 
-Pause can persist indefinitely; new execution authorizations expire separately.
-Resume after uncertain mutations enters RECOVERY_PENDING, preventing duplicate
-WRITE. Remediation and REPLAN are governed by the same task registry, and
-linked remedial tasks are governed records, not alternative EG instances.
+```text
+REGISTER → PRE → trusted worker → signed receipt → POST → VERIFIED → next step
+```
 
-## Current portable operation
+If POST fails, EG does not authorize repeating the physical action. An interruption triggers recovery: prove the effect happened and reuse its receipt, prove it did not happen and request a fresh PRE, or remain blocked if the effect is unknown.
 
-For new deployment, staging, cutover and recovery, follow
-[PORTABLE_RUNBOOK.md](docs/PORTABLE_RUNBOOK.md). Read the current authenticated
-EG state, live admission and source SHA; no historical Colab task, checkpoint,
-port or path supplies a default for another environment.
+## Current capabilities and boundaries
 
-The 2026-10-15 Colab cutover and owner's operational acceptance are archived
-in [its historical record](docs/ACCEPTANCE_POST_CUTOVER_20261016.md) and
-[JSON](docs/acceptance-post-cutover-20261016.json). They are not a substitute
-for an actual current EG VERIFIED step or independent executor admission.
+EG provides a task registry, hierarchical step ordering, evidence validation, explicit PRE/POST checkpoints, authenticated audit history, pause/resume, failure escalation, linked remediation, and controlled recovery. A separate cutover checker can verify signed provenance and rehearse restoration, but this does **not** by itself certify a production service cutover.
 
-## Production admission
+The built-in worker admits only restricted **E0 reads** and reversible **E2 file writes**, limited to `.txt` and valid `.json` inside its protected `output_root`, with a maximum content size of 512 KiB. E3–E5 and arbitrary shell/service changes are **not** supported by this adapter and must be blocked. HITL approval is separate from executor capability.
 
-Never grant the worker signing key to the agent. An EG instance configured
-with a trusted-worker public key that is not backed by an actually isolated
-executor must refuse all actionable effects. Same-host UID separation does
-not constrain a Colab host-root agent. For E0 reads and restricted reversible
-E2 file creates, the worker binds receipts to the EG gate and action. The
-bounded worker supports `.txt` and valid `.json` output inside its protected
-`output_root`, never an arbitrary host-owned path. Other operations are
-currently unsupported and must fail closed.
+A production instance requires external durable state, protected signing keys, and worker privileges isolated from the agent. Neither a GitHub release nor local tests prove that a specific external instance is production-ready.
 
-Initialize only as nonroot, with an external EG_STATE_DIR on a trusted durable
-volume and externally protected signing roots. The offline bundle ships neither
-secrets nor initialized task databases. Do not interpret an arbitrary mounted
-path as a proven persistent database/anchor.
+## Environment and operations
+
+The supported portable offline target is **Linux x86-64 with CPython 3.12-compatible glibc**. No particular Colab runtime or workspace path is required. Other platforms need independently tested adapters.
+
+For deployment and recovery, use the [portable runbook](docs/PORTABLE_RUNBOOK.md). For exact request and evidence contracts, see the [executor protocol](docs/EXECUTOR_PROTOCOL.md). Historical acceptance reports document historical events; they are not substitutes for current authenticated task state.
 
 ## Build and test
 
-Run tests from this directory with the selected Python 3.12 environment:
+From the `eg/` directory, using Python 3.12 and the project's test dependencies:
 
 ```sh
 python -m pytest -q tests
@@ -64,6 +47,17 @@ python tools/build_portable_bundle.py
 python tools/test_offline_portable.py
 ```
 
-The E2E scripts use isolated test-only EG process instances. They never own
-a second production task lifecycle. Full repo deployment is governed by a
-canonical EG task; Git source history is not an alternate runtime.
+The E2E scripts use isolated test-only instances. They do not take ownership of a production task or replace the current gateway's authenticated state.
+
+## Project structure
+
+| Location | Purpose |
+| --- | --- |
+| `app/main.py` | Canonical API, evaluation logic, task and audit state |
+| `app/execution_receipts.py` | Signed executor receipt verification |
+| `tools/trusted_execution_worker.py` | Bounded worker for admitted E0/E2 effects |
+| `tools/check_live_cutover_readiness.py` | Read-only cutover readiness and provenance checks |
+| `tests/` | Regression and E2E tests |
+| `docs/` | Operational runbook, protocol, architecture, and release criteria |
+
+EG has **one canonical task registry and evaluator**. The trusted worker is an execution adapter, not an alternative evaluator.
