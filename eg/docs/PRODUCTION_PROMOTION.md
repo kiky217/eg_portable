@@ -1,6 +1,6 @@
 # Production promotion gate
 
-Repository: `kiky217/eg_portable`  
+Repository: `kiky217/eg_portable`
 Canonical branch: `main` only. Feature history remains in the `main` ancestry;
 historical prerelease tags and assets are preserved.
 

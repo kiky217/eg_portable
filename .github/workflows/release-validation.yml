@@ -35,7 +35,7 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider tests
       - name: Trusted executor E2E (isolated test runtime only)
         working-directory: eg
-        run: sudo env PYTHONPATH=. python tools/run_trusted_e2e.py
+        run: sudo env PYTHONPATH=. "$(command -v python)" tools/run_trusted_e2e.py
       - name: Remediation E2E (isolated test runtime only)
         working-directory: eg
-        run: sudo env PYTHONPATH=. python tools/run_remedial_e2e.py
+        run: sudo env PYTHONPATH=. "$(command -v python)" tools/run_remedial_e2e.py
