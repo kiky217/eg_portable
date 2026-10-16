@@ -1409,6 +1409,17 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         fp = action_fingerprint(req.action); intent_fp = action_intent_fingerprint(req.action)
         gate = None
         if req.phase == "PRE_EXECUTION":
+            # An actionable READY gate may already have produced a durable
+            # effect. No newer PRE may replace it until signed reconciliation
+            # or verified POST consumes the original gate.
+            pending = latest_gate(c, req.task_id, expected)
+            if (pending and pending["pre_verdict"] == "READY_TO_EXECUTE"
+                    and not pending["consumed"]
+                    and pending["action_fingerprint"] != action_fingerprint(None)):
+                raise HTTPException(409, {
+                    "code": "UNRESOLVED_ACTION_GATE_NO_NEW_PRE",
+                    "pre_checkpoint_no": int(pending["pre_checkpoint_no"]),
+                })
             ctx = EvalContext("PRE_EXECUTION", req.checkpoint_no, None)
         else:
             # A failed POST leaves the PRE gate unconsumed: verification is retried against the SAME gate,
@@ -1501,7 +1512,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             else:
                 contract_status = "SATISFIED"
 
-        status = "COMPLETED" if contract_status == "SATISFIED" else ("TASK_TERMINATED_UNRESOLVED" if contract_status == "UNRESOLVED" else "IN_PROGRESS")
+        status = "COMPLETED" if contract_status == "SATISFIED" else ("TASK_TERMINATED_UNRESOLVED" if contract_status == "UNRESOLVED" else ("RECOVERY_PENDING" if t["status"] == "RECOVERY_PENDING" and req.phase == "POST_EXECUTION" and not verified else "IN_PROGRESS"))
         out = {"gateway_version": APP_VERSION, "task_id": req.task_id, "step_key": expected, "verdict": verdict.value, "reason": reason, "step_verified": verified, "contract_status": contract_status, "checkpoint_no": newcp, "evidence_notes": notes, "hitl_approved": hitl_approved, "action_fingerprint": fp, "action_intent_fingerprint": intent_fp, "gate_checkpoint_no": gate_cp, "evidence_digest": digest, "materialized_evidence": materialized, "completed_at": completed_at, "remedial_outcome": remedial_outcome, "recovery_strategy": recovery_strategy, "idempotent_replay": False}
         c.execute("UPDATE task_registry SET checkpoint_no=?,status=?,contract_status=?,completed_at=? WHERE task_id=?", (newcp, status, contract_status, completed_at, req.task_id))
         c.execute("INSERT INTO task_registry_checkpoints(task_id,checkpoint_no,step_key,event_id,verdict,verified,evidence_digest,created_at) VALUES(?,?,?,?,?,?,?,?)", (req.task_id, newcp, expected, req.event_id, verdict.value, int(verified), digest, now))

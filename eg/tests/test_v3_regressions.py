@@ -192,7 +192,7 @@ def test_b6_hitl_not_required_again_for_post_retry():
     ok, _ = do_post(task, ch, pre, action=action, req_cp=bad.json()['checkpoint_no']); assert ok.json()['verdict'] == 'VERIFIED_PASS'
 
 
-def test_b6_new_failed_pre_supersedes_ready_gate():
+def test_b6_new_failed_pre_supersedes_LOGICAL_ready_gate_only():
     task, ch = register(); pre, _ = do_pre(task, ch, 0)
     bad = raw_eval(task, ch, 1, claims=[{'criterion_index': 0, 'claim': CRIT, 'evidence': [manual()]}]); assert bad.json()['verdict'] == 'UNVERIFIED'
     r, _ = do_post(task, ch, pre, req_cp=bad.json()['checkpoint_no']); assert r.status_code == 409 and r.json()['detail']['code'] == 'PRE_EXECUTION_NOT_READY'
