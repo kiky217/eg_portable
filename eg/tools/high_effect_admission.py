@@ -9,6 +9,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Any
+from tools.signed_hitl_approval import verify_approval, HitlDenied
 
 class AdmissionDenied(RuntimeError):
     pass
@@ -39,7 +40,9 @@ class AdapterCapability:
 
 def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
                       approval: dict | None, task_id: str, step_key: str,
-                      gate_checkpoint_no: int, now: float | None = None) -> dict:
+                      gate_checkpoint_no: int, now: float | None = None,
+                      signed_approval: dict | None = None,
+                      hitl_public_key_b64: str | None = None) -> dict:
     """Fail-closed admission policy, not authorization to execute from an agent."""
     if not isinstance(action,dict) or action.get("effect_class") not in ("E3","E4","E5"):
         raise AdmissionDenied("NOT_A_HIGH_EFFECT_ACTION")
@@ -62,6 +65,16 @@ def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
         type(approval.get("expires_at")) not in (int,float) or
         approval["expires_at"] <= (time.time() if now is None else now)):
         raise AdmissionDenied("HITL_EXPIRED_DENIED_OR_CONSUMED")
+    if signed_approval is None or hitl_public_key_b64 is None:
+        raise AdmissionDenied("HITL_SIGNED_APPROVAL_REQUIRED")
+    try:
+        verify_approval(signed_approval, hitl_public_key_b64,
+                        task_id=task_id,step_key=step_key,
+                        gate_checkpoint_no=gate_checkpoint_no,
+                        action_fingerprint=action_fingerprint(action),
+                        adapter_id=capability.adapter_id,now=now)
+    except HitlDenied as exc:
+        raise AdmissionDenied("HITL_SIGNATURE_OR_SCOPE_DENIED") from exc
     # A signed approval and independently enforced single-use consumption
     # must be supplied by a future authenticated adapter transport.
     raise AdmissionDenied("HIGH_EFFECT_SIGNED_APPROVAL_AND_DURABLE_ADAPTER_NOT_YET_IMPLEMENTED")
