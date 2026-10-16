@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.execution_receipts import verify as verify_execution_receipt
+from app.no_effect_receipts import verify_no_effect
 
 LOG = logging.getLogger("evaluation_gateway")
 
@@ -326,6 +327,22 @@ class SuspensionRequest(Strict):
             raise ValueError("invalid contract hash")
         if not HASH_RE.fullmatch(self.protocol_hash):
             raise ValueError("invalid protocol hash")
+        return self
+
+
+class ReconcileRequest(Strict):
+    event_id: str
+    contract_hash: str
+    protocol_hash: str
+    checkpoint_no: int = Field(ge=0)
+    step_key: str = Field(pattern=STEP_RE.pattern)
+    action: Action
+    proof: dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_reconcile_ids(self):
+        if not ID_RE.fullmatch(self.event_id) or not HASH_RE.fullmatch(self.contract_hash) or not HASH_RE.fullmatch(self.protocol_hash):
+            raise ValueError("invalid reconciliation identifier or hash")
         return self
 
 
@@ -911,6 +928,7 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
     eval_stream: list[tuple[int, str, dict[str, Any], dict[str, Any]]] = []
     aborts: dict[str, tuple[int, dict[str, Any]]] = {}
     suspensions: dict[str, list[tuple[int, str, dict[str, Any], dict[str, Any]]]] = {}
+    reconciliations: dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]] = {}
     expected_evidence: dict[str, dict[str, Any]] = {}
     for row in c.execute("SELECT seq,event_id,task_id,event_type,contract_hash,request_json,response_json FROM audit ORDER BY seq"):
         rq = json.loads(row["request_json"]); rs = json.loads(row["response_json"]); et = row["event_type"]; tid = row["task_id"]
@@ -939,6 +957,13 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
             if tid in aborts:
                 return False
             aborts[tid] = (int(row["seq"]), rs)
+        elif et == "TASK_RECONCILE":
+            if (rq.get("task_id")!=tid or rq.get("step_key")!=rs.get("step_key")
+                or rq.get("checkpoint_no")!=rs.get("checkpoint_no")
+                or rs.get("status")!="IN_PROGRESS"
+                or rs.get("reconciled_effect")!="NOT_EXECUTED"):
+                return False
+            reconciliations.setdefault(tid,[]).append((int(row["seq"]),rq,rs))
         elif et in ("TASK_PAUSE", "TASK_RESUME"):
             if (rq.get("task_id") != tid
                     or rq.get("checkpoint_no") != rs.get("checkpoint_no")
@@ -1032,6 +1057,23 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
                 return False
             g["consumed"] = 1
             g["post_checkpoint_no"] = int(rs["checkpoint_no"])
+    for tid, events in reconciliations.items():
+        for _seq, rq, rs in events:
+            gate_key=(tid,rq["step_key"],rs["gate_checkpoint_no"])
+            g=gate_index.get(gate_key)
+            if (g is None or g["consumed"] or g["pre_verdict"]!="READY_TO_EXECUTE"
+                or g["action_fingerprint"]!=rs.get("action_fingerprint")
+                or rq.get("action") is None
+                or action_fingerprint(Action(**rq["action"]))!=g["action_fingerprint"]):
+                return False
+            saved=c.execute("SELECT created_at FROM execution_gates WHERE task_id=? AND step_key=? AND pre_checkpoint_no=?",gate_key).fetchone()
+            if (not saved or not verify_no_effect(rq.get("proof"),
+                    public_b64=EXECUTOR_PUBLIC_KEY_B64,task_id=tid,
+                    step_key=rq["step_key"],gate_checkpoint_no=g["pre_checkpoint_no"],
+                    action_fingerprint=g["action_fingerprint"],target=rq["action"]["target"],
+                    gate_created_at=saved[0])):
+                return False
+            g["consumed"]=1
     actual_gates = [{"task_id": r["task_id"], "step_key": r["step_key"], "pre_checkpoint_no": int(r["pre_checkpoint_no"]), "post_checkpoint_no": int(r["post_checkpoint_no"]) if r["post_checkpoint_no"] is not None else None, "action_fingerprint": r["action_fingerprint"], "pre_verdict": r["pre_verdict"], "hitl_approved": int(r["hitl_approved"]), "consumed": int(r["consumed"])} for r in c.execute("SELECT * FROM execution_gates ORDER BY gate_id")]
     if actual_gates != expected_gates:
         return False
@@ -1098,6 +1140,13 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
                 for event in subsequent
             ):
                 derived[tid]["status"]="RECOVERY_PENDING"
+    for tid, events in reconciliations.items():
+        if tid not in derived: return False
+        latest_seq=events[-1][0]
+        last_suspend=max((e[0] for e in suspensions.get(tid,[])),default=0)
+        if latest_seq>max(last_eval_seq.get(tid,0),last_suspend):
+            if derived[tid]["contract_status"]!="OPEN":return False
+            derived[tid]["status"]="IN_PROGRESS"
     for tid, (aseq, ars) in aborts.items():
         if tid not in derived or derived[tid]["contract_status"] in ("SATISFIED", "UNRESOLVED"):
             return False
@@ -1664,6 +1713,54 @@ def resume_task(task_id: str, req: SuspensionRequest):
                   "next_action":"RECONCILE_EXISTING_EXECUTION" if unresolved else "EVALUATE_NEXT_STEP",
                   "idempotent_replay":False}
         return commit_audited(c,task_id,req.event_id,"TASK_RESUME",req.contract_hash,rh,body,response)
+    except BaseException:
+        c.rollback();raise
+    finally:c.close()
+
+
+@app.post("/v1/tasks/{task_id}/reconcile", dependencies=[Depends(require_key)])
+def reconcile_task(task_id: str, req: ReconcileRequest):
+    """No-effect closeout is NOT a POST success and never increments checkpoint."""
+    if not ID_RE.fullmatch(task_id):raise HTTPException(422,"invalid task id")
+    request={"task_id":task_id,**req.model_dump(mode="json")}
+    rh=sha(canon(request))
+    c=conn()
+    try:
+        c.execute("BEGIN IMMEDIATE");guard_anchor(c)
+        replayed=replay(c,req.event_id,rh)
+        if replayed is not None:
+            c.commit();return replayed
+        t=c.execute("SELECT * FROM task_registry WHERE task_id=?",(task_id,)).fetchone()
+        if not t:raise HTTPException(404,"task not registered")
+        _require_registered_protocol(c,task_id,req.protocol_hash)
+        if (t["contract_hash"]!=req.contract_hash or t["checkpoint_no"]!=req.checkpoint_no
+            or t["contract_status"]!="OPEN" or t["status"]!="RECOVERY_PENDING"):
+            raise HTTPException(409,{"code":"NOT_IN_ACTIVE_PENDING_RECOVERY"})
+        _rows,_post,current=current_step(c,task_id)
+        if current!=req.step_key:
+            raise HTTPException(409,{"code":"RECONCILIATION_STEP_MISMATCH"})
+        gate=latest_gate(c,task_id,req.step_key)
+        if not gate or gate["consumed"] or gate["pre_verdict"]!="READY_TO_EXECUTE":
+            raise HTTPException(409,{"code":"NO_UNCONSUMED_EXECUTION_GATE"})
+        if (req.action.action_type!="write" or req.action.effect_class!="E2"
+            or not ct(gate["action_fingerprint"],action_fingerprint(req.action))):
+            raise HTTPException(409,{"code":"RECONCILIATION_ACTION_MISMATCH"})
+        if not verify_no_effect(req.proof,public_b64=EXECUTOR_PUBLIC_KEY_B64,
+                task_id=task_id,step_key=req.step_key,
+                gate_checkpoint_no=int(gate["pre_checkpoint_no"]),
+                action_fingerprint=gate["action_fingerprint"],
+                target=req.action.target,gate_created_at=gate["created_at"]):
+            raise HTTPException(409,{"code":"NO_EFFECT_WORKER_PROOF_INVALID"})
+        c.execute("UPDATE execution_gates SET consumed=1 WHERE gate_id=?",(gate["gate_id"],))
+        c.execute("UPDATE task_registry SET status='IN_PROGRESS' WHERE task_id=?",(task_id,))
+        out={"gateway_version":APP_VERSION,"task_id":task_id,"step_key":req.step_key,
+             "status":"IN_PROGRESS","reconciled_effect":"NOT_EXECUTED",
+             "gate_checkpoint_no":int(gate["pre_checkpoint_no"]),
+             "action_fingerprint":gate["action_fingerprint"],
+             "checkpoint_no":int(t["checkpoint_no"]),
+             "next_action":"FRESH_PRE_REQUIRED","idempotent_replay":False}
+        return commit_audited(c,task_id,req.event_id,"TASK_RECONCILE",req.contract_hash,
+                              rh,request,out)
     except BaseException:
         c.rollback();raise
     finally:c.close()
