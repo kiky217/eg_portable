@@ -1,31 +1,32 @@
-name: EG release validation
+name: EG validation and stable release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 concurrency:
-  group: eg-release-validation
+  group: eg-release-validation-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
-      - name: Checkout canonical main
+      - name: Checkout canonical source
         uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Install hash-locked runtime
         working-directory: eg
         run: |
@@ -33,81 +34,88 @@ jobs:
             --require-hashes -r requirements.lock
       - name: Install test-only dependencies
         run: python -m pip install "pytest==9.1.1" "httpx==0.28.1"
-      - name: Unit and regression suite
+      - name: Regression suite including bundle safety
         working-directory: eg
         env:
-          PYTHONPATH: ".:tests"
+          PYTHONPATH: .:tests
         run: python -m pytest -q -p no:cacheprovider tests
-      - name: Prepare world-readable source for separate-UID test runners
+      - name: Prepare isolated separate-UID test source
         run: |
           sudo install -d -m 0755 /tmp/eg-ci-source
           sudo cp -R eg/app eg/docs eg/tools eg/VERSION /tmp/eg-ci-source/
           sudo chmod -R a+rX /tmp/eg-ci-source
-      - name: Trusted executor E2E (isolated test runtime only)
+      - name: Signed executor E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
-      - name: Remediation E2E (isolated test runtime only)
+      - name: Remedial E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
+      - name: Build portable archive from current source
+        working-directory: eg
+        run: |
+          python tools/build_portable_bundle.py
+          version="$(cat VERSION)"
+          cd ../dist
+          sha256sum "eg-portable-${version}-linux-amd64.tar.gz" > "eg-portable-${version}-linux-amd64.tar.gz.sha256"
+          sha256sum -c "eg-portable-${version}-linux-amd64.tar.gz.sha256"
+      - name: Verify offline relocation
+        working-directory: eg
+        run: sudo env PYTHONPATH=. "$(command -v python)" tools/test_offline_portable.py
+      - name: Clean Debian offline smoke without build-host Python
+        run: |
+          version="$(cat eg/VERSION)"
+          docker run --rm --network none -v "$PWD/dist:/distribution:ro" debian:bookworm-slim /bin/sh -ec "
+            test ! -e /usr/bin/python3
+            mkdir -p /tmp/release
+            tar -xzf /distribution/eg-portable-${version}-linux-amd64.tar.gz -C /tmp/release
+            /tmp/release/eg-portable-${version}-linux-amd64/python.sh -c 'import sys,ssl,sqlite3,cryptography; print(sys.version)'
+          "
+      - name: Upload verified bundle for exact source SHA
+        uses: actions/upload-artifact@v4
+        with:
+          name: eg-release-${{ github.sha }}
+          path: |
+            dist/eg-portable-*.tar.gz
+            dist/eg-portable-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
   publish_stable:
     if: github.event_name == 'push'
     needs: validate
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - name: Checkout verified source
+      - name: Checkout verified SHA
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify stable source version
-        run: test "$(cat eg/VERSION)" = "3.1.0"
-      - name: Check existing stable release
-        id: existing
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view v3.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Setup Python 3.12 for portable build
-        if: steps.existing.outputs.exists == 'false'
-        uses: actions/setup-python@v5
+          fetch-tags: true
+      - name: Download exactly validated bundle
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.12'
-      - name: Install hash-locked distribution dependencies
-        if: steps.existing.outputs.exists == 'false'
-        working-directory: eg
-        run: |
-          python -m pip install --only-binary=:all: \
-            --require-hashes -r requirements.lock
-      - name: Build portable release and SHA-256
-        if: steps.existing.outputs.exists == 'false'
-        working-directory: eg
-        run: |
-          if test -f /usr/share/doc/python3.12/copyright; then
-            export EG_PYTHON_LICENSE_FILE=/usr/share/doc/python3.12/copyright
-          fi
-          python tools/build_portable_bundle.py
-          cd ../dist
-          sha256sum eg-portable-3.1.0-linux-amd64.tar.gz > eg-portable-3.1.0-linux-amd64.tar.gz.sha256
-          sha256sum -c eg-portable-3.1.0-linux-amd64.tar.gz.sha256
-      - name: Validate offline relocation and fail-closed startup
-        if: steps.existing.outputs.exists == 'false'
-        working-directory: eg
-        run: sudo env PYTHONPATH=. "$(command -v python)" tools/test_offline_portable.py
-      - name: Publish stable source release
-        if: steps.existing.outputs.exists == 'false'
+          name: eg-release-${{ github.sha }}
+          path: dist
+      - name: Publish only new stable version; keep previous releases immutable
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v3.1.0 \
-            dist/eg-portable-3.1.0-linux-amd64.tar.gz \
-            dist/eg-portable-3.1.0-linux-amd64.tar.gz.sha256 \
+          version="$(cat eg/VERSION)"
+          tag="v${version}"
+          archive="dist/eg-portable-${version}-linux-amd64.tar.gz"
+          checksum="${archive}.sha256"
+          (cd dist && sha256sum -c "$(basename "$checksum")")
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "IMMUTABLE_RELEASE_EXISTS: $tag; all validation still ran"
+            exit 0
+          fi
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "TAG_EXISTS_WITHOUT_RELEASE; refusing to retarget"
+            exit 1
+          fi
+          gh release create "$tag" "$archive" "$checksum" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "EG v3.1.0 — Stable Production Source" \
-            --notes "Stable Linux/amd64 offline source distribution. CI regression, signed-executor and remedial E2E, and relocation verification passed. Live production requires independently protected executor signing keys and persistent state. No running deployment is implied." \
+            --title "EG v${version} — Stable Production Source" \
+            --notes "CI validated source, signature E2E, offline portable relocation, and clean-container dependencies. Live deployment requires separate trusted signing authority and durable state." \
             --latest
-
