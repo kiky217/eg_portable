@@ -24,6 +24,16 @@ restored. A successful test-only signed executor is not a production signer.
   pass tar safety/readability checks. **Remaining:** cryptographic provenance
   of the archive report and an actual restore rehearsal are not proven.
 
+- #5 — v3.1.4 prevents superseding a pending actionable READY gate and
+  preserves RECOVERY_PENDING through failed same-gate POST. Signed NO_EFFECT
+  reconciliation remains separate issue #6.
+- #7 — v3.1.3 resumes authenticated historical protocol hashes using the
+  current stricter validator without replacing immutable TASK_INTAKE.
+- #9 — v3.1.3 verifies chain/HMAC/anchor/materialized state on the same write
+  transaction and rejects corrupted worker state/detail readback.
+- #15 — v3.1.5 retrieves and validates an already-sealed receipt from durable
+  journal after failed POST; retry never re-writes the file.
+
 ## Remaining protocol and governance blockers
 
 - #2 PRE currently shares postcondition with POST; distinguish readiness,
@@ -31,19 +41,27 @@ restored. A successful test-only signed executor is not a production signer.
 - #3 Step action requirement is client-selectable; action=null can misclassify
   physical work. Lock step execution type at task registration.
 - #4 PRE fingerprint does not bind initial write payload digest.
-- #5 An unresolved execution gate can be superseded; recovery protection
-  may be lost after failed POST.
 - #6 No signed NOT_EXECUTED reconciliation path for a paused unexecuted gate.
-- #7 Historical protocol hashes cannot consistently resume across upgrade.
 - #8 PRE may advertise readiness for unsupported executor actions.
-- #9 Mutating endpoints can progress despite full integrity verification fail.
-- #15 Sealed executor receipt recovery after failed POST needs idempotent lookup.
 - #16 Historical Colab notes and protocol beta markers still require a
   versioned documentation/protocol migration.
 
 These require coordinated state-machine / protocol migrations and adversarial
 E2E tests. Do not silence failures by changing acceptance, faking a receipt,
 bypassing executor admission, or marking an old task SATISFIED.
+
+## Completed release evidence (CI exact SHA)
+
+- v3.1.3 (#7, #9):
+  https://github.com/kiky217/eg_portable/actions/runs/38928398664
+- v3.1.4 (#5):
+  https://github.com/kiky217/eg_portable/actions/runs/38929218945
+- v3.1.5 (#15):
+  https://github.com/kiky217/eg_portable/actions/runs/38929818603
+
+**Remaining open technical issues:** #2, #3, #4, #6, #8, #14, #16.
+The audit tracking issue #18 stays open until the remediation program is
+finished. No stable source release equals a LIVE production EG task SATISFIED.
 
 ## Verification discipline
 
