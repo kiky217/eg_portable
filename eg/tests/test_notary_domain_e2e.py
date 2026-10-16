@@ -68,6 +68,8 @@ sys.stdout.buffer.write(key.sign(b'EG separate-UID domain test'))
     bindings.write_text(json.dumps([binding]))
     for item in (bindings, evidence / "state.json", evidence / "stdout.log"):
         item.chmod(0o644)
+        if item.parent == evidence:
+            os.chown(item, NOTARY_UID, NOTARY_UID)
     notarizer = shared / "notarize_evidence.py"
     shutil.copyfile(Path(__file__).resolve().parents[1] / "tools" / "notarize_evidence.py", notarizer)
     notarizer.chmod(0o644)
