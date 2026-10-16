@@ -98,6 +98,17 @@ def start():
         if wp.poll() is not None:raise RuntimeError('WORKER_FAILED_TO_START')
         time.sleep(0.1)
     else:raise RuntimeError('WORKER_SOCKET_TIMEOUT')
+def denied_direct_agent_socket_access():
+    """A separate agent/EG UID cannot bypass the dispatcher to the worker."""
+    result=subprocess.run([sys.executable,'-c',
+        'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1])',
+        str(sock)],preexec_fn=as_uid(EG_USER),capture_output=True,timeout=6)
+    if result.returncode==0:
+        raise AssertionError('UNTRUSTED_AGENT_CAN_CONNECT_TO_WORKER_SOCKET')
+    if b'PermissionError' not in result.stderr:
+        raise AssertionError('WORKER_SOCKET_DENIAL_NOT_PROVEN')
+    return True
+
 def close():
     for p in (wp,ep):
         if p and p.poll() is None:
@@ -349,13 +360,15 @@ def verified_read(previous_task):
 
 def main():
     start()
+    socket_denied=denied_direct_agent_socket_access()
     neg=negative();pos=positive();read_result=verified_read(pos['task_id'])
     audit=eg_req('GET','/v1/audit/verify')
     result={'scenario':'real-HTTP separate-UID E2 receipt adversarial 10-step',
        'project':PROJECT,'negative':neg,'positive':pos,'read':read_result,'audit':audit['status'],
        'EG_UID':EG_USER,'EXECUTOR_UID':WORK_USER,
+       'direct_agent_socket_bypass_denied':socket_denied,
        'distinct_signing_keys':raw_pub(EG_NOTARY)!=raw_pub(EXEC_NOTARY),
-       'overall_pass':neg['pass'] and pos['pass'] and audit['status']=='PASS'}
+       'overall_pass':socket_denied and neg['pass'] and pos['pass'] and audit['status']=='PASS'}
     path=SESSION/'audit_result.json';path.write_text(json.dumps(result,indent=2))
     os.chmod(path,0o600)
     print(json.dumps({'overall_pass':result['overall_pass'],
