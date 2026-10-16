@@ -134,7 +134,7 @@ def test_b4_non_ascii_secrets_and_hashes_never_cause_500():
     assert SOFT.post('/v1/tasks/register', headers=HEAD, json=body).status_code == 422
     task, ch = register(); ref = step_ref(task, 'PRE_EXECUTION', 0)
     r = SOFT.post('/v1/evaluate', headers={**HEAD, 'X-Evaluation-HITL-Key': 'é'.encode('latin-1')}, json={'event_id': eid('e'), 'task_id': task, 'contract_hash': ch, 'protocol_hash': gw.protocol_hash(), 'checkpoint_no': 0, 'step_key': '01.01', 'agent': 'ChatGPT', 'phase': 'PRE_EXECUTION', 'claims': [claim(ref)], 'action': e3_action()})
-    assert r.status_code == 200 and r.json()['verdict'] == 'REQUIRES_HITL'
+    assert r.status_code == 409 and r.json()['detail']['code'] == 'UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
 def test_b4_ct_helper_handles_arbitrary_unicode():
@@ -186,10 +186,10 @@ def test_b6_failed_post_retries_on_same_gate_without_new_pre():
     c = gw.conn(); g = c.execute('SELECT consumed,post_checkpoint_no FROM execution_gates WHERE task_id=?', (task,)).fetchone(); assert g['consumed'] == 1 and g['post_checkpoint_no'] == ok.json()['checkpoint_no']; assert gw.verify_materialized_state(c); c.close()
 
 
-def test_b6_hitl_not_required_again_for_post_retry():
-    task, ch = register(); action = e3_action(); pre, _ = do_pre(task, ch, 0, action=action, headers=HITL)
-    bad, _ = do_post(task, ch, pre, action=action, stdout='NOTHING'); assert bad.json()['verdict'] == 'UNVERIFIED'
-    ok, _ = do_post(task, ch, pre, action=action, req_cp=bad.json()['checkpoint_no']); assert ok.json()['verdict'] == 'VERIFIED_PASS'
+def test_b6_hitl_does_not_create_an_E3_adapter():
+    task,ch=register();act=e3_action()
+    r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act,headers=HITL)
+    assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
 def test_b6_new_failed_pre_supersedes_LOGICAL_ready_gate_only():

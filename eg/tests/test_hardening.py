@@ -83,8 +83,11 @@ def test_15_finalize_before_all_steps_blocked_and_post_rolled_back():
 
 
 def test_16_e2_without_proofs_blocked():
-    task, ch = register(); action = {'action_type': 'write', 'target': 'sandbox-target', 'effect_class': 'E2', 'reversible': True, 'real_world_effect': False, 'proofs': []}
-    r, _ = do_pre(task, ch, 0, action=action); assert r.json()['verdict'] == 'UNVERIFIED'
+    task,ch=register()
+    action={'action_type':'write','target':str(H.WORKER_OUTPUT/'without-proof.txt'),
+            'effect_class':'E2','reversible':True,'real_world_effect':False,'proofs':[]}
+    r,_=do_pre(task,ch,0,action=action)
+    assert r.json()['verdict']=='UNVERIFIED'
 
 
 def test_17_e2_with_action_bound_notarized_proofs_ready_and_post_passes():
@@ -99,14 +102,16 @@ def test_18_action_mutation_between_pre_and_post_blocked():
     post, _ = do_post(task, ch, pre, action={**action, 'target': 'target-b'}); assert post.status_code == 409 and post.json()['detail']['code'] == 'ACTION_FINGERPRINT_MISMATCH'
 
 
-def test_19_e3_pre_without_hitl_requires_hitl_and_cannot_post():
-    task, ch = register(); action = e3_action(); pre, _ = do_pre(task, ch, 0, action=action); assert pre.json()['verdict'] == 'REQUIRES_HITL'
-    post, _ = do_post(task, ch, pre, action=action); assert post.status_code == 409 and post.json()['detail']['code'] == 'PRE_EXECUTION_NOT_READY'
+def test_19_e3_without_registered_adapter_refused():
+    task,ch=register();act=e3_action()
+    r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act)
+    assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
-def test_20_separate_hitl_key_authorizes_pre_then_post():
-    task, ch = register(); action = e3_action(); pre, _ = do_pre(task, ch, 0, action=action, headers=HITL); assert pre.json()['verdict'] == 'READY_TO_EXECUTE' and pre.json()['hitl_approved'] is True
-    post, _ = do_post(task, ch, pre, action=action); assert post.status_code == 200 and post.json()['verdict'] == 'VERIFIED_PASS'
+def test_20_hitl_not_a_missing_executor_adapter():
+    task,ch=register();act=e3_action()
+    r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act,headers=HITL)
+    assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
 def test_21_hitl_key_must_differ_from_api_key(monkeypatch):
@@ -115,9 +120,11 @@ def test_21_hitl_key_must_differ_from_api_key(monkeypatch):
     assert CLIENT.get('/health').status_code == 503
 
 
-def test_22_real_world_e2_requires_hitl():
-    task, ch = register(); action = {'action_type': 'write', 'target': 'real', 'effect_class': 'E2', 'reversible': True, 'real_world_effect': True, 'proofs': []}
-    r, _ = do_pre(task, ch, 0, action=action); assert r.json()['verdict'] == 'REQUIRES_HITL'
+def test_22_real_world_e2_not_supported_by_bounded_worker():
+    task,ch=register()
+    action={'action_type':'write','target':str(H.WORKER_OUTPUT/'real.txt'),'effect_class':'E2','reversible':True,'real_world_effect':True,'proofs':[]}
+    r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=action,headers=HITL)
+    assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
 def test_23_full_task_finalizes_only_with_global_criteria_verified():

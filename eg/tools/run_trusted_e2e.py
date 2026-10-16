@@ -63,6 +63,7 @@ environ={**os.environ,
  'EVALUATION_GATEWAY_ANCHOR_PATH':str(EGROOT/'anchor/audit.anchor'),
  'EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID':str(EG_USER),
  'EVALUATION_GATEWAY_INTEGRITY_CACHE_SECONDS':'0',
+ 'EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT':str(WORK/'outputs'),
  'PYTHONPATH':str(STAGE)}
 def as_uid(uid):
     def switch():

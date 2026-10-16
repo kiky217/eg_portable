@@ -47,6 +47,7 @@ EXECUTOR_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64"
 # Explicit fail-closed deployment mode. Disabled admission serves only
 # historical task reconciliation and authenticated audit.
 ADMISSION_MODE = os.getenv("EVALUATION_GATEWAY_ADMISSION_MODE", "enabled")
+EXECUTOR_OUTPUT_ROOT = os.getenv("EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
 CLOCK_SKEW_SECONDS = env_int("EVALUATION_GATEWAY_CLOCK_SKEW_SECONDS", 30, 0, 300)
@@ -1251,6 +1252,11 @@ def health():
 def protocol():
     return {"version": PROTOCOL_VERSION, "hash": protocol_hash(),
             "admission_mode": ADMISSION_MODE,
+            "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
+                                       {"action_type":"write","effect_class":"E2"}]
+                                      if ADMISSION_MODE=="enabled" and EXECUTOR_OUTPUT_ROOT else []),
+            "executor_target_root_provisioned":bool(EXECUTOR_OUTPUT_ROOT),
+            "executor_target_suffixes":[".txt",".json"],
             "document": PROTOCOL_PATH.read_text(encoding="utf-8")}
 
 
@@ -1281,9 +1287,32 @@ def _require_registered_protocol(
         raise HTTPException(428, {"code": "IMMUTABLE_TASK_PROTOCOL_MISMATCH"})
 
 
-def _require_action_admission(action: Action | None) -> None:
-    if action is not None and ADMISSION_MODE != "enabled":
+def worker_capability(action: Action) -> tuple[bool,str]:
+    """Bounded capabilities of the provisioned independent worker."""
+    if (action.action_type,action.effect_class,action.reversible,
+            action.real_world_effect) not in (
+            ("read","E0",False,False),("write","E2",True,False)):
+        return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
+    if not EXECUTOR_OUTPUT_ROOT:
+        return False,"EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
+    root=Path(EXECUTOR_OUTPUT_ROOT)
+    target=Path(action.target)
+    if (not root.is_absolute() or not target.is_absolute()
+            or root.is_symlink() or target.is_symlink()
+            or target.suffix not in (".txt",".json")
+            or os.path.normpath(str(target.parent))!=os.path.normpath(str(root))):
+        return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
+    return True,"TRUSTED_WORKER_CAPABILITY_ADMITTED"
+
+
+def _require_action_admission(action: Action | None, phase: str) -> None:
+    if action is None:return
+    if ADMISSION_MODE != "enabled":
         raise HTTPException(409, {"code": "TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED"})
+    # POST for existing signed historical gates does not authorize new effects.
+    if phase=="PRE_EXECUTION":
+        ok,reason=worker_capability(action)
+        if not ok:raise HTTPException(409,{"code":reason})
 
 
 @app.post("/v1/tasks/register", dependencies=[Depends(require_key)])
@@ -1417,7 +1446,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         if req.phase == "POST_EXECUTION" and unverified_before == 1 and not req.finalize_task:
             raise HTTPException(409, {"code": "FINAL_STEP_REQUIRES_FINALIZATION"})
 
-        _require_action_admission(req.action)
+        _require_action_admission(req.action,req.phase)
         fp = action_fingerprint(req.action); intent_fp = action_intent_fingerprint(req.action)
         gate = None
         if req.phase == "PRE_EXECUTION":

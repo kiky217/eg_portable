@@ -9,6 +9,8 @@ RUNTIME = ROOT / "tests" / "_runtime"
 shutil.rmtree(RUNTIME, ignore_errors=True)
 (RUNTIME / "evidence").mkdir(parents=True)
 (RUNTIME / "evidence").chmod(0o755)
+WORKER_OUTPUT=RUNTIME/"worker-outputs"
+WORKER_OUTPUT.mkdir(mode=0o700)
 PRIV = Ed25519PrivateKey.generate()
 EXEC_PRIV = Ed25519PrivateKey.generate()
 PRIV_PEM = PRIV.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
@@ -28,6 +30,7 @@ os.environ.update({
     "EVALUATION_GATEWAY_ANCHOR_PATH": str(ANCHOR),
     "EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID": str(os.getuid()),
     "EVALUATION_GATEWAY_INTEGRITY_CACHE_SECONDS": "0",
+    "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT": str(WORKER_OUTPUT),
 })
 sys.path.insert(0, str(ROOT))
 from fastapi.testclient import TestClient  # noqa: E402
@@ -157,6 +160,8 @@ def intent_fp(action):
 
 
 def e2_action(task, cp, step="01.01", target="sandbox-target", wrong_binding=False):
+    if not str(target).startswith("/"):
+        target=str(WORKER_OUTPUT/(str(target)+".txt"))
     skeleton = {"action_type": "write", "target": target, "effect_class": "E2", "reversible": True, "real_world_effect": False, "proofs": []}
     bound = {**skeleton, "target": "unrelated-target"} if wrong_binding else skeleton
     values = {"sandbox_pass": "SANDBOX=PASS", "rollback_ready": "ROLLBACK=READY", "reversible": "REVERSIBLE=YES"}

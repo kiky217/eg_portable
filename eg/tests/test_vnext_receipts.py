@@ -90,7 +90,7 @@ def test_nonmutating_action_disallows_unrelated_receipt():
 
 def test_E0_concrete_read_requires_same_independent_execution_receipt():
     task,ch=register()
-    action={'action_type':'read','target':'bounded-test-file.txt','effect_class':'E0',
+    action={'action_type':'read','target':str(H.WORKER_OUTPUT/'bounded-test-file.txt'),'effect_class':'E0',
             'reversible':False,'real_world_effect':False,'proofs':[]}
     pre,_=do_pre(task,ch,0,action=action)
     denied=post_req(task,ch,pre,action)
