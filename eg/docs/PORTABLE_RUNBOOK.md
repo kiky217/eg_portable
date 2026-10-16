@@ -123,3 +123,18 @@ by the report or the agent controlling it. This is verification of the
 reported cutover evidence; it does NOT authorize an unsupported E3 service
 cutover, restore a historical Colab session, or waive the independent EG
 step/capability/runtime checks for a new deployment.
+
+
+## Bounded cutover archive verification
+
+The read-only cutover checker hashes rollback archives incrementally and refuses
+archives larger than `EG_CUTOVER_MAX_ARCHIVE_BYTES` (default 2 GiB, hard ceiling
+8 GiB). Isolated restore rehearsal refuses more than
+`EG_CUTOVER_MAX_RESTORE_BYTES` of declared or actual extracted files (default
+4 GiB, ceiling 16 GiB), and more than `EG_CUTOVER_MAX_ARCHIVE_MEMBERS`
+(default 10,000, ceiling 100,000). Invalid or zero budgets are rejected.
+Archives are processed with bounded-size buffers and member enumeration limits,
+never by loading the full archive into RAM. These budgets are **admission
+limits**, not proof that real production cutover occurred. Resource control on
+the isolated host (disk quotas, time limits, process isolation) must still be
+supplied by the operator.
