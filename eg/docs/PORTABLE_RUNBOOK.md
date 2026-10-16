@@ -138,3 +138,32 @@ never by loading the full archive into RAM. These budgets are **admission
 limits**, not proof that real production cutover occurred. Resource control on
 the isolated host (disk quotas, time limits, process isolation) must still be
 supplied by the operator.
+
+## Independently managed evidence-notary key rotation
+
+The EG service **never** creates, stores, or mounts the notary private key.
+The notary process runs in a separate signer UID/security domain. Portable
+initialization requires `EG_NOTARY_PUBLIC_KEY_B64` and accepts only its public
+32-byte Ed25519 root. Keep the active producer separate from the executor key.
+
+To rotate an existing notary without rewriting old signed evidence, set the
+active `EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64` to the **new** notary
+public root, and supply the retired root with an explicit trusted cutoff:
+
+```sh
+EVALUATION_GATEWAY_LEGACY_NOTARY_KEYS_JSON='[{"public_b64":"RETIRED_PUBLIC_KEY_BASE64","valid_before":1780000000}]'
+```
+
+The cutoff is a Unix epoch second selected from verified rotation evidence;
+the number above is illustrative and **not** an operating default. The gateway
+accepts old cryptographic signatures only when their signed `finished_at`
+is at or before that cutoff. Invalid, duplicate, active-key-equal, or
+executor-key-equal legacy public roots are rejected at startup. Maximum eight
+historical roots. A retired private key must be disabled and separately
+destroyed according to owner procedure, never copied into the EG process.
+
+**Important:** this preserves historical *verification*, not authorization
+to perform a new action or to retroactively certify a past action. Historical
+TASK_INTAKE, evidence bytes, audit entries, and external anchors stay unchanged.
+Root rotation is a governed sensitive operation; test signed PRE/POST evidence
+and audit integrity on a fresh isolated instance before deployment.
