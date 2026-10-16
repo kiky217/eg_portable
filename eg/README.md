@@ -23,6 +23,17 @@ Resume after uncertain mutations enters RECOVERY_PENDING, preventing duplicate
 WRITE. Remediation and REPLAN are governed by the same task registry, and
 linked remedial tasks are governed records, not alternative EG instances.
 
+## Post-cutover operational acceptance
+
+The owner-authorized Colab upgrade from EG 3.0.1 to 3.1 was completed on
+2026-10-15 at 23:48 UTC. Its operational acceptance is PASS and must not
+be kept open solely because future-action executor admission is disabled.
+The registered task's historical 12/16 VERIFIED status is preserved
+separately without rewriting its immutable acceptance.
+
+See `docs/ACCEPTANCE_POST_CUTOVER_20261016.md` and
+`docs/acceptance-post-cutover-20261016.json`.
+
 ## Production admission
 
 Never grant the worker signing key to the agent. An EG instance configured

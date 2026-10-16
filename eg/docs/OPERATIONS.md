@@ -74,9 +74,19 @@ rejected rather than overwritten.
 A successful rehearsal is **not** production cutover or approval of a
 host-root-controlled signer. Never treat the staging process as a second
 production EG, and never mark migration VERIFIED merely because a rehearsal
-passed. The live upgrade still requires independent executor trust, a
-quiesced single-writer transaction, checked rollback, and authenticated
-post-cutover state and anchor verification.
+passed.
+
+**Colab cutover completed 2026-10-15 23:48 UTC:** the actual old 3.0.1
+writer was stopped, transactional database/evidence/anchor and legacy-runtime
+rollback copies were preserved, the same canonical ledger was opened using
+EG 3.1, authenticated audit/state passed, and the old runtime was removed.
+See `docs/ACCEPTANCE_POST_CUTOVER_20261016.md`. Operational migration
+acceptance is now **PASS**; do not schedule a repeat cutover.
+
+**Executor admission is a separate future-operation gate**, currently
+disabled. It does not reverse the completed cutover. The original EG task
+remains 12/16 VERIFIED until independently evidenced formal closure; do not
+claim the owner's operational acceptance addendum is an EG receipt.
 
 ## Read-only canonical cutover blocker check
 
