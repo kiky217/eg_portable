@@ -1125,7 +1125,7 @@ def _verify_materialized_state(c: sqlite3.Connection) -> bool:
             if rs["status"]=="RECOVERY_PENDING":
                 gates=[g for g in expected_gates if g["task_id"]==tid and
                        not g["consumed"] and g["pre_verdict"]=="READY_TO_EXECUTE"]
-                if not gates:
+                if not gates and not any(ev[0] > last_seq for ev in reconciliations.get(tid, [])):
                     return False
             derived[tid]["status"]=rs["status"]
         elif (rs["status"] == "RECOVERY_PENDING"
