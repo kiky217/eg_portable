@@ -18,7 +18,7 @@ Normative rules. "MUST" violations are rejected fail-closed by the gateway.
 11. Manual/self-declared evidence is never authoritative. Legacy manifests (any version other than 4) are rejected.
 
 ## Execution gates
-12. Every step MUST obtain a `READY_TO_EXECUTE` `PRE_EXECUTION` gate before `POST_EXECUTION`. A later PRE supersedes earlier gates; a failed later PRE blocks POST until a new READY PRE exists.
+12. Every step MUST obtain a `READY_TO_EXECUTE` `PRE_EXECUTION` gate before `POST_EXECUTION`. An outstanding actionable READY gate MUST NOT be superseded by any later PRE. The original gate must be closed by same-gate signed POST (including fresh POST evidence after a failed POST), or by independently signed `NOT_EXECUTED` reconciliation which consumes the old gate without verifying the step and permits a fresh PRE. An UNKNOWN effect remains BLOCKED; no retry or new PRE may authorize the action. A logical no-action gate does not authorize an effect; a failed/not-READY PRE never authorizes execution.
 13. PRE and POST MUST use the identical full action fingerprint (including proofs). The action cannot be changed, omitted, or substituted after PRE.
 14. A failed POST does NOT consume the gate. Verification is retried with `POST_EXECUTION` against the SAME gate (new fresh evidence, latest `checkpoint_no`); the action MUST NOT be authorized or executed again. Failed POSTs still count towards the remediation threshold.
 15. E2 readiness requires exactly one notarized `sandbox_pass`, `rollback_ready`, and `reversible` proof, each with a signed `action_proof` binding to task, step, purpose, action-intent fingerprint, phase `PRE_EXECUTION` and the PRE request checkpoint.
@@ -80,7 +80,7 @@ restricted reversible write E2 in an independently secured output root.
 New write PRE binds exact payload SHA-256 and size plus signed sandbox and
 rollback proofs. Unsupported cutover remains BLOCKED. Pending UNKNOWN effect
 must not be replayed or treated as NOT_EXECUTED without signed independent
-reconciliation (open issue #6).
+reconciliation (implemented under issue #6).
 
 
 ## Explicit step execution classification (new task intake)
