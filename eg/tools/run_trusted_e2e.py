@@ -164,7 +164,7 @@ def e2_action(task,key,cp,target,payload=None):
     return {**skeleton,'proofs':[{'purpose':purpose,'evidence':ev} for purpose in values]}
 def eval_step(task,contract,key,criterion,phase,cp,refcp,action,final=False,receipt=None,extra=None):
     marker=('PRE_'+key+'=PASS' if phase=='PRE_EXECUTION' else 'POST_'+key+'=PASS')
-    phase_criterion=(PRE_CRIT[key] if phase=='PRE_EXECUTION' and action is not None else criterion)
+    phase_criterion=(PRE_CRIT.get(key,criterion) if phase=='PRE_EXECUTION' and action is not None else criterion)
     bindings=[binding(task,key,phase_criterion,phase,refcp,marker)]
     if final:bindings.append(binding(task,key,GLOBAL,phase,refcp,'TASK=PASS','task'))
     ev=notarize(bindings,marker+('\nTASK=PASS' if final else ''))
