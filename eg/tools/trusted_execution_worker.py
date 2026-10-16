@@ -20,8 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from app.execution_receipts import body, sign
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
+from app.execution_receipts import body, sign, verify
 
 MAX_PAYLOAD = 1024 * 1024
 MAX_CONTENT = 512 * 1024
@@ -101,9 +101,7 @@ class TrustedWriter:
                 raise WorkerDenied('INVALID_JSON_OUTPUT') from exc
         state,detail=api(self.url,self.key,task)
         gate=state.get('pending_execution_gate')
-        if (state.get('current_step')!=step or not gate
-            or state['latest_checkpoint'].get('verdict')!='READY_TO_EXECUTE'
-            or gate['pre_checkpoint_no']!=state['latest_checkpoint']['checkpoint_no']):
+        if state.get('current_step')!=step or not gate:
             raise WorkerDenied('EG_PRE_NOT_READY')
         if detail['task']['contract_status']!='OPEN':
             raise WorkerDenied('EG_TASK_NOT_OPEN')
@@ -113,6 +111,45 @@ class TrustedWriter:
             raise WorkerDenied('TASK_PAUSED_NO_EXECUTION')
         gate_record=next((x for x in detail['checkpoints']
                          if x['checkpoint_no']==gate['pre_checkpoint_no']),None)
+        if not gate_record or gate_record['verdict']!='READY_TO_EXECUTE':
+            raise WorkerDenied('EG_ORIGINAL_GATE_NOT_READY')
+        # Receipt recovery MUST precede latest-checkpoint readiness. A failed
+        # POST changes latest_checkpoint to UNVERIFIED without consuming the
+        # original PRE gate. A sealed journal is read-only evidence, not
+        # authority for a second physical write.
+        if is_write:
+            intent=self.journal/(task.replace('/','_')+'-'+step+'.json')
+            if intent.is_symlink():
+                raise WorkerDenied('UNSAFE_WORKER_JOURNAL')
+            if intent.is_file():
+                initial=json.loads(intent.read_text())
+                expected_digest=hashlib.sha256(data).hexdigest()
+                if (initial.get('task_id')!=task or initial.get('step_key')!=step
+                    or initial.get('gate')!=gate['pre_checkpoint_no']
+                    or initial.get('target')!=str(target)
+                    or initial.get('data_sha256')!=expected_digest
+                    or initial.get('action_fingerprint')!=gate['action_fingerprint']):
+                    raise WorkerDenied('INTENT_REPLAY_OR_MISMATCH')
+                if initial.get('stage')=='RECEIPT_SEALED':
+                    if not target.is_file() or target.is_symlink() or target.read_bytes()!=data:
+                        raise WorkerDenied('RECEIPT_EFFECT_MISMATCH')
+                    receipt=initial.get('receipt')
+                    public_b64=base64.b64encode(self.private.public_key().public_bytes(
+                        Encoding.Raw,PublicFormat.Raw)).decode('ascii')
+                    valid,reason=verify(receipt,public_b64=public_b64,
+                        task_id=task,step_key=step,
+                        gate_checkpoint_no=gate['pre_checkpoint_no'],
+                        action_fingerprint=gate['action_fingerprint'],
+                        target=str(target),gate_created_at=gate_record['created_at'])
+                    if not valid or receipt['output_sha256']!=expected_digest or receipt['output_bytes']!=len(data):
+                        raise WorkerDenied('SEALED_RECEIPT_VERIFICATION_FAILED:'+reason)
+                    return receipt
+        # For any NEW effect we still require the current latest checkpoint
+        # to be this READY PRE. A failed POST never reopens authorization.
+        if (not state.get('latest_checkpoint')
+            or state['latest_checkpoint'].get('verdict')!='READY_TO_EXECUTE'
+            or gate['pre_checkpoint_no']!=state['latest_checkpoint']['checkpoint_no']):
+            raise WorkerDenied('EG_PRE_NOT_READY')
         if is_read:
             if not gate_record or not gate_allows_new_effect(gate_record['created_at']):
                 raise WorkerDenied('EXECUTION_LEASE_EXPIRED')
