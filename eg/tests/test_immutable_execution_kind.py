@@ -8,14 +8,15 @@ def test_immutable_action_required_rejects_null_before_checkpoint():
         "agent":"ChatGPT","original_instruction":"create an output via admitted executor",
         "acceptance_criteria":["output was created by executor"],
         "steps":[
-            {"step_key":"01","title":"Verify physical work",
+            {"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"]},
+            {"step_key":"01.01","title":"Verify physical work",
              "acceptance_criteria":["output is created"],"execution_required":True}
         ],
     }
     registered=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
     assert registered.status_code==200,registered.text
     contract=registered.json()["contract_hash"]
-    ref=step_ref(task,"PRE_EXECUTION",0,step="01",criteria=[(0,"output is created")])
+    ref=step_ref(task,"PRE_EXECUTION",0,step="01.01",criteria=[(0,"output is created")])
     for phase in ("PRE_EXECUTION","POST_EXECUTION"):
         response=raw_eval(task,contract,0,step="01",phase=phase,
                           claims=[claim(ref,0,"output is created")],action=None)
