@@ -26,9 +26,9 @@ def reg_original(kind):
     task=X.PROJECT+'-'+kind+'-original'
     criterion='Readback repaired configuration is valid'
     steps=[{'step_key':'01','title':'Finalize repaired config',
-            'acceptance_criteria':['Every step repaired and proven'],'required':True},
+            'acceptance_criteria':['Every step repaired and proven'],'required':True,"execution_required":False},
            {'step_key':'01.01','title':'Validate configuration parser',
-            'acceptance_criteria':[criterion],'required':True}]
+            'acceptance_criteria':[criterion],'required':True,"execution_required":False}]
     registered=X.eg_req('POST','/v1/tasks/register',{
       'event_id':X.id('register'),'task_id':task,'task_kind':'NORMAL',
       'protocol_hash':X.PH,'agent':'EGHardeningE2ETest',
@@ -48,7 +48,7 @@ def manual_post_failure(task,ch,crit,cp,gate):
 def remediate(original,origin_cp,strategy,revision):
     task=X.PROJECT+'-'+strategy.lower()+'-remedial'
     steps=[{'step_key':k,'title':TITLES[k],
-            'acceptance_criteria':[k+' evidenced'],'required':True}
+            'acceptance_criteria':[k+' evidenced'],'required':True,"execution_required":False}
            for k in ['01','01.01','01.02','01.03','02','02.01','02.02',
                      '03','03.01','03.02']]
     result=X.eg_req('POST','/v1/tasks/register',{

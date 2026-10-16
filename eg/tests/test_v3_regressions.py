@@ -77,7 +77,7 @@ def test_b3_whole_database_rollback_is_detected_and_recoverable():
     for f in H.db_files():
         if f.exists(): f.unlink()
     for f in snap.iterdir(): shutil.copy2(f, gw.DB_PATH.parent / f.name)
-    r = SOFT.post('/v1/tasks/register', headers=HEAD, json={'event_id': eid('x'), 'task_id': eid('t'), 'protocol_hash': gw.protocol_hash(), 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c']}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c']}]})
+    r = SOFT.post('/v1/tasks/register', headers=HEAD, json={'event_id': eid('x'), 'task_id': eid('t'), 'protocol_hash': gw.protocol_hash(), 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c'],"execution_required":False}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c'],"execution_required":False}]})
     assert r.status_code == 503
     assert raw_eval(task0, ch0, 0, claims=[claim(step_ref(task0, 'PRE_EXECUTION', 0))]).status_code == 503
     assert CLIENT.get('/health').status_code == 503
@@ -130,7 +130,7 @@ def test_b4_non_ascii_criteria_are_fully_evaluable():
 def test_b4_non_ascii_secrets_and_hashes_never_cause_500():
     assert SOFT.get('/v1/protocol', headers={'X-Evaluation-Key': 'é'.encode('latin-1')}).status_code == 401
     assert SOFT.get('/v1/protocol', headers={'X-Evaluation-Key': 'ключ'.encode('utf-8')}).status_code == 401
-    body = {'event_id': eid('r'), 'task_id': eid('t'), 'protocol_hash': 'é', 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c']}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c']}]}
+    body = {'event_id': eid('r'), 'task_id': eid('t'), 'protocol_hash': 'é', 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c'],"execution_required":False}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c'],"execution_required":False}]}
     assert SOFT.post('/v1/tasks/register', headers=HEAD, json=body).status_code == 422
     task, ch = register(); ref = step_ref(task, 'PRE_EXECUTION', 0)
     r = SOFT.post('/v1/evaluate', headers={**HEAD, 'X-Evaluation-HITL-Key': 'é'.encode('latin-1')}, json={'event_id': eid('e'), 'task_id': task, 'contract_hash': ch, 'protocol_hash': gw.protocol_hash(), 'checkpoint_no': 0, 'step_key': '01.01', 'agent': 'ChatGPT', 'phase': 'PRE_EXECUTION', 'claims': [claim(ref)], 'action': e3_action()})
@@ -162,7 +162,7 @@ def test_b5_verification_is_consistent_under_concurrent_writes():
         c = TestClient(gw.app)
         try:
             for _ in range(12):
-                task = eid('cw'); body = {'event_id': eid('reg'), 'task_id': task, 'protocol_hash': gw.protocol_hash(), 'agent': 'ChatGPT', 'original_instruction': 'x', 'acceptance_criteria': ['all steps evidenced'], 'steps': [{'step_key': '01', 'title': 'P', 'acceptance_criteria': ['parent criterion']}, {'step_key': '01.01', 'title': 'C', 'acceptance_criteria': [CRIT]}]}
+                task = eid('cw'); body = {'event_id': eid('reg'), 'task_id': task, 'protocol_hash': gw.protocol_hash(), 'agent': 'ChatGPT', 'original_instruction': 'x', 'acceptance_criteria': ['all steps evidenced'], 'steps': [{'step_key': '01', 'title': 'P', 'acceptance_criteria': ['parent criterion'],"execution_required":False}, {'step_key': '01.01', 'title': 'C', 'acceptance_criteria': [CRIT],"execution_required":False}]}
                 r = c.post('/v1/tasks/register', headers=HEAD, json=body); assert r.status_code == 200, r.text
                 ch = r.json()['contract_hash']; ref = step_ref(task, 'PRE_EXECUTION', 0)
                 r = raw_eval(task, ch, 0, claims=[claim(ref)], client=c); assert r.status_code == 200, r.text
@@ -345,7 +345,7 @@ def test_low_database_busy_maps_to_503_with_retry_after(monkeypatch):
 
 
 def test_low_extra_fields_rejected_everywhere():
-    body = {'event_id': eid('r'), 'task_id': eid('t'), 'protocol_hash': gw.protocol_hash(), 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'unexpected': 1, 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c']}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c']}]}
+    body = {'event_id': eid('r'), 'task_id': eid('t'), 'protocol_hash': gw.protocol_hash(), 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'unexpected': 1, 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c'],"execution_required":False}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c'],"execution_required":False}]}
     assert CLIENT.post('/v1/tasks/register', headers=HEAD, json=body).status_code == 422
 
 
@@ -381,7 +381,7 @@ def test_anchor_write_io_failure_is_fail_closed_and_requires_offline_recovery(mo
     original_write = gw.write_anchor
     original = H.ANCHOR.read_bytes()
     task = eid('iofail')
-    body = {'event_id': eid('reg'), 'task_id': task, 'protocol_hash': gw.protocol_hash(), 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c']}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c']}]}
+    body = {'event_id': eid('reg'), 'task_id': task, 'protocol_hash': gw.protocol_hash(), 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c'],"execution_required":False}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c'],"execution_required":False}]}
     def disk_failure(*args, **kwargs):
         raise OSError('injected audit anchor EIO')
     monkeypatch.setattr(gw, 'write_anchor', disk_failure)

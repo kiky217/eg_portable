@@ -81,3 +81,17 @@ New write PRE binds exact payload SHA-256 and size plus signed sandbox and
 rollback proofs. Unsupported cutover remains BLOCKED. Pending UNKNOWN effect
 must not be replayed or treated as NOT_EXECUTED without signed independent
 reconciliation (open issue #6).
+
+
+## Explicit step execution classification (new task intake)
+
+Every new plan step must explicitly declare `execution_required` as a boolean.
+For `true`, the immutable plan also requires distinct `preconditions`;
+PRE must validate readiness, trusted capability and bound action parameters,
+while POST must validate postconditions with the original executor-signed
+receipt. Supplying `action=null` for that step is rejected without checkpoint
+advancement. `false` is an explicit logical classification, not permission
+to report a physical side effect as completed. Historical task contracts stay
+immutable and keep their intake protocol hash. Do not backfill or rewrite old
+TASK_INTAKE events. Unsupported cutovers must use a registered adapter before
+PRE can advertise executable readiness.

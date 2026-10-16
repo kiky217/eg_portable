@@ -99,8 +99,8 @@ def claim(ref, idx=0, text=CRIT):
 def register(task=None, criteria_child=None, global_criteria=None):
     task = task or eid("task"); criteria_child = criteria_child or [CRIT]; global_criteria = global_criteria or ["all steps evidenced"]
     body = {"event_id": eid("reg"), "task_id": task, "protocol_hash": gw.protocol_hash(), "agent": "ChatGPT", "original_instruction": "perform exact work", "acceptance_criteria": global_criteria, "steps": [
-        {"step_key": "01", "title": "Parent", "acceptance_criteria": ["parent criterion"], "required": True},
-        {"step_key": "01.01", "title": "Child", "acceptance_criteria": criteria_child, "required": True}]}
+        {"step_key": "01", "title": "Parent", "acceptance_criteria": ["parent criterion"], "required": True,"execution_required":False},
+        {"step_key": "01.01", "title": "Child", "acceptance_criteria": criteria_child, "required": True,"execution_required":False}]}
     r = CLIENT.post("/v1/tasks/register", headers=HEAD, json=body)
     assert r.status_code == 200, r.text
     return task, r.json()["contract_hash"]
@@ -197,7 +197,7 @@ def induce_three_failures(task, ch):
 
 def remedial_steps():
     keys = ["01", "01.01", "01.02", "01.03", "02", "02.01", "02.02", "03", "03.01", "03.02"]
-    return [{"step_key": k, "title": gw.REMEDIAL_CORE_TITLES[k], "acceptance_criteria": [f"{k} evidenced"], "required": True} for k in keys]
+    return [{"step_key": k, "title": gw.REMEDIAL_CORE_TITLES[k], "acceptance_criteria": [f"{k} evidenced"], "required": True, "execution_required": False} for k in keys]
 
 
 def register_remedial(original, origin_cp, attempt=1):

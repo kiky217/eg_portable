@@ -183,8 +183,8 @@ KEYS=[f'01.{i:02d}' for i in range(1,10)]+['01']
 CRIT={k:'Physical runtime evidence for step '+k for k in KEYS}
 def register(label):
     task=PROJECT+'-'+label
-    steps=[{'step_key':'01','title':'Final step','required':True,'acceptance_criteria':[CRIT['01']]}]
-    steps.extend({'step_key':k,'title':'Physical step '+k,'required':True,'acceptance_criteria':[CRIT[k]]}
+    steps=[{'step_key':'01','title':'Final step','required':True,'acceptance_criteria':[CRIT['01']],"execution_required":False}]
+    steps.extend({'step_key':k,'title':'Physical step '+k,'required':True,'acceptance_criteria':[CRIT[k]],"execution_required":False}
                  for k in KEYS[:-1])
     result=eg_req('POST','/v1/tasks/register',{
         'event_id':id('register'),'task_id':task,'agent':'EGHardeningE2ETest',
@@ -309,9 +309,9 @@ def verified_read(previous_task):
       'original_instruction':'EG-managed E0 read by SAME trusted worker',
       'protocol_hash':PH,'acceptance_criteria':[GLOBAL],
       'steps':[{'step_key':'01','title':'Finalize E0 read','required':True,
-                'acceptance_criteria':[CRIT['01']]},
+                'acceptance_criteria':[CRIT['01']],"execution_required":False},
                {'step_key':'01.01','title':'Read previously verified E2 output',
-                'required':True,'acceptance_criteria':[CRIT['01.01']]}]})
+                'required':True,'acceptance_criteria':[CRIT['01.01']],"execution_required":False}]})
     contract=reg['contract_hash']
     source=target(previous_task,'01.01')
     assert source.exists() and source.is_file()

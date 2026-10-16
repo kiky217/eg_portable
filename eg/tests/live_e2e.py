@@ -79,7 +79,7 @@ class C:
     def __init__(self): self.h = httpx.Client(base_url=URL, timeout=20)
 
     def reg(self, task, crit="Hasil tes — lulus (é)"):
-        body = {"event_id": f"r-{time.time_ns()}", "task_id": task, "protocol_hash": self.h.get("/v1/protocol", headers=HEAD).json()["hash"], "agent": "ChatGPT", "original_instruction": "x", "acceptance_criteria": ["all steps evidenced"], "steps": [{"step_key": "01", "title": "P", "acceptance_criteria": ["parent criterion"]}, {"step_key": "01.01", "title": "C", "acceptance_criteria": [crit]}]}
+        body = {"event_id": f"r-{time.time_ns()}", "task_id": task, "protocol_hash": self.h.get("/v1/protocol", headers=HEAD).json()["hash"], "agent": "ChatGPT", "original_instruction": "x", "acceptance_criteria": ["all steps evidenced"], "steps": [{"step_key": "01", "title": "P", "acceptance_criteria": ["parent criterion"],"execution_required":False}, {"step_key": "01.01", "title": "C", "acceptance_criteria": [crit],"execution_required":False}]}
         r = self.h.post("/v1/tasks/register", headers=HEAD, json=body); return r.json()["contract_hash"] if r.status_code == 200 else None
 
     def ev(self, task, ch, cp, step, claims, phase, headers=HEAD, finalize=False, task_claims=None, action=None):

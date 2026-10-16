@@ -272,6 +272,8 @@ class RegisterRequest(Strict):
             raise ValueError("invalid protocol hash")
         if len({s.step_key for s in self.steps}) != len(self.steps):
             raise ValueError("duplicate step_key")
+        if any("execution_required" not in step.model_fields_set for step in self.steps):
+            raise ValueError("every step must explicitly declare execution_required")
         links = (self.remedial_for_task_id, self.remedial_trigger_step_key, self.remedial_origin_checkpoint_no, self.remedial_attempt)
         if self.task_kind == "NORMAL" and any(v is not None for v in links + (self.causal_step_key,)):
             raise ValueError("remedial link fields forbidden on NORMAL task")

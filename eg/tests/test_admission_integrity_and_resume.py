@@ -48,8 +48,8 @@ def test_tampered_materialized_state_blocks_all_mutations_and_worker_readback():
             "event_id": eid("tampered-register"), "task_id": eid("tampered-new"),
             "protocol_hash": gw.protocol_hash(), "agent": "ChatGPT",
             "original_instruction": "must be rejected", "acceptance_criteria": ["x"],
-            "steps": [{"step_key": "01", "title": "parent", "acceptance_criteria": ["x"]},
-                      {"step_key": "01.01", "title": "child", "acceptance_criteria": ["x"]}]
+            "steps": [{"step_key": "01", "title": "parent", "acceptance_criteria": ["x"],"execution_required":False},
+                      {"step_key": "01.01", "title": "child", "acceptance_criteria": ["x"],"execution_required":False}]
         }
         assert CLIENT.post("/v1/tasks/register", headers=HEAD, json=request).status_code == 503
         assert CLIENT.get(f"/v1/tasks/{task}/state", headers=HEAD).status_code == 503

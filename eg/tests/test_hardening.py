@@ -17,7 +17,7 @@ def test_02_docs_and_openapi_disabled():
 
 
 def test_03_protocol_mismatch_registration_blocked():
-    body = {'event_id': eid('reg'), 'task_id': eid('task'), 'protocol_hash': '0' * 64, 'agent': 'ChatGPT', 'original_instruction': 'x', 'acceptance_criteria': ['x'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['p']}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c']}]}
+    body = {'event_id': eid('reg'), 'task_id': eid('task'), 'protocol_hash': '0' * 64, 'agent': 'ChatGPT', 'original_instruction': 'x', 'acceptance_criteria': ['x'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['p'],"execution_required":False}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c'],"execution_required":False}]}
     assert CLIENT.post('/v1/tasks/register', headers=HEAD, json=body).status_code == 428
 
 

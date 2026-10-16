@@ -6,10 +6,10 @@ def test_precondition_does_not_require_future_postcondition():
     body={"event_id":eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),
           "agent":"ChatGPT","original_instruction":"perform staged logical verification",
           "acceptance_criteria":["completion evidenced"],
-          "steps":[{"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"]},
+          "steps":[{"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"],"execution_required":False},
                    {"step_key":"01.01","title":"Staged verification",
                     "preconditions":["baseline ready"],
-                    "acceptance_criteria":["new output exists"]}]}
+                    "acceptance_criteria":["new output exists"],"execution_required":False}]}
     reg=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
     assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"]
@@ -34,9 +34,9 @@ def test_postcondition_missing_cannot_verify_step():
     body={"event_id":eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),
           "agent":"ChatGPT","original_instruction":"verify only true postconditions",
           "acceptance_criteria":["completed"],
-          "steps":[{"step_key":"01","title":"Parent","acceptance_criteria":["parent"]},
+          "steps":[{"step_key":"01","title":"Parent","acceptance_criteria":["parent"],"execution_required":False},
                    {"step_key":"01.01","title":"Child","preconditions":["ready"],
-                    "acceptance_criteria":["actual result"]}]}
+                    "acceptance_criteria":["actual result"],"execution_required":False}]}
     reg=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
     assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"]

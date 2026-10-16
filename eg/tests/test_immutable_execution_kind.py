@@ -8,7 +8,7 @@ def test_immutable_action_required_rejects_null_before_checkpoint():
         "agent":"ChatGPT","original_instruction":"create an output via admitted executor",
         "acceptance_criteria":["output was created by executor"],
         "steps":[
-            {"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"]},
+            {"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"],"execution_required":False},
             {"step_key":"01.01","title":"Verify physical work",
              "preconditions":["ready to create output"],
              "acceptance_criteria":["output is created"],"execution_required":True}
@@ -32,7 +32,7 @@ def test_action_step_cannot_register_without_independent_preconditions():
     body={"event_id":eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),
           "agent":"ChatGPT","original_instruction":"create an output",
           "acceptance_criteria":["output verified"],
-          "steps":[{"step_key":"01","title":"Parent","acceptance_criteria":["parent"]},
+          "steps":[{"step_key":"01","title":"Parent","acceptance_criteria":["parent"],"execution_required":False},
                    {"step_key":"01.01","title":"Physical action",
                     "acceptance_criteria":["output exists"],"execution_required":True}]}
     response=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
