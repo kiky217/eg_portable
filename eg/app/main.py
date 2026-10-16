@@ -1298,7 +1298,9 @@ def worker_capability(action: Action) -> tuple[bool,str]:
     root=Path(EXECUTOR_OUTPUT_ROOT)
     target=Path(action.target)
     if (not root.is_absolute() or not target.is_absolute()
-            or root.is_symlink() or target.is_symlink()
+            or root.is_symlink()
+            # The worker-owned leaf is mode 0700; symlink/lstat validation
+            # happens in that independent UID, never in the EG service.
             or target.suffix not in (".txt",".json")
             or os.path.normpath(str(target.parent))!=os.path.normpath(str(root))):
         return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
