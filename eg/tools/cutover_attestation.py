@@ -13,6 +13,10 @@ import tarfile
 import tempfile
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_RESTORE_BYTES = 4 * 1024 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 10000
+
 def _canonical(value):
     return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()
 
@@ -24,14 +28,19 @@ def _digest(path):
     return h.hexdigest()
 
 def rehearse_restore(archive_path):
-    """Restore every regular archived file into a private disposable directory."""
+    """Restore bounded regular archived files into a private disposable directory."""
+    if Path(archive_path).stat().st_size > MAX_ARCHIVE_BYTES:
+        raise ValueError("ROLLBACK_ARCHIVE_SIZE_BUDGET_EXCEEDED")
     output=[]
+    total_bytes=0
     with tempfile.TemporaryDirectory(prefix="eg-rollback-rehearsal-") as root:
         base=Path(root)
         seen=set()
         with tarfile.open(archive_path,"r:*") as archive:
             members=archive.getmembers()
             if not members:raise ValueError("EMPTY_ROLLBACK_ARCHIVE")
+            if len(members)>MAX_ARCHIVE_MEMBERS or sum(m.size for m in members if m.isfile())>MAX_RESTORE_BYTES:
+                raise ValueError("ROLLBACK_EXPANSION_BUDGET_EXCEEDED")
             for member in members:
                 name=Path(member.name)
                 if (name.is_absolute() or ".." in name.parts or
@@ -53,6 +62,9 @@ def rehearse_restore(archive_path):
                 with target.open("xb") as dest:
                     for chunk in iter(lambda:src.read(1024*1024),b""):
                         count+=len(chunk)
+                        total_bytes+=len(chunk)
+                        if total_bytes>MAX_RESTORE_BYTES:
+                            raise ValueError("ROLLBACK_EXPANSION_BUDGET_EXCEEDED")
                         if count>member.size:raise ValueError("ROLLBACK_MEMBER_LENGTH_MISMATCH")
                         h.update(chunk);dest.write(chunk)
                     dest.flush();os.fsync(dest.fileno())
