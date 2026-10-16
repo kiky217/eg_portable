@@ -6,13 +6,14 @@ def test_precondition_does_not_require_future_postcondition():
     body={"event_id":eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),
           "agent":"ChatGPT","original_instruction":"perform staged logical verification",
           "acceptance_criteria":["completion evidenced"],
-          "steps":[{"step_key":"01","title":"Staged verification",
+          "steps":[{"step_key":"01","title":"Parent", "acceptance_criteria":["parent verification"]},
+                   {"step_key":"01.01","title":"Staged verification",
                     "preconditions":["baseline ready"],
                     "acceptance_criteria":["new output exists"]}]}
     reg=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
     assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"]
-    ref=step_ref(task,"PRE_EXECUTION",0,step="01",
+    ref=step_ref(task,"PRE_EXECUTION",0,step="01.01",
                  criteria=[(0,"baseline ready")])
     pre=raw_eval(task,ch,0,step="01",
                  claims=[claim(ref,0,"baseline ready")])
