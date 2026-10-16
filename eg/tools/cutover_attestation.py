@@ -13,9 +13,19 @@ import tarfile
 import tempfile
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
-MAX_RESTORE_BYTES = 4 * 1024 * 1024 * 1024
-MAX_ARCHIVE_MEMBERS = 10000
+def _bounded_budget(name, default, ceiling):
+    raw = os.getenv(name, str(default))
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("INVALID_CUTOVER_RESOURCE_BUDGET_" + name) from exc
+    if not 1 <= value <= ceiling:
+        raise ValueError("CUTOVER_RESOURCE_BUDGET_OUT_OF_RANGE_" + name)
+    return value
+
+MAX_ARCHIVE_BYTES = _bounded_budget("EG_CUTOVER_MAX_ARCHIVE_BYTES", 2 * 1024**3, 8 * 1024**3)
+MAX_RESTORE_BYTES = _bounded_budget("EG_CUTOVER_MAX_RESTORE_BYTES", 4 * 1024**3, 16 * 1024**3)
+MAX_ARCHIVE_MEMBERS = _bounded_budget("EG_CUTOVER_MAX_ARCHIVE_MEMBERS", 10000, 100000)
 
 def _canonical(value):
     return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()
