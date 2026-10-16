@@ -93,8 +93,12 @@ def main():
     ROOT.chmod(0o1777)
     test_public=base64.b64encode(Ed25519PrivateKey.generate().public_key().public_bytes(
          Encoding.Raw,PublicFormat.Raw)).decode()
+    notary_public=base64.b64encode(Ed25519PrivateKey.generate().public_key().public_bytes(
+         Encoding.Raw,PublicFormat.Raw)).decode()
+    check('separate_test_notary_and_executor_roots',test_public!=notary_public)
     env={k:v for k,v in os.environ.items() if k in ('PATH','LANG','LC_ALL')}
     env.update({'EG_STATE_DIR':str(STATE),'EG_EXECUTOR_PUBLIC_KEY_B64':test_public,
+                'EG_NOTARY_PUBLIC_KEY_B64':notary_public,
                 'EG_PORT':PORT,'PYTHONNOUSERSITE':'1','HOME':'/tmp'})
     # Reject insecure invocation as root, no initialized state, absent remote trust root.
     denied=subprocess.run([str(extracted/'init.sh')],env=env,capture_output=True,text=True,timeout=10)
@@ -107,7 +111,9 @@ def main():
     if init.returncode:print('INIT_FAIL',init.returncode,init.stderr[-1000:],init.stdout[-150:])
     check('nonroot_initialization_pass',init.returncode==0)
     check('state_directory_0700',(STATE.stat().st_mode&0o777)==0o700)
-    check('notary_key_private',(STATE/'notary-private.pem').stat().st_mode&0o777==0o600)
+    check('notary_private_key_absent_from_service_state',not (STATE/'notary-private.pem').exists())
+    check('notary_public_root_configured',
+          'EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64='+notary_public in (STATE/'runtime.env').read_text())
     second=subprocess.run([str(extracted/'init.sh')],env=env,capture_output=True,text=True,
                           timeout=10,preexec_fn=switch)
     check('existing_state_not_overwritten',second.returncode==77)
