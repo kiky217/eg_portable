@@ -18,7 +18,7 @@ def test_immutable_action_required_rejects_null_before_checkpoint():
     contract=registered.json()["contract_hash"]
     ref=step_ref(task,"PRE_EXECUTION",0,step="01.01",criteria=[(0,"output is created")])
     for phase in ("PRE_EXECUTION","POST_EXECUTION"):
-        response=raw_eval(task,contract,0,step="01",phase=phase,
+        response=raw_eval(task,contract,0,step="01.01",phase=phase,
                           claims=[claim(ref,0,"output is created")],action=None)
         assert response.status_code==409,response.text
         assert response.json()["detail"]["code"]=="IMMUTABLE_STEP_REQUIRES_ACTION"
