@@ -98,6 +98,7 @@ python -m tools.check_live_cutover_readiness \
   --task "$CANONICAL_TASK_ID" \
   --live-url http://127.0.0.1:18765 \
   --runtime-env-file "$EG_RUNTIME_ENV_FILE" \
+  --cutover-report "$EG_COMPLETED_CUTOVER_REPORT_JSON" \
   --report "$READINESS_REPORT_JSON"
 ```
 
@@ -105,6 +106,10 @@ This tool makes read-only DB and authenticated GET calls, compares the live
 checkpoint, gate, fingerprint and audit count, and checks the 300-second new
 effect authorization lease against the original PRE timestamp. It verifies
 whether the concrete target already exists, but does not replay or create it.
+For a completed cutover, provide the original cutover report: its archive and
+backup digests must still match and its recorded ledger head must survive at
+the corresponding historical audit sequence. This proves operational cutover
+continuity, **not** independent executor admission or EG signed POST acceptance.
 It writes only a new report file (0600), refuses overwrites, and does not
 expose secrets. A result of `BLOCKED` is not an EG task mutation.
 

@@ -117,10 +117,65 @@ def classify_gate(gate: dict | None, action: dict | None,
         "requires_fresh_pre": bool(concrete and expired and effect_exists is False),
     }
 
+def inspect_completed_cutover(path: Path | None, audit: dict,
+                              state: dict, db_path: Path) -> dict:
+    """Check real completed-service cutover evidence, not worker admission.
+
+    A cutover report cannot attest root isolation or substitute for a signed
+    EG execution receipt. All referenced rollback artefacts must still exist.
+    """
+    if path is None:
+        return {"verified": False, "reason": "NO_CUTOVER_REPORT_SUPPLIED"}
+    if not path.is_file():
+        return {"verified": False, "reason": "CUTOVER_REPORT_MISSING"}
+    try:
+        report = json.loads(path.read_text())
+        if (report.get("status") != "CUTOVER_VERIFIED"
+                or report.get("to") != audit.get("version")
+                or not isinstance(report.get("audit_records"), int)
+                or report["audit_records"] < 1
+                or report["audit_records"] > audit.get("records", 0)
+                or not report.get("legacy_runtime_directory_removed")
+                or not report.get("rollback_available")):
+            raise ValueError("CUTOVER_REPORT_DOES_NOT_MATCH_LIVE_EG")
+        if report.get("checkpoint", -1) > state["checkpoint"]:
+            raise ValueError("CUTOVER_CHECKPOINT_FUTURE")
+        with sqlite3.connect("file:" + str(db_path) + "?mode=ro",
+                             uri=True) as conn:
+            record = conn.execute(
+                "SELECT record_hash FROM audit WHERE seq=?",
+                (report["audit_records"],)).fetchone()
+        if record is None or record[0] != report["audit_head"]:
+            raise ValueError("CUTOVER_AUDIT_RECORD_NOT_PRESERVED")
+        paths = [
+            ("db_dump", "db_dump_sha256"),
+            ("anchor_copy", "anchor_sha256"),
+            ("evidence_backup", "evidence_sha256"),
+        ]
+        for name, fingerprint in paths:
+            file = Path(report[name]).resolve(strict=True)
+            if not file.is_file() or file.stat().st_size == 0:
+                raise ValueError("CUTOVER_BACKUP_MISSING_" + name)
+            h = hashlib.sha256()
+            with file.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1 << 20), b""):
+                    h.update(chunk)
+            if h.hexdigest() != report[fingerprint]:
+                raise ValueError("CUTOVER_BACKUP_DIGEST_MISMATCH_" + name)
+        old = Path(report["legacy_source_archive"]).resolve(strict=True)
+        if not old.is_file() or old.stat().st_size == 0:
+            raise ValueError("CUTOVER_ROLLBACK_RUNTIME_NOT_PRESERVED")
+        return {"verified": True, "reason": "LIVE_AND_BACKUP_MATCH",
+                "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    except (OSError, KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        return {"verified": False, "reason": str(exc)[:180]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "task", "live-url", "runtime-env-file", "report"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--cutover-report", help="Existing completed-cutover report (read-only)")
     args = parser.parse_args()
     db = Path(args.db).resolve()
     runtime = Path(args.runtime_env_file).resolve()
@@ -159,10 +214,12 @@ def main() -> int:
     if after != before:
         raise RuntimeError("CANONICAL_CHANGED_DURING_READ")
     gate_status = classify_gate(gate, before["action"])
-    blockers = [
-        "EXTERNAL_EXECUTOR_TRUST_DOMAIN_NOT_VERIFIED",
-        "PRODUCTION_SINGLE_WRITER_CUTOVER_NOT_PERFORMED",
-    ]
+    cutover = inspect_completed_cutover(
+        Path(args.cutover_report).resolve() if args.cutover_report else None,
+        audit, before, db)
+    blockers = ["EXTERNAL_EXECUTOR_TRUST_DOMAIN_NOT_VERIFIED"]
+    if not cutover["verified"]:
+        blockers.append("OPERATIONAL_CUTOVER_NOT_INDEPENDENTLY_CONFIRMED")
     if gate_status.get("expired_for_new_effect"):
         blockers.append("EXISTING_PRE_LEASE_EXPIRED_FOR_NEW_EFFECT")
     if before["verified"] < before["total"]:
@@ -181,7 +238,8 @@ def main() -> int:
         "latest_verdict": live["latest_checkpoint"]["verdict"],
         "gate": gate_status,
         "blockers": blockers,
-        "production_cutover_performed": False,
+        "operational_cutover": cutover,
+        "production_cutover_performed": cutover["verified"],
         "external_signer_root_isolation_proven": False,
         "canonical_mutation_performed": False,
     }
@@ -192,6 +250,7 @@ def main() -> int:
         f.write("\n")
     print(json.dumps({"status": output["status"], "checkpoint": output["checkpoint"],
         "gate": gate_status, "blockers": blockers,
+        "operational_cutover": cutover,
         "report": str(report)}, sort_keys=True))
     return 0
 
