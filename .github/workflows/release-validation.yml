@@ -109,7 +109,12 @@ jobs:
           checksum="${archive}.sha256"
           (cd dist && sha256sum -c "$(basename "$checksum")")
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "IMMUTABLE_RELEASE_EXISTS: $tag; all validation still ran"
+            release_target="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha')"
+            if [ "$release_target" != "$GITHUB_SHA" ]; then
+              echo "::error title=VERSION_BUMP_REQUIRED::Immutable $tag targets $release_target, but CI tested $GITHUB_SHA; bump eg/VERSION before publishing"
+              exit 1
+            fi
+            echo "IMMUTABLE_RELEASE_EXACT_SHA_MATCH: $tag"
             exit 0
           fi
           if git show-ref --verify --quiet "refs/tags/$tag"; then
