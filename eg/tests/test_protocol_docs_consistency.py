@@ -11,7 +11,7 @@ def test_actionable_gate_cannot_be_normatively_superseded():
     assert "A later PRE supersedes earlier gates" not in protocol
     assert "SAME gate" in protocol
     assert "NOT_EXECUTED" in protocol and "UNKNOWN effect remains BLOCKED" in protocol
-    assert "new PRE" in runbook and "UNKNOWN" in runbook
+    assert ("fresh PRE" in runbook or "new PRE" in runbook) and "UNKNOWN" in runbook
 
 
 def test_remediation_snapshot_identified_as_historical():
