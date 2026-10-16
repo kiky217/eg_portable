@@ -240,6 +240,10 @@ class PlanStep(Strict):
             raise ValueError("all hierarchy nodes must be required")
         if any(not x.strip() for x in self.acceptance_criteria):
             raise ValueError("blank acceptance criterion")
+        if self.preconditions is not None and any(not x.strip() for x in self.preconditions):
+            raise ValueError("blank precondition")
+        if self.execution_required and not self.preconditions:
+            raise ValueError("execution-required step must define separate PRE preconditions")
         return self
 
 
