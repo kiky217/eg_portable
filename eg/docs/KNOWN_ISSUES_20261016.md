@@ -40,9 +40,7 @@ restored. A successful test-only signed executor is not a production signer.
   postconditions, invariants, and action authorization in versioned schema.
 - #3 Step action requirement is client-selectable; action=null can misclassify
   physical work. Lock step execution type at task registration.
-- #4 PRE fingerprint does not bind initial write payload digest.
 - #6 No signed NOT_EXECUTED reconciliation path for a paused unexecuted gate.
-- #8 PRE may advertise readiness for unsupported executor actions.
 - #16 Historical Colab notes and protocol beta markers still require a
   versioned documentation/protocol migration.
 
@@ -59,7 +57,8 @@ bypassing executor admission, or marking an old task SATISFIED.
 - v3.1.5 (#15):
   https://github.com/kiky217/eg_portable/actions/runs/38929818603
 
-**Remaining open technical issues:** #2, #3, #4, #6, #8, #14, #16.
+**Remaining technical issues:** #2, #3, #6, #14.
+Issue #16 awaits this patch's documentation/hash migration E2E result.
 The audit tracking issue #18 stays open until the remediation program is
 finished. No stable source release equals a LIVE production EG task SATISFIED.
 
@@ -69,3 +68,10 @@ Every change must be tied to an exact commit SHA, regression run and issue
 acceptance. State only `VERIFIED` for the specific test or gate whose
 readback proves it. GitHub release success alone is not production runtime
 SATISFIED, and no Colab checkpoint is reconstructed from this repository.
+
+## Newer verified work
+
+- v3.1.6 #8: worker capability admission, signed E2E PASS:
+  https://github.com/kiky217/eg_portable/actions/runs/38934279298
+- v3.1.7 #4: payload identity bound before PRE, adversarial signed E2E PASS:
+  https://github.com/kiky217/eg_portable/actions/runs/38935737285

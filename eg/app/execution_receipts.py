@@ -1,4 +1,4 @@
-"""EG independent trusted-executor receipts (protocol 4.0 candidate).
+"""EG independent trusted-executor receipt envelope (separate from the EG protocol).
 
 The EG notary validates claims; a DISTINCT executor trust root validates execution.
 Only the isolated worker may sign receipts. A receipt is valid for exactly one

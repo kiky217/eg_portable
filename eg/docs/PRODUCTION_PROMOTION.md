@@ -8,8 +8,9 @@ the current version is already published. The release job alone may skip a tag
 that already exists; it never replaces historical assets.
 
 A stable software release is distinct from a running production service.
-The previous Colab session expired. Publishing this source cannot restore
-the old SQLite database, anchor, evidence, or task checkpoint.
+The previous Colab session expired; this is only a historical fact. Each
+new deployment discovers its own DB, anchor, evidence, signing authority,
+current task/checkpoint, and authenticated audit.
 
 ## Stable source acceptance
 
@@ -28,5 +29,6 @@ durable backed-up SQLite and anchor, nonroot service, and verified health/audit.
 Unsupported capabilities remain fail-closed. A GitHub release never implies
 a live server is deployed or a historic task is retrospectively VERIFIED.
 
-The last known old Colab task was 12/16 VERIFIED at checkpoint 26.
-Session expiry does not amend that immutable acceptance ledger.
+The archived 2026-10-15 Colab case had 12/16 VERIFIED at checkpoint 26;
+this historical state is not inherited by new deployments or retroactively
+made SATISFIED by a software release.

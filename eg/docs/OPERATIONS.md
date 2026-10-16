@@ -76,17 +76,18 @@ host-root-controlled signer. Never treat the staging process as a second
 production EG, and never mark migration VERIFIED merely because a rehearsal
 passed.
 
-**Colab cutover completed 2026-10-15 23:48 UTC:** the actual old 3.0.1
-writer was stopped, transactional database/evidence/anchor and legacy-runtime
-rollback copies were preserved, the same canonical ledger was opened using
-EG 3.1, authenticated audit/state passed, and the old runtime was removed.
-See `docs/ACCEPTANCE_POST_CUTOVER_20261016.md`. Operational migration
-acceptance is now **PASS**; do not schedule a repeat cutover.
+## Current operations and archived migration
 
-**Executor admission is a separate future-operation gate**, currently
-disabled. It does not reverse the completed cutover. The original EG task
-remains 12/16 VERIFIED until independently evidenced formal closure; do not
-claim the owner's operational acceptance addendum is an EG receipt.
+For current source/runbook use [PORTABLE_RUNBOOK.md](PORTABLE_RUNBOOK.md).
+Every staging and cutover mutation still requires REGISTER → PRE → independent
+authorized execution → signed POST → VERIFIED. Unsupported E3 cutover remains
+BLOCKED without a separately verified capable worker; direct shell is not a
+fallback.
+
+The dated Colab 2026-10-15 owner-accepted cutover is documented in
+[ACCEPTANCE_POST_CUTOVER_20261016.md](ACCEPTANCE_POST_CUTOVER_20261016.md).
+That historical addendum is retained, not an order to skip new cutover steps,
+and never changes its original 12/16 VERIFIED canonical task ledger.
 
 ## Read-only canonical cutover blocker check
 
@@ -96,7 +97,7 @@ Before a cutover or any further POST for a pending concrete action, run:
 python -m tools.check_live_cutover_readiness \
   --db "$EG_STATE_DIR/data/gateway.db" \
   --task "$CANONICAL_TASK_ID" \
-  --live-url http://127.0.0.1:18765 \
+  --live-url "$EG_LIVE_URL" \
   --runtime-env-file "$EG_RUNTIME_ENV_FILE" \
   --cutover-report "$EG_COMPLETED_CUTOVER_REPORT_JSON" \
   --report "$READINESS_REPORT_JSON"
@@ -108,8 +109,9 @@ effect authorization lease against the original PRE timestamp. It verifies
 whether the concrete target already exists, but does not replay or create it.
 For a completed cutover, provide the original cutover report: its archive and
 backup digests must still match and its recorded ledger head must survive at
-the corresponding historical audit sequence. This proves operational cutover
-continuity, **not** independent executor admission or EG signed POST acceptance.
+the corresponding historical audit sequence. This checks reported historical continuity, **not** independent archive
+provenance, a complete restore rehearsal, executor admission, or EG signed
+POST acceptance. Issue #14 remains open pending such evidence.
 It writes only a new report file (0600), refuses overwrites, and does not
 expose secrets. A result of `BLOCKED` is not an EG task mutation.
 

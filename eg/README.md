@@ -23,17 +23,17 @@ Resume after uncertain mutations enters RECOVERY_PENDING, preventing duplicate
 WRITE. Remediation and REPLAN are governed by the same task registry, and
 linked remedial tasks are governed records, not alternative EG instances.
 
-## Historical Colab cutover evidence (NOT current runtime state)
+## Current portable operation
 
-The following is a dated historical event, not an onboarding instruction or
-fresh service health check. The Colab upgrade from EG 3.0.1 to 3.1 was completed on
-2026-10-15 at 23:48 UTC. Its operational acceptance is PASS and must not
-be kept open solely because future-action executor admission is disabled.
-The registered task's historical 12/16 VERIFIED status is preserved
-separately without rewriting its immutable acceptance.
+For new deployment, staging, cutover and recovery, follow
+[PORTABLE_RUNBOOK.md](docs/PORTABLE_RUNBOOK.md). Read the current authenticated
+EG state, live admission and source SHA; no historical Colab task, checkpoint,
+port or path supplies a default for another environment.
 
-See `docs/ACCEPTANCE_POST_CUTOVER_20261016.md` and
-`docs/acceptance-post-cutover-20261016.json`.
+The 2026-10-15 Colab cutover and owner's operational acceptance are archived
+in [its historical record](docs/ACCEPTANCE_POST_CUTOVER_20261016.md) and
+[JSON](docs/acceptance-post-cutover-20261016.json). They are not a substitute
+for an actual current EG VERIFIED step or independent executor admission.
 
 ## Production admission
 

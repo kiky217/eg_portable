@@ -1,4 +1,4 @@
-# Evaluation Gateway Hardened Executor Protocol 3.1-beta
+# Evaluation Gateway Hardened Executor Protocol 3.1
 
 Normative rules. "MUST" violations are rejected fail-closed by the gateway.
 
@@ -60,3 +60,24 @@ Normative rules. "MUST" violations are rejected fail-closed by the gateway.
 - An older already-sealed receipt may only be recovered by independently
   validating the original signer, target, output and existing gate.
   No older PRE may be reused to start an uncommitted write.
+
+## Protocol identity and compatibility (stable)
+
+Software version (SemVer) comes from `eg/VERSION`; the protocol human label
+is `3.1`, while its authoritative identity is SHA-256 of this exact
+UTF-8 file as returned by `GET /v1/protocol`. The Ed25519 evidence manifest
+format is version 4. The signed executor receipt envelope has an independent
+version number; it does not specify a replacement protocol.
+
+New tasks bind the current hash. Existing tasks remain bound to their original
+signed TASK_INTAKE hash and are interpreted under the current stringent
+evaluator; legacy contracts are neither re-signed nor assigned a new hash.
+Updating this file intentionally creates a new protocol digest for new
+registrations, requiring regression and signed E2E validation before release.
+
+The only currently provisionable built-in concrete actions are read E0 and
+restricted reversible write E2 in an independently secured output root.
+New write PRE binds exact payload SHA-256 and size plus signed sandbox and
+rollback proofs. Unsupported cutover remains BLOCKED. Pending UNKNOWN effect
+must not be replayed or treated as NOT_EXECUTED without signed independent
+reconciliation (open issue #6).

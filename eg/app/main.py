@@ -15,7 +15,7 @@ LOG = logging.getLogger("evaluation_gateway")
 
 BASE = Path(__file__).resolve().parents[1]
 APP_VERSION = (BASE / "VERSION").read_text(encoding="utf-8").strip()
-PROTOCOL_VERSION = "3.1-BETA"
+PROTOCOL_VERSION = "3.1"
 MANIFEST_VERSION = 4
 PROTOCOL_PATH = BASE / "docs" / "EXECUTOR_PROTOCOL.md"
 ZERO_HASH = "0" * 64
