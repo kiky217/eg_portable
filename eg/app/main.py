@@ -231,6 +231,7 @@ class PlanStep(Strict):
     title: str = Field(min_length=1, max_length=500)
     acceptance_criteria: list[str] = Field(min_length=1, max_length=100)
     required: bool = True
+    execution_required: bool = False  # Immutable step contract; legacy plans remain logical.
 
     @model_validator(mode="after")
     def strict_required(self):
@@ -1425,6 +1426,18 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             raise HTTPException(409, {"code": "STEP_SEQUENCE_VIOLATION", "expected": expected})
         step = next(r for r in rows if r["step_key"] == expected)
         criteria = json.loads(step["criteria_json"])
+        # Execution classification comes from the signed immutable TASK_INTAKE,
+        # never from client-supplied evaluate.action. Legacy contracts retain
+        # their historical logical semantics until explicitly migrated.
+        intake = c.execute("SELECT request_json FROM audit WHERE task_id=? AND event_type='TASK_INTAKE' ORDER BY seq LIMIT 1", (req.task_id,)).fetchone()
+        if intake is None:
+            raise HTTPException(409, {"code": "IMMUTABLE_STEP_CONTRACT_MISSING"})
+        original_steps = json.loads(intake["request_json"])["steps"]
+        step_contract = next((item for item in original_steps if item["step_key"] == expected), None)
+        if step_contract is None:
+            raise HTTPException(409, {"code": "IMMUTABLE_STEP_CONTRACT_MISSING"})
+        if step_contract.get("execution_required", False) and req.phase != "FACT_CHECK" and req.action is None:
+            raise HTTPException(409, {"code": "IMMUTABLE_STEP_REQUIRES_ACTION"})
         validate_claim_coverage(criteria, req.claims, "ACCEPTANCE_COVERAGE_INCOMPLETE")
 
         if req.phase == "FACT_CHECK":
