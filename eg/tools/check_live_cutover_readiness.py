@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from tools.trusted_execution_worker import MAX_NEW_WRITE_LEASE_SECONDS
-from tools.cutover_attestation import verify_independent_cutover
+from tools.cutover_attestation import verify_independent_cutover, _digest, MAX_ARCHIVE_BYTES, MAX_RESTORE_BYTES, MAX_ARCHIVE_MEMBERS
 
 def parse_env(path: Path) -> dict[str, str]:
     values = {}
@@ -219,12 +219,16 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
         expected=report.get("legacy_source_archive_sha256")
         if not isinstance(expected,str) or len(expected)!=64:
             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_DIGEST_REQUIRED")
-        archive_digest=hashlib.sha256(old.read_bytes()).hexdigest()
+        if old.stat().st_size > MAX_ARCHIVE_BYTES:
+            raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_SIZE_BUDGET_EXCEEDED")
+        archive_digest=_digest(old)
         if archive_digest!=expected:
             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_DIGEST_MISMATCH")
         try:
             with tarfile.open(old,mode="r:*") as archive:
                 entries=archive.getmembers()
+                if len(entries)>MAX_ARCHIVE_MEMBERS or sum(e.size for e in entries if e.isfile())>MAX_RESTORE_BYTES:
+                    raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_EXPANSION_BUDGET_EXCEEDED")
                 if not entries or any(Path(e.name).is_absolute() or
                                       '..' in Path(e.name).parts or
                                       not (e.isfile() or e.isdir())
