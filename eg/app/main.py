@@ -800,11 +800,29 @@ def check_anchor(c: sqlite3.Connection, anchor: Any = _UNSET) -> None:
 
 
 def guard_anchor(c: sqlite3.Connection) -> None:
+    """Fail closed on the SAME SQLite write transaction used for authorization.
+
+    Do not rely on health's time-bounded cache or a different connection:
+    anchor-only checks cannot detect an altered materialized task row.
+    """
     try:
         check_anchor(c)
-    except (IntegrityFailure, OSError) as exc:
-        LOG.error("audit anchor guard failed: %s", exc)
-        raise HTTPException(503, "audit anchor verification failed") from exc
+        if not verify_audit_chain(c) or not verify_materialized_state(c):
+            raise IntegrityFailure("full authenticated audit/materialized state invalid")
+    except (IntegrityFailure, OSError, sqlite3.DatabaseError) as exc:
+        LOG.error("EG mutation integrity guard failed: %s", exc)
+        raise HTTPException(503, {"code": "EG_INTEGRITY_FAILED_NO_MUTATION"}) from exc
+
+
+def guard_integrity_read(c: sqlite3.Connection) -> None:
+    """Read worker-admission state only from an integrity-checked snapshot."""
+    try:
+        check_anchor(c)
+        if not verify_audit_chain(c) or not verify_materialized_state(c):
+            raise IntegrityFailure("untrusted task state projection")
+    except (IntegrityFailure, OSError, sqlite3.DatabaseError) as exc:
+        LOG.error("EG admission read integrity guard failed: %s", exc)
+        raise HTTPException(503, {"code": "EG_INTEGRITY_FAILED_NO_ADMISSION"}) from exc
 
 
 def commit_audited(c: sqlite3.Connection, task_id: str, event_id: str, event_type: str, contract_hash: str, request_hash: str, request: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
@@ -1531,8 +1549,8 @@ def pause_task(task_id: str, req: SuspensionRequest):
 def resume_task(task_id: str, req: SuspensionRequest):
     if not ID_RE.fullmatch(task_id):
         raise HTTPException(422,"invalid identifier")
-    if not ct(req.protocol_hash, protocol_hash()):
-        raise HTTPException(428,"protocol bootstrap required")
+    # Resume uses the immutable signed TASK_INTAKE hash (checked below), not
+    # the current bootstrap hash. No historical validator is reactivated.
     body={"task_id":task_id,**req.model_dump(mode="json")}
     rh=sha(canon(body))
     c=conn()
@@ -1607,6 +1625,8 @@ def abort_task(task_id: str, req: AbortRequest, x_evaluation_hitl_key: str | Non
 def task_state(task_id: str):
     c = conn()
     try:
+        c.execute("BEGIN")
+        guard_integrity_read(c)
         t = c.execute("SELECT * FROM task_registry WHERE task_id=?", (task_id,)).fetchone()
         if not t:
             raise HTTPException(404, "not found")
@@ -1640,6 +1660,8 @@ def task_state(task_id: str):
 def detail(task_id: str):
     c = conn()
     try:
+        c.execute("BEGIN")
+        guard_integrity_read(c)
         t = c.execute("SELECT * FROM task_registry WHERE task_id=?", (task_id,)).fetchone()
         if not t:
             raise HTTPException(404, "not found")
