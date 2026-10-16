@@ -16,7 +16,7 @@ def test_absent_adapter_denied_for_all_high_effect_classes(effect):
         admit_high_effect(action={**ACTION,"effect_class":effect},capability=None,
                           approval=None,task_id="t",step_key="01.01",gate_checkpoint_no=1,now=1000)
 def test_hitl_without_actual_adapter_is_not_execution_authority():
-    with pytest.raises(AdmissionDenied,match="SIGNED_APPROVAL_AND_DURABLE_ADAPTER"):
+    with pytest.raises(AdmissionDenied,match="HITL_SIGNED_APPROVAL_REQUIRED"):
         admit_high_effect(action=ACTION,capability=CAP,approval=approved(),
                           task_id="t",step_key="01.01",gate_checkpoint_no=1,now=1000)
 def test_wrong_target_denied():
@@ -38,3 +38,19 @@ def test_action_change_invalidates_approval():
     with pytest.raises(AdmissionDenied,match="APPROVAL_SCOPE_MISMATCH"):
         admit_high_effect(action=modified,capability=CAP,approval=approved(),
                           task_id="t",step_key="01.01",gate_checkpoint_no=1,now=1000)
+
+def test_signed_approval_verifies_but_cannot_authorize_absent_durable_adapter():
+    import base64
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    from tools.signed_hitl_approval import canonical
+    authority=Ed25519PrivateKey.generate()
+    pub=base64.b64encode(authority.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
+    payload={"version":1,"task_id":"t","step_key":"01.01","gate_checkpoint_no":1,
+             "action_fingerprint":action_fingerprint(ACTION),"adapter_id":CAP.adapter_id,
+             "decision":"APPROVED","issued_at":1000,"expires_at":1100,"nonce":"high-effect-approval-001"}
+    signed={**payload,"signature_b64":base64.b64encode(authority.sign(canonical(payload))).decode()}
+    with pytest.raises(AdmissionDenied,match="SIGNED_APPROVAL_AND_DURABLE_ADAPTER"):
+        admit_high_effect(action=ACTION,capability=CAP,approval=approved(),
+                          signed_approval=signed,hitl_public_key_b64=pub,
+                          task_id="t",step_key="01.01",gate_checkpoint_no=1,now=1010)
