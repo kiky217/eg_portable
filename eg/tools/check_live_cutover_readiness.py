@@ -226,22 +226,28 @@ def inspect_completed_cutover(path: Path | None, audit: dict,
             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_DIGEST_MISMATCH")
         try:
             with tarfile.open(old,mode="r:*") as archive:
-                entries=archive.getmembers()
-                if len(entries)>MAX_ARCHIVE_MEMBERS or sum(e.size for e in entries if e.isfile())>MAX_RESTORE_BYTES:
-                    raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_EXPANSION_BUDGET_EXCEEDED")
-                if not entries or any(Path(e.name).is_absolute() or
-                                      '..' in Path(e.name).parts or
-                                      not (e.isfile() or e.isdir())
-                                      for e in entries):
-                    raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_UNSAFE")
-                # Read every file stream to detect truncation/format corruption.
-                for entry in entries:
+                count=0
+                expanded=0
+                # Iterate incrementally: never materialize an unbounded member list.
+                for entry in archive:
+                    count+=1
+                    if count>MAX_ARCHIVE_MEMBERS:
+                        raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_EXPANSION_BUDGET_EXCEEDED")
+                    if (Path(entry.name).is_absolute() or
+                            '..' in Path(entry.name).parts or
+                            not (entry.isfile() or entry.isdir())):
+                        raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_UNSAFE")
                     if entry.isfile():
+                        expanded+=entry.size
+                        if expanded>MAX_RESTORE_BYTES or entry.size<0:
+                            raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_EXPANSION_BUDGET_EXCEEDED")
                         stream=archive.extractfile(entry)
                         if stream is None:
                             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_UNREADABLE")
                         for _ in iter(lambda:stream.read(1 << 20),b''):
                             pass
+                if not count:
+                    raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_UNSAFE")
         except (tarfile.TarError,EOFError) as exc:
             raise ValueError("CUTOVER_ROLLBACK_ARCHIVE_INVALID") from exc
         independent,reason=verify_independent_cutover(
