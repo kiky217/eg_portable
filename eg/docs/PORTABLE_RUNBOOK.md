@@ -167,3 +167,32 @@ to perform a new action or to retroactively certify a past action. Historical
 TASK_INTAKE, evidence bytes, audit entries, and external anchors stay unchanged.
 Root rotation is a governed sensitive operation; test signed PRE/POST evidence
 and audit integrity on a fresh isolated instance before deployment.
+
+## Governed agent entrypoint (currently E0/E2)
+
+`tools/governed_agent_dispatcher.py` is a **library interface for a separately
+trusted dispatcher**, not a general terminal or a shortcut around EG. It only
+forwards the exact registered E0/E2 action to the independent Unix-socket
+worker after checking current task, executable READY PRE, original action
+fingerprint, and unexpired lease. The worker independently repeats its own
+EG checks and signs only after real execution and readback. The dispatcher
+verifies the receipt's independent executor signature.
+
+The dispatcher returns `RECEIPT_VERIFIED_POST_REQUIRED`, **never**
+`VERIFIED`. The agent must submit that exact signed receipt and fresh result
+evidence via EG POST before advancing the task. When PRE is absent, the action
+changes, execution is paused or recovery is unknown, or E3–E5 is requested,
+the dispatcher refuses the call. HITL alone cannot add executor capability.
+
+Provision the dispatcher itself under a protected identity with access to
+the worker socket and narrow EG API credentials. Do **not** give an untrusted
+agent direct access to the worker socket, signer key, EG API keys or an
+unrestricted host shell. CI exercises actual signed-worker E2E across
+physical registered steps, negative admissions and a separate untrusted UID
+attempting to connect directly to the worker socket.
+
+This protects **only the adopted, controlled entrypoint**. It cannot
+intercept commands from an external host-root agent, a free shell or an
+unconnected scheduler; such systems need their own isolation and EG adaptor
+before claiming mandatory end-to-end enforcement. Staging, remediation, and
+recovery remain subject to the same registered PRE/POST rules.
