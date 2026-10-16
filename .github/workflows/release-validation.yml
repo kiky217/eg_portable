@@ -47,3 +47,67 @@ jobs:
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
       - name: Remediation E2E (isolated test runtime only)
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
+  publish_stable:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout verified source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify stable source version
+        run: test "$(cat eg/VERSION)" = "3.1.0"
+      - name: Check existing stable release
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v3.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Setup Python 3.12 for portable build
+        if: steps.existing.outputs.exists == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install hash-locked distribution dependencies
+        if: steps.existing.outputs.exists == 'false'
+        working-directory: eg
+        run: |
+          python -m pip install --only-binary=:all: \
+            --require-hashes -r requirements.lock
+      - name: Build portable release and SHA-256
+        if: steps.existing.outputs.exists == 'false'
+        working-directory: eg
+        run: |
+          if test -f /usr/share/doc/python3.12/copyright; then
+            export EG_PYTHON_LICENSE_FILE=/usr/share/doc/python3.12/copyright
+          fi
+          python tools/build_portable_bundle.py
+          cd ../dist
+          sha256sum eg-portable-3.1.0-linux-amd64.tar.gz > eg-portable-3.1.0-linux-amd64.tar.gz.sha256
+          sha256sum -c eg-portable-3.1.0-linux-amd64.tar.gz.sha256
+      - name: Validate offline relocation and fail-closed startup
+        if: steps.existing.outputs.exists == 'false'
+        working-directory: eg
+        run: sudo env PYTHONPATH=. "$(command -v python)" tools/test_offline_portable.py
+      - name: Publish stable source release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v3.1.0 \
+            dist/eg-portable-3.1.0-linux-amd64.tar.gz \
+            dist/eg-portable-3.1.0-linux-amd64.tar.gz.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "EG v3.1.0 — Stable Production Source" \
+            --notes "Stable Linux/amd64 offline source distribution. CI regression, signed-executor and remedial E2E, and relocation verification passed. Live production requires independently protected executor signing keys and persistent state. No running deployment is implied." \
+            --latest
+

@@ -1,54 +1,29 @@
-# Production promotion gate
+# EG v3.1.0 — Stable source release and runtime deployment
 
-Repository: `kiky217/eg_portable`
-Canonical branch: `main` only. Feature history remains in the `main` ancestry;
-historical prerelease tags and assets are preserved.
+The canonical GitHub repository has exactly one branch: `main`.
+Version **3.1.0** is a stable **software release**. GitHub Actions must pass
+on the exact release commit before publishing an immutable `v3.1.0` tag.
 
-## Release state
+A stable software release is distinct from a running production service.
+The previous Colab session expired. Publishing this source cannot restore
+the old SQLite database, anchor, evidence, or task checkpoint.
 
-**Source: production-candidate hardening. Runtime: NOT PRODUCTION-ADMITTED.**
+## Stable source acceptance
 
-Version `3.1.0-beta.1` remains a prerelease until all gates below pass.
-A repository label, a protected branch, or CI success does not constitute
-production verification.
+- Single canonical implementation `eg/` from protected `main`
+- Hash-locked Python 3.12 dependencies and regression suite
+- Trusted-executor signing and remedial E2E tests
+- Linux/amd64 portable build, verified SHA-256, and offline relocation test
+- Immutable stable release tied to tested SHA, preserving historical beta
+- No private keys, API tokens, audit databases, or runtime secrets in bundle
 
-## Required gates
+## Live deployment requirements
 
-1. Build from exact immutable main SHA, with hash-locked runtime dependencies.
-2. Execute unit, adversarial, E2E and portability validation on supported
-   CPython 3.12 / Linux amd64; store independently reviewable results.
-3. Provision genuinely independent executor signing keys and admission; EG
-   notary and executor trust roots must differ and remain separately controlled.
-4. Reconcile stale PRE gates and prior cutover effects without fabricated or
-   retroactive signed execution receipts.
-5. All required EG task steps and global acceptance are VERIFIED; the canonical
-   task is SATISFIED, and authenticated audit chain verification is PASS.
-6. Deployment uses one source, one active EG runtime, preserved state, backup,
-   rollback, runtime health/readback, and no parallel EG.
-7. Publish stable `v3.1.0` release only after all above gates are evidenced;
-   retain the historical beta artifacts and references without re-labelling
-   them as stable. Tag and published release must refer to the same SHA.
+A production deployment separately needs a trusted executor with independently
+protected Ed25519 private key, distinct notary root, valid PRE/POST receipts,
+durable backed-up SQLite and anchor, nonroot service, and verified health/audit.
+Unsupported capabilities remain fail-closed. A GitHub release never implies
+a live server is deployed or a historic task is retrospectively VERIFIED.
 
-## Confirmed state (2026-10-16)
-
-- `main` includes the old feature branch plus nine additional commits.
-- Branch `feature/eg-3.1.0-beta-20261015` was safely retired.
-- `main` is protected against force-push, deletion and nonlinear history.
-- Historical beta tag and release retained as prerelease.
-- Historical Colab cutover was operationally verified; the old canonical
-  task remained **12/16** at checkpoint **26**, executor admission disabled.
-- The previous Colab runtime expired. Production admission and fresh full
-  release validation in the new runtime are **not** verified.
-- `.github/workflows/release-validation.yml` is a manual validation
-  workflow only. A workflow file is not a passing workflow run.
-
-**Decision:** do not assert `PRODUCTION` or publish a stable release while
-any runtime admission, acceptance, or validation gate remains open.
-
-## Release sequence
-
-Run the GitHub Actions `EG release validation` workflow on `main`.
-After its successful run and an independently verified production-admission
-and EG task acceptance, create the immutable stable tag and associated
-release from the fully reviewed commit. Protect release tags and document
-state migration plus rollback evidence.
+The last known old Colab task was 12/16 VERIFIED at checkpoint 26.
+Session expiry does not amend that immutable acceptance ledger.

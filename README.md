@@ -1,9 +1,10 @@
 # Evaluation Gateway — unified canonical system
 
-**Release stage: production candidate, not production-admitted.** The only
-active branch is `main`; stable promotion requires signed executor admission,
-full EG acceptance, and release validation. See
-[production promotion gates](eg/docs/PRODUCTION_PROMOTION.md).
+**Release: production/stable source v3.1.0.** Canonical branch: `main`.
+The stable offline distribution is validated by GitHub Actions. A running
+production instance requires a separate deployment with durable state and
+an independently protected trusted-executor signing authority.
+See [release and deployment status](eg/docs/PRODUCTION_PROMOTION.md).
 
 This repository contains **one** EG implementation in [eg/](eg/).
 There are no alternate runtime versions, mirrored source trees, portable

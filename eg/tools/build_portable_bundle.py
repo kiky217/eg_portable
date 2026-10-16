@@ -41,7 +41,7 @@ def main():
     if not SYSTEM_PY.is_file() or not SITE.is_dir() or not SYSTEM_STDLIB.is_dir():
         raise RuntimeError('INCOMPLETE_PYTHON_RUNTIME')
     WORK.mkdir(parents=True,exist_ok=True)
-    bundle=WORK/'eg-portable-3.1.0-beta.1-linux-amd64'
+    bundle=WORK/'eg-portable-3.1.0-linux-amd64'
     if bundle.exists():shutil.rmtree(bundle)
     bundle.mkdir()
     root=bundle
@@ -144,7 +144,7 @@ set +a
 exec "$ROOT/run.sh"
 '''
     write_text(root/'start.sh',envrunner);(root/'start.sh').chmod(0o755)
-    doc='''# EG Offline Portable 3.1.0-beta.1 (Linux x86-64)
+    doc='''# EG Offline Portable 3.1.0 (Linux x86-64)
 
 Relocatable bundled Python 3.12, stdlib, all pinned runtime libraries and EG source.
 Requires Linux x86-64 ABI compatible with the build environment (glibc-compatible).
@@ -178,7 +178,7 @@ No secret/private-key/runtime data is included in the archive.
     # Manifest only for contents actually inside bundle; no secrets.
     files=sorted(x for x in root.rglob('*') if x.is_file())
     manifest={str(x.relative_to(root)):filehash(x) for x in files}
-    write_text(root/'MANIFEST.json',json.dumps({'version':'3.1.0-beta.1','platform':'linux-amd64',
+    write_text(root/'MANIFEST.json',json.dumps({'version':'3.1.0','platform':'linux-amd64',
       'build_python':'CPython 3.12','files':manifest},sort_keys=True,indent=2))
     archive=WORK/(bundle.name+'.tar.gz')
     import gzip

@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 UID=65532
 GID=65532
 DIST=Path(__file__).resolve().parents[2]/'dist'
-ARCH=Path(os.environ.get('EG_PORTABLE_ARCHIVE', str(DIST/'eg-portable-3.1.0-beta.1-linux-amd64.tar.gz'))).resolve()
+ARCH=Path(os.environ.get('EG_PORTABLE_ARCHIVE', str(DIST/'eg-portable-3.1.0-linux-amd64.tar.gz'))).resolve()
 RESULT=Path(os.environ.get('EG_PORTABLE_TEST_REPORT',str(DIST/'offline-relocation-e2e.json'))).resolve()
 ROOT=Path(tempfile.mkdtemp(prefix='eg-portable-relocate-'))
 A=ROOT/'a'
