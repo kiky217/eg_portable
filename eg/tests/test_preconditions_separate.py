@@ -22,7 +22,7 @@ def test_precondition_does_not_require_future_postcondition():
     ref2=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],
                   step="01.01",criteria=[(0,"new output exists")])
     post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
-                  claims=[claim(ref2,0,"new output exists")])
+                  phase="POST_EXECUTION",claims=[claim(ref2,0,"new output exists")])
     assert post.status_code==200,post.text
     assert post.json()["verdict"]=="VERIFIED_PASS"
     assert post.json()["step_verified"] is True
