@@ -1,10 +1,11 @@
 # Evaluation Gateway — unified canonical system
 
-**Release: production/stable source v3.1.0.** Canonical branch: `main`.
+**Stable source releases:** see [eg/VERSION](eg/VERSION) and [GitHub Releases](https://github.com/kiky217/eg_portable/releases). Canonical branch: `main`.
 The stable offline distribution is validated by GitHub Actions. A running
 production instance requires a separate deployment with durable state and
 an independently protected trusted-executor signing authority.
-See [release and deployment status](eg/docs/PRODUCTION_PROMOTION.md).
+See [release and deployment status](eg/docs/PRODUCTION_PROMOTION.md) and
+[known outstanding issues](eg/docs/KNOWN_ISSUES_20261016.md).
 
 This repository contains **one** EG implementation in [eg/](eg/).
 There are no alternate runtime versions, mirrored source trees, portable

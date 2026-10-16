@@ -23,9 +23,10 @@ Resume after uncertain mutations enters RECOVERY_PENDING, preventing duplicate
 WRITE. Remediation and REPLAN are governed by the same task registry, and
 linked remedial tasks are governed records, not alternative EG instances.
 
-## Post-cutover operational acceptance
+## Historical Colab cutover evidence (NOT current runtime state)
 
-The owner-authorized Colab upgrade from EG 3.0.1 to 3.1 was completed on
+The following is a dated historical event, not an onboarding instruction or
+fresh service health check. The Colab upgrade from EG 3.0.1 to 3.1 was completed on
 2026-10-15 at 23:48 UTC. Its operational acceptance is PASS and must not
 be kept open solely because future-action executor admission is disabled.
 The registered task's historical 12/16 VERIFIED status is preserved

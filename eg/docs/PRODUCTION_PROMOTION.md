@@ -1,8 +1,11 @@
-# EG v3.1.0 — Stable source release and runtime deployment
+# EG stable source releases versus production runtime
 
 The canonical GitHub repository has exactly one branch: `main`.
-Version **3.1.0** is a stable **software release**. GitHub Actions must pass
-on the exact release commit before publishing an immutable `v3.1.0` tag.
+The canonical release version comes from `eg/VERSION`. GitHub Actions must
+pass on the exact release commit before publishing a corresponding immutable tag.
+Every push, pull request, and manual workflow run rechecks the archive even if
+the current version is already published. The release job alone may skip a tag
+that already exists; it never replaces historical assets.
 
 A stable software release is distinct from a running production service.
 The previous Colab session expired. Publishing this source cannot restore
