@@ -232,6 +232,7 @@ class PlanStep(Strict):
     acceptance_criteria: list[str] = Field(min_length=1, max_length=100)
     required: bool = True
     execution_required: bool = False  # Immutable step contract; legacy plans remain logical.
+    preconditions: list[str] | None = Field(default=None, min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def strict_required(self):
@@ -1438,6 +1439,8 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             raise HTTPException(409, {"code": "IMMUTABLE_STEP_CONTRACT_MISSING"})
         if step_contract.get("execution_required", False) and req.phase != "FACT_CHECK" and req.action is None:
             raise HTTPException(409, {"code": "IMMUTABLE_STEP_REQUIRES_ACTION"})
+        if req.phase == "PRE_EXECUTION" and step_contract.get("preconditions") is not None:
+            criteria = step_contract["preconditions"]
         validate_claim_coverage(criteria, req.claims, "ACCEPTANCE_COVERAGE_INCOMPLETE")
 
         if req.phase == "FACT_CHECK":
