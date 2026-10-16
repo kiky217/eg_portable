@@ -37,3 +37,46 @@ def test_signed_no_effect_closes_gate_without_advancing_step():
     fresh,_=do_pre(task,ch,cp,action=next_action)
     assert fresh.json()["verdict"]=="READY_TO_EXECUTE"
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
+
+def test_actual_worker_attests_no_effect_and_gateway_reauthorizes(tmp_path,monkeypatch):
+    from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+    import harness as H
+    from tools import trusted_execution_worker as worker
+    task,ch=register()
+    output=tmp_path/"outputs";journal=tmp_path/"journal"
+    output.mkdir(mode=0o700);journal.mkdir(mode=0o700)
+    monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT",str(output))
+    action=e2_action(task,0,target=str(output/"result.txt"),payload=b"APPROVED")
+    key=tmp_path/"worker.key"
+    key.write_bytes(EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
+    key.chmod(0o600)
+    def local_api(_url,_key,which):
+        state=CLIENT.get("/v1/tasks/"+which+"/state",headers=HEAD)
+        detail=CLIENT.get("/v1/tasks/"+which,headers=HEAD)
+        assert state.status_code==200 and detail.status_code==200
+        return state.json(),detail.json()
+    monkeypatch.setattr(worker,"api",local_api)
+    w=worker.TrustedWriter(output,journal,key,"http://127.0.0.1:18766","fixture-key",
+                           "trusted-worker-e2e-recovery")
+    pre,_=do_pre(task,ch,0,action=action)
+    assert pre.json()["verdict"]=="READY_TO_EXECUTE"
+    cp=pre.json()["checkpoint_no"]
+    base={"contract_hash":ch,"protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,
+          "reason":"no worker RPC was issued"}
+    assert CLIENT.post("/v1/tasks/"+task+"/pause",headers=HEAD,
+                       json={"event_id":eid("pause"),**base}).status_code==200
+    assert CLIENT.post("/v1/tasks/"+task+"/resume",headers=HEAD,
+                       json={"event_id":eid("resume"),**base}).json()["status"]=="RECOVERY_PENDING"
+    proof=w.reconcile({"operation":"reconcile_no_effect","task_id":task,
+                       "step_key":"01.01","action":action})
+    response=CLIENT.post("/v1/tasks/"+task+"/reconcile",headers=HEAD,
+           json={"event_id":eid("reconcile"),"contract_hash":ch,
+                 "protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,
+                 "step_key":"01.01","action":action,"proof":proof,
+                 "executor_public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64})
+    assert response.status_code==200,response.text
+    assert not (output/"result.txt").exists()
+    assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
+    fresh=e2_action(task,cp,target=str(output/"result.txt"),payload=b"APPROVED")
+    next_pre,_=do_pre(task,ch,cp,action=fresh)
+    assert next_pre.json()["verdict"]=="READY_TO_EXECUTE"
