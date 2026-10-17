@@ -5,11 +5,13 @@ before connecting to the canonical EG gate. No fallback to E2 or agent shell.
 """
 from __future__ import annotations
 import hashlib
+import base64
 import json
 import time
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from tools.signed_hitl_approval import verify_approval, HitlDenied
 
 class AdmissionDenied(RuntimeError):
@@ -51,6 +53,12 @@ class AdapterCapability:
             not 0 < self.maximum_payload_bytes <= 512*1024 or
             not self.isolated or not self.public_key_b64):
             raise AdmissionDenied("HIGH_EFFECT_ADAPTER_NOT_PROVISIONED")
+        try:
+            raw=base64.b64decode(self.public_key_b64,validate=True)
+            if len(raw)!=32: raise ValueError("INVALID_PUBLIC_KEY_SIZE")
+            Ed25519PublicKey.from_public_bytes(raw)
+        except (ValueError,TypeError) as exc:
+            raise AdmissionDenied("HIGH_EFFECT_ADAPTER_INVALID_TRUST_ROOT") from exc
 
 def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
                       approval: dict | None, task_id: str, step_key: str,

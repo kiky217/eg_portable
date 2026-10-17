@@ -188,3 +188,29 @@ def test_compensation_crash_matrix_is_fail_closed_and_durable(tmp_path,effect,cr
     else:
         with pytest.raises(EffectDenied,match="UNKNOWN_NO_REPLAY"):
             restarted.compensate(**kwargs)
+
+@pytest.mark.parametrize("effect",["E3","E4"])
+@pytest.mark.parametrize("mutation",["wrong_digest","wrong_length","missing_digest"])
+def test_compensation_payload_mismatch_denied_before_effect(tmp_path,effect,mutation):
+    from tools.disposable_effect_adapter import COMPENSATION, ROLLBACK_PAYLOAD
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,effect)
+    timestamp=datetime.fromtimestamp(now,timezone.utc).isoformat()
+    a.execute(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+              gate_created_at=timestamp,action=action,data=data,approval=hitl,
+              hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    rb={"action_type":COMPENSATION[effect],"effect_class":effect,"target":str(target),
+        "payload_sha256":hashlib.sha256(ROLLBACK_PAYLOAD).hexdigest(),
+        "payload_bytes":len(ROLLBACK_PAYLOAD)}
+    if mutation=="wrong_digest":rb["payload_sha256"]=hashlib.sha256(b"delete-other").hexdigest()
+    if mutation=="wrong_length":rb["payload_bytes"]+=1
+    if mutation=="missing_digest":rb.pop("payload_sha256")
+    fp=action_fingerprint(rb);r_gate=gate+1
+    rap=approval(human,"task-19","01.02",r_gate,fp,a.adapter_id,now,nonce="bad-comp-"+mutation+"-"+effect)
+    rg={"task_id":"task-19","step_key":"01.02","checkpoint_no":r_gate,
+        "verdict":"READY_TO_EXECUTE","action_fingerprint":fp}
+    with pytest.raises(EffectDenied,match="COMPENSATION_PAYLOAD_NOT_BOUND"):
+        a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=r_gate,
+            gate_created_at=timestamp,action=rb,approval=rap,
+            hitl_public_key_b64=pub(human),ready_gate=rg,now=now)
+    assert target.exists() and a.ledger.claim_status(rap["nonce"],task_id="task-19",
+           step_key="01.02",gate_checkpoint_no=r_gate,action_fingerprint=fp,adapter_id=a.adapter_id) is None

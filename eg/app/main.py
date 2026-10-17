@@ -77,7 +77,7 @@ SECRET_PLACEHOLDER_WORDS = ("generate", "changeme", "change_me", "example", "pla
 EVAL_RESPONSE_KEYS = (
     "checkpoint_no", "step_key", "verdict", "step_verified", "evidence_digest", "contract_status",
     "completed_at", "remedial_outcome", "recovery_strategy", "hitl_approved", "action_fingerprint",
-    "gate_checkpoint_no",
+    "gate_checkpoint_no", "high_effect_pin",
 )
 
 REMEDIAL_CORE_TITLES = {
@@ -1426,6 +1426,31 @@ def high_effect_capability(action: Action) -> AdapterCapability | None:
         return None
 
 
+
+def pinned_high_effect_gate(c: sqlite3.Connection, task_id: str,
+                            step_key: str, checkpoint_no: int, action: Action) -> dict:
+    """Get original HMAC-audited, immutable PRE signer; never use mutable registry."""
+    for row in c.execute("SELECT response_json FROM audit WHERE task_id=? AND event_type='EVALUATION' ORDER BY seq",
+                         (task_id,)):
+        response=json.loads(row["response_json"])
+        if response.get("checkpoint_no")!=checkpoint_no or response.get("step_key")!=step_key:
+            continue
+        pin=response.get("high_effect_pin")
+        if (response.get("verdict")!="READY_TO_EXECUTE" or not isinstance(pin,dict)
+            or set(pin)!={"adapter_id","public_key_b64","action_fingerprint","approval_nonce"}
+            or pin.get("action_fingerprint")!=action_fingerprint(action)):
+            raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_NOT_PINNED"})
+        try:
+            raw=base64.b64decode(pin["public_key_b64"],validate=True)
+            if len(raw)!=32 or not isinstance(pin["adapter_id"],str):
+                raise ValueError("bad pinned key/adapter")
+            Ed25519PublicKey.from_public_bytes(raw)
+        except (ValueError,TypeError,KeyError) as exc:
+            raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_INVALID"}) from exc
+        return pin
+    raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_MISSING"})
+
+
 def worker_capability(action: Action) -> tuple[bool,str]:
     """Bounded capabilities of independently provisioned workers/adapters."""
     if action.effect_class in ("E3","E4","E5"):
@@ -1643,14 +1668,19 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             # One unified trusted admission path for EVERY concrete action.
             # A notarized claim alone never proves an action actually occurred.
             if req.action is not None:
+                pin=(pinned_high_effect_gate(c,req.task_id,expected,int(gate["pre_checkpoint_no"]),req.action)
+                     if req.action.effect_class in ("E3","E4","E5") else None)
+                signer=(pin["public_key_b64"] if pin else EXECUTOR_PUBLIC_KEY_B64)
                 valid, receipt_reason = verify_execution_receipt(
-                    req.execution_receipt, public_b64=EXECUTOR_PUBLIC_KEY_B64,
+                    req.execution_receipt, public_b64=signer,
                     task_id=req.task_id, step_key=expected,
                     gate_checkpoint_no=int(gate["pre_checkpoint_no"]),
                     action_fingerprint=fp, target=req.action.target,
                     gate_created_at=gate["created_at"])
                 if not valid:
                     raise HTTPException(409, {"code": receipt_reason})
+                if pin and req.execution_receipt["executor_id"]!="trusted-worker-"+pin["adapter_id"]:
+                    raise HTTPException(409,{"code":"HIGH_EFFECT_EXECUTOR_ID_MISMATCH"})
             elif req.execution_receipt is not None:
                 raise HTTPException(409, {"code": "EXECUTION_RECEIPT_FOR_LOGICAL_STEP_WITHOUT_ACTION"})
             ctx = EvalContext("POST_EXECUTION", int(gate["pre_checkpoint_no"]), iso_epoch(gate["created_at"]))
@@ -1671,7 +1701,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
 
         verdict = Verdict.VERIFIED_PASS if step_pass else Verdict.UNVERIFIED
         reason = "all acceptance criteria independently verified with signed phase/checkpoint-bound criterion bindings" if step_pass else "one or more acceptance criteria lack fresh criterion-bound notarized evidence"
-        action_rows: list[tuple[str, Evidence, EvidenceResult]] = []; hitl_approved = False
+        action_rows: list[tuple[str, Evidence, EvidenceResult]] = []; hitl_approved = False; high_effect_pin = None
         if req.phase == "PRE_EXECUTION":
             if step_pass:
                 action_v, action_reason, action_rows = action_check(req.task_id, expected, req.action, req.checkpoint_no)
@@ -1692,6 +1722,9 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                         verdict=Verdict.REQUIRES_HITL;reason=str(exc)
                     else:
                         verdict=Verdict.READY_TO_EXECUTE;reason="signed scoped HITL plus trusted high-effect capability admitted";hitl_approved=True
+                        high_effect_pin={"adapter_id":cap.adapter_id,"public_key_b64":cap.public_key_b64,
+                                         "action_fingerprint":action_fingerprint(req.action),
+                                         "approval_nonce":signed["nonce"]}
                 elif action_v == Verdict.REQUIRES_HITL and require_hitl_key(x_evaluation_hitl_key):
                     verdict = Verdict.READY_TO_EXECUTE; reason = "separate HITL authorization verified"; hitl_approved = True
                 else:
@@ -1737,7 +1770,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                 contract_status = "SATISFIED"
 
         status = "COMPLETED" if contract_status == "SATISFIED" else ("TASK_TERMINATED_UNRESOLVED" if contract_status == "UNRESOLVED" else ("RECOVERY_PENDING" if t["status"] == "RECOVERY_PENDING" and req.phase == "POST_EXECUTION" and not verified else "IN_PROGRESS"))
-        out = {"gateway_version": APP_VERSION, "task_id": req.task_id, "step_key": expected, "verdict": verdict.value, "reason": reason, "step_verified": verified, "contract_status": contract_status, "checkpoint_no": newcp, "evidence_notes": notes, "hitl_approved": hitl_approved, "action_fingerprint": fp, "action_intent_fingerprint": intent_fp, "gate_checkpoint_no": gate_cp, "evidence_digest": digest, "materialized_evidence": materialized, "completed_at": completed_at, "remedial_outcome": remedial_outcome, "recovery_strategy": recovery_strategy, "idempotent_replay": False}
+        out = {"gateway_version": APP_VERSION, "task_id": req.task_id, "step_key": expected, "verdict": verdict.value, "reason": reason, "step_verified": verified, "contract_status": contract_status, "checkpoint_no": newcp, "evidence_notes": notes, "hitl_approved": hitl_approved, "action_fingerprint": fp, "action_intent_fingerprint": intent_fp, "gate_checkpoint_no": gate_cp, "high_effect_pin": high_effect_pin, "evidence_digest": digest, "materialized_evidence": materialized, "completed_at": completed_at, "remedial_outcome": remedial_outcome, "recovery_strategy": recovery_strategy, "idempotent_replay": False}
         c.execute("UPDATE task_registry SET checkpoint_no=?,status=?,contract_status=?,completed_at=? WHERE task_id=?", (newcp, status, contract_status, completed_at, req.task_id))
         c.execute("INSERT INTO task_registry_checkpoints(task_id,checkpoint_no,step_key,event_id,verdict,verified,evidence_digest,created_at) VALUES(?,?,?,?,?,?,?,?)", (req.task_id, newcp, expected, req.event_id, verdict.value, int(verified), digest, now))
         if req.phase == "PRE_EXECUTION":

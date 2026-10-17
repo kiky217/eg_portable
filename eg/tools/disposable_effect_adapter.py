@@ -22,6 +22,7 @@ class EffectDenied(RuntimeError): pass
 
 ALLOWED={"E3":"sandbox_cutover","E4":"sandbox_critical_update","E5":"sandbox_irreversible_commit"}
 COMPENSATION={"E3":"sandbox_cutover_rollback","E4":"sandbox_critical_update_rollback"}
+ROLLBACK_PAYLOAD=b'{"operation":"delete"}'
 
 class DisposableAdapter:
     def __init__(self,root,ledger_dir,executor_private,adapter_id,effect_class):
@@ -108,6 +109,10 @@ class DisposableAdapter:
         if self.effect_class=="E5":
             raise EffectDenied("E5_COMPENSATION_FORBIDDEN_IRREVERSIBLE")
         expected=COMPENSATION[self.effect_class]
+        if (action.get("payload_sha256")!=hashlib.sha256(ROLLBACK_PAYLOAD).hexdigest()
+            or type(action.get("payload_bytes")) is not int
+            or action["payload_bytes"]!=len(ROLLBACK_PAYLOAD)):
+            raise EffectDenied("COMPENSATION_PAYLOAD_NOT_BOUND_TO_PRE")
         fp=action_fingerprint(action)
         if (not ready_gate or ready_gate.get("task_id")!=task_id or
             ready_gate.get("step_key")!=step_key or

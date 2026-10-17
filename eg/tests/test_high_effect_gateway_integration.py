@@ -157,3 +157,34 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
         phase="POST_EXECUTION",action=rollback,execution_receipt=undone["execution_receipt"])
     assert rpost.status_code==200 and rpost.json()["verdict"]=="VERIFIED_PASS",rpost.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
+
+@pytest.mark.parametrize("effect,atype",[("E3","sandbox_cutover"),("E4","sandbox_critical_update"),("E5","sandbox_irreversible_commit")])
+def test_canonical_post_uses_pinned_per_adapter_key_not_global(monkeypatch,effect,atype):
+    import json
+    from app.execution_receipts import body,sign
+    task,ch=register(); human=Ed25519PrivateKey.generate()
+    worker=Ed25519PrivateKey.generate()
+    adapter="trusted-adapter-independent-"+effect.lower()
+    data=b'{"ok":true}'
+    action={"action_type":atype,"target":"/tmp/eg-high/"+effect+".json",
+            "effect_class":effect,"reversible":effect!="E5","real_world_effect":True,
+            "payload_sha256":hashlib.sha256(data).hexdigest(),"payload_bytes":len(data),"proofs":[]}
+    cap={"adapter_id":adapter,"action_type":atype,"effect_class":effect,
+         "target_prefix":"/tmp/eg-high/","maximum_payload_bytes":524288,
+         "isolated":True,"public_key_b64":pub(worker)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
+    ap=signed(human,task,action,adapter,1,time.time())
+    pre=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=action,hitl_approval=ap)
+    assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+    pin=pre.json()["high_effect_pin"]
+    assert pin["public_key_b64"]==pub(worker) and pin["adapter_id"]==adapter
+    gate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
+    receipt=sign(body(task,"01.01",1,tool_fp(action),"trusted-worker-"+adapter,action["target"],
+                      data,ap["nonce"]),worker)
+    # Rotating the configured registry cannot rotate the original audited PRE key.
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([{**cap,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}]))
+    post=raw_eval(task,ch,1,claims=[claim(step_ref(task,"POST_EXECUTION",1))],
+                  phase="POST_EXECUTION",action=action,execution_receipt=receipt)
+    assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
+    assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"

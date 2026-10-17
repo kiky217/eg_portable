@@ -1,11 +1,12 @@
 """#19: high-effect admission is fail-closed until real signed adapters exist."""
 import pytest
+import base64
 from tools.high_effect_admission import (
     AdapterCapability,AdmissionDenied,admit_high_effect,action_fingerprint)
 
 ACTION={"action_type":"service_cutover","effect_class":"E3","target":"/sandbox/service",
         "payload_bytes":32,"reversible":True,"real_world_effect":True}
-CAP=AdapterCapability("trusted-adapter-sandbox","service_cutover","E3","/sandbox/",1024,True,"root")
+CAP=AdapterCapability("trusted-adapter-sandbox","service_cutover","E3","/sandbox/",1024,True,base64.b64encode(b"r"*32).decode())
 def approved(action=ACTION,**kwargs):
     return {"task_id":"t","step_key":"01.01","gate_checkpoint_no":1,
             "action_fingerprint":action_fingerprint(action),"adapter_id":CAP.adapter_id,
@@ -78,3 +79,8 @@ def test_payload_bound_denies_nonpositive_or_invalid_bytes(bad_bytes):
         admit_high_effect(action={**ACTION,"payload_bytes":bad_bytes},
                           capability=CAP,approval=approved(),task_id="t",step_key="01.01",
                           gate_checkpoint_no=1,now=1000)
+
+def test_high_effect_rejects_non_ed25519_registry_key():
+    from dataclasses import replace
+    with pytest.raises(AdmissionDenied,match="TRUST_ROOT"):
+        replace(CAP,public_key_b64="malformed").validate()
