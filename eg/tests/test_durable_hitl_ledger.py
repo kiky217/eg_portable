@@ -68,3 +68,19 @@ def test_revocation_after_consumption_is_too_late(tmp_path):
     ledger.consume(signed("APPROVED"),pub,**args)
     with pytest.raises(ApprovalClaimDenied,match="TOO_LATE"):
         ledger.revoke(signed("REVOKED"),pub,**args)
+
+
+def test_signed_denial_is_authenticated_but_never_authorizes(tmp_path):
+    from tools.signed_hitl_approval import verify_denial,HitlDenied
+    key=Ed25519PrivateKey.generate()
+    pub=base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
+    body={"version":1,"task_id":"task","step_key":"01.01","gate_checkpoint_no":3,
+          "action_fingerprint":"d"*64,"adapter_id":"trusted-adapter-isolated",
+          "decision":"DENIED","issued_at":1000,"expires_at":1100,"nonce":"explicit-denial-nonce-001"}
+    denied={**body,"signature_b64":base64.b64encode(key.sign(canonical(body))).decode()}
+    args={"task_id":"task","step_key":"01.01","gate_checkpoint_no":3,
+          "action_fingerprint":"d"*64,"adapter_id":"trusted-adapter-isolated","now":1010}
+    assert verify_denial(denied,pub,**args)["status"]=="SIGNED_DENIAL_VERIFIED_EFFECT_DENIED"
+    tmp_path.chmod(0o700)
+    with pytest.raises(HitlDenied):
+        ApprovalLedger(tmp_path).consume(denied,pub,**args)
