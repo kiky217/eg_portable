@@ -69,3 +69,35 @@ def test_timestamp_parser_accepts_iso8601_and_rejects_invalid(tmp_path):
         a.execute(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,gate_created_at="not-a-time",
             action=action,data=data,approval=hitl,hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
     assert not target.exists()
+
+
+@pytest.mark.parametrize("effect",["E3","E4","E5"])
+def test_crash_after_claim_stays_unknown_and_never_replays(tmp_path,effect):
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,effect)
+    def crash(point):
+        if point=="after_claim": raise RuntimeError("synthetic-crash-after-claim")
+    kwargs=dict(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+        gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=action,data=data,
+        approval=hitl,hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    with pytest.raises(RuntimeError,match="after-claim"): a.execute(**kwargs,fault_hook=crash)
+    assert not target.exists()
+    with pytest.raises(EffectDenied,match="UNKNOWN_NO_REPLAY"): a.execute(**kwargs)
+    assert not target.exists()
+
+@pytest.mark.parametrize("effect",["E3","E4","E5"])
+def test_crash_after_effect_recovers_receipt_without_duplicate_effect(tmp_path,effect):
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,effect)
+    def crash(point):
+        if point=="after_effect": raise RuntimeError("synthetic-crash-after-effect")
+    kwargs=dict(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+        gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=action,data=data,
+        approval=hitl,hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    with pytest.raises(RuntimeError,match="after-effect"): a.execute(**kwargs,fault_hook=crash)
+    ino=target.stat().st_ino
+    recovered=a.execute(**kwargs)
+    assert recovered["status"]=="RECOVERED_EXECUTED_POST_NOT_VERIFIED"
+    assert target.stat().st_ino==ino and target.read_bytes()==data
+    ok,note=verify_receipt(recovered["receipt"],public_b64=pub(worker),task_id="task-19",step_key="01.01",
+        gate_checkpoint_no=gate,action_fingerprint=action_fingerprint(action),target=str(target),
+        gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),time_now_ns=int(now*1e9))
+    assert ok,note
