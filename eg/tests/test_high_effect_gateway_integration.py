@@ -12,7 +12,7 @@ def pub(k): return base64.b64encode(k.public_key().public_bytes(Encoding.Raw,Pub
 def signed(k,task,action,adapter,gate,now,step="01.01"):
     b={"version":1,"task_id":task,"step_key":step,"gate_checkpoint_no":gate,
        "action_fingerprint":tool_fp(action),"adapter_id":adapter,"decision":"APPROVED",
-       "issued_at":now-1,"expires_at":now+120,"nonce":"canonical-hitl-nonce-01"}
+       "issued_at":now-1,"expires_at":now+120,"nonce":f"canonical-hitl-{step.replace('.','-')}-{gate}-{tool_fp(action)[:12]}"}
     return {**b,"signature_b64":base64.b64encode(k.sign(canonical(b))).decode()}
 
 @pytest.mark.parametrize("effect,atype",[
