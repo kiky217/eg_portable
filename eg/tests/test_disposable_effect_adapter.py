@@ -101,3 +101,30 @@ def test_crash_after_effect_recovers_receipt_without_duplicate_effect(tmp_path,e
         gate_checkpoint_no=gate,action_fingerprint=action_fingerprint(action),target=str(target),
         gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),time_now_ns=int(now*1e9))
     assert ok,note
+
+
+@pytest.mark.parametrize("effect",["E3","E4"])
+def test_compensation_is_separately_gated_and_removes_effect(tmp_path,effect):
+    from tools.disposable_effect_adapter import COMPENSATION
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,effect)
+    base=dict(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+        gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=action,data=data,
+        approval=hitl,hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    a.execute(**base);assert target.exists()
+    rollback_action={"action_type":COMPENSATION[effect],"effect_class":effect,"target":str(target),
+                     "payload_sha256":hashlib.sha256(b"").hexdigest(),"payload_bytes":0}
+    rfp=action_fingerprint(rollback_action);rgate=gate+1
+    rready={"task_id":"task-19","step_key":"01.02","checkpoint_no":rgate,
+            "verdict":"READY_TO_EXECUTE","action_fingerprint":rfp}
+    rapproval=approval(human,"task-19","01.02",rgate,rfp,a.adapter_id,now,nonce="rollback-approval-nonce-01")
+    result=a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=rgate,
+        gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=rollback_action,
+        approval=rapproval,hitl_public_key_b64=pub(human),ready_gate=rready,now=now)
+    assert result["status"]=="COMPENSATED_POST_NOT_VERIFIED" and not target.exists()
+
+def test_e5_compensation_is_forbidden(tmp_path):
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,"E5")
+    with pytest.raises(EffectDenied,match="IRREVERSIBLE"):
+        a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=gate+1,
+            gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action={},
+            approval=hitl,hitl_public_key_b64=pub(human),ready_gate={},now=now)
