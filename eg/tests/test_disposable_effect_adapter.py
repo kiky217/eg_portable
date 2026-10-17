@@ -223,3 +223,23 @@ def test_compensation_payload_mismatch_denied_before_effect(tmp_path,effect,muta
             hitl_public_key_b64=pub(human),ready_gate=rg,now=now)
     assert target.exists() and a.ledger.claim_status(rap["nonce"],task_id="task-19",
            step_key="01.02",gate_checkpoint_no=r_gate,action_fingerprint=fp,adapter_id=a.adapter_id) is None
+
+@pytest.mark.parametrize("effect",["E3","E4","E5"])
+def test_claimed_unknown_high_effect_cannot_be_retired_as_no_effect(tmp_path,effect):
+    from tools.durable_hitl_ledger import ApprovalClaimDenied
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,effect)
+    original=dict(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+                  gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),
+                  action=action,data=data,approval=hitl,hitl_public_key_b64=pub(human),
+                  ready_gate=ready,now=now)
+    def fail(point):
+        if point=="after_claim":raise RuntimeError("crash-after-durable-claim")
+    with pytest.raises(RuntimeError,match="crash-after-durable-claim"):
+        a.execute(**original,fault_hook=fail)
+    assert not target.exists()
+    with pytest.raises(ApprovalClaimDenied,match="UNKNOWN_EFFECT_CLAIM_EXISTS"):
+        a.reconcile_no_effect(task_id="task-19",step_key="01.01",
+          gate_checkpoint_no=gate,action=action,approval=hitl,
+          hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    with pytest.raises(EffectDenied,match="CLAIMED_EFFECT_UNKNOWN_NO_REPLAY"):
+        a.execute(**original)

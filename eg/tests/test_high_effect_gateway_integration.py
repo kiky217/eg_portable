@@ -262,6 +262,11 @@ def test_high_effect_independent_no_effect_reconciliation(monkeypatch,tmp_path,e
          "protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,
          "step_key":"01.01","action":action,"proof":proof,
          "executor_public_key_b64":pub(worker)}
+    wrong={**req,"event_id":H.eid("bad-root"),
+           "executor_public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
+    rejected=H.CLIENT.post(f"/v1/tasks/{task}/reconcile",headers=H.HEAD,json=wrong)
+    assert rejected.status_code==409
+    assert rejected.json()["detail"]["code"]=="RECONCILIATION_EXECUTOR_TRUST_MISMATCH"
     result=H.CLIENT.post(f"/v1/tasks/{task}/reconcile",headers=H.HEAD,json=req)
     assert result.status_code==200 and result.json()["reconciled_effect"]=="NOT_EXECUTED",result.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
