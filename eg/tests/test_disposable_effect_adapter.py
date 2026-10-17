@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 from app.execution_receipts import verify as verify_receipt
 from tools.disposable_effect_adapter import DisposableAdapter,EffectDenied,ALLOWED
+from tools.durable_hitl_ledger import ApprovalClaimDenied
 from tools.high_effect_admission import action_fingerprint
 from tools.signed_hitl_approval import canonical
 
@@ -145,7 +146,8 @@ def test_compensation_failure_is_explicit_and_fail_closed(tmp_path):
     rready={"task_id":"task-19","step_key":"01.02","checkpoint_no":rgate,
             "verdict":"READY_TO_EXECUTE","action_fingerprint":fp}
     rap=approval(human,"task-19","01.02",rgate,fp,a.adapter_id,now,nonce="rollback-failure-nonce-01")
-    with pytest.raises(EffectDenied,match="TARGET_ABSENT"):
+    # No original execution ever happened: provenance must fail before unlink.
+    with pytest.raises(ApprovalClaimDenied,match="ORIGINAL_EFFECT_NOT_PROVEN"):
         a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=rgate,
             gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=raction,
             approval=rap,hitl_public_key_b64=pub(human),ready_gate=rready,now=now)
