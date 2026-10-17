@@ -140,11 +140,20 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
         phase="PRE_EXECUTION",action=rollback,hitl_approval=rap)
     assert rpre.status_code==200 and rpre.json()["verdict"]=="READY_TO_EXECUTE",rpre.text
     rgate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
-    undone=adapter.compensate(task_id=task,step_key="01.02",gate_checkpoint_no=rpre.json()["gate_checkpoint_no"],
-        gate_created_at=rgate["created_at"],action=rollback,approval=rap,hitl_public_key_b64=pub(human),ready_gate=rgate,now=time.time())
+    import tools.governed_agent_dispatcher as dispatcher
+    def ci_get(_url,_key,_task,suffix):
+        assert _task==task
+        response=H.CLIENT.get(f"/v1/tasks/{task}"+suffix,headers=H.HEAD)
+        assert response.status_code==200,response.text
+        return response.json()
+    monkeypatch.setattr(dispatcher,"_get",ci_get)
+    undone=dispatcher.dispatch_disposable_ci(
+        task_id=task,step_key="01.02",action=rollback,data=b"",approval=rap,
+        adapter=adapter,eg_url="ci-eg",api_key="ci-api",hitl_public_key_b64=pub(human),
+        executor_public_key_b64=pub(H.EXEC_PRIV),operation="compensate",ci_only=True)
     assert not target.exists()
     rpost=raw_eval(task,ch,rpre.json()["checkpoint_no"],step="01.02",
         claims=[claim(step_ref(task,"POST_EXECUTION",rpre.json()["gate_checkpoint_no"],step="01.02"))],
-        phase="POST_EXECUTION",action=rollback,execution_receipt=undone["receipt"])
+        phase="POST_EXECUTION",action=rollback,execution_receipt=undone["execution_receipt"])
     assert rpost.status_code==200 and rpost.json()["verdict"]=="VERIFIED_PASS",rpost.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"

@@ -8,6 +8,7 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 from tools.signed_hitl_approval import verify_approval, HitlDenied
 
@@ -16,6 +17,19 @@ class AdmissionDenied(RuntimeError):
 
 def canonical(value: Any) -> bytes:
     return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()
+
+def target_within_scope(target: str, prefix: str) -> bool:
+    """Exact path-segment authorization, never a naive string prefix."""
+    if not isinstance(target,str) or not isinstance(prefix,str):
+        return False
+    if not target.startswith("/") or not prefix.startswith("/"):
+        return False
+    path=PurePosixPath(target)
+    root=PurePosixPath(prefix)
+    if ".." in path.parts or ".." in root.parts or path==root:
+        return False
+    return root in path.parents
+
 
 def action_fingerprint(action: dict) -> str:
     return hashlib.sha256(canonical(action)).hexdigest()
@@ -52,8 +66,9 @@ def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
     if (action.get("action_type") != capability.action_type or
         action.get("effect_class") != capability.effect_class or
         not isinstance(action.get("target"),str) or
-        not action["target"].startswith(capability.target_prefix) or
-        action.get("payload_bytes",0) > capability.maximum_payload_bytes):
+        not target_within_scope(action["target"],capability.target_prefix) or
+        type(action.get("payload_bytes")) is not int or
+        not 0 < action["payload_bytes"] <= capability.maximum_payload_bytes):
         raise AdmissionDenied("HIGH_EFFECT_CAPABILITY_SCOPE_MISMATCH")
     if not isinstance(approval,dict):
         raise AdmissionDenied("EXPLICIT_HITL_REQUIRED")

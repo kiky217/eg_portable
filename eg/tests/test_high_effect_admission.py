@@ -54,3 +54,26 @@ def test_signed_approval_verifies_but_cannot_authorize_absent_durable_adapter():
                           signed_approval=signed,hitl_public_key_b64=pub,
                           task_id="t",step_key="01.01",gate_checkpoint_no=1,now=1010)
     assert result["status"]=="CAPABILITY_AND_SIGNED_HITL_ADMITTED"
+
+
+@pytest.mark.parametrize("bad",["/sandbox/service-evil","/sandbox/../escape","/sandbox/","sandbox/service","/other/../sandbox/service"])
+def test_capability_path_boundary_fail_closed(bad):
+    from tools.high_effect_admission import target_within_scope
+    assert not target_within_scope(bad,"/sandbox/")
+    with pytest.raises(AdmissionDenied,match="SCOPE_MISMATCH"):
+        admit_high_effect(action={**ACTION,"target":bad},capability=CAP,
+                          approval=approved(),task_id="t",step_key="01.01",
+                          gate_checkpoint_no=1,now=1000)
+
+def test_capability_target_accepts_only_segment_child():
+    from tools.high_effect_admission import target_within_scope
+    assert target_within_scope("/sandbox/service","/sandbox/")
+    assert not target_within_scope("/sandboxer/service","/sandbox")
+    assert not target_within_scope("/sandbox","/sandbox")
+
+@pytest.mark.parametrize("bad_bytes",[None,0,-1,1.5,"4",True])
+def test_payload_bound_denies_nonpositive_or_invalid_bytes(bad_bytes):
+    with pytest.raises(AdmissionDenied,match="SCOPE_MISMATCH"):
+        admit_high_effect(action={**ACTION,"payload_bytes":bad_bytes},
+                          capability=CAP,approval=approved(),task_id="t",step_key="01.01",
+                          gate_checkpoint_no=1,now=1000)

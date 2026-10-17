@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.execution_receipts import verify as verify_execution_receipt
 from app.no_effect_receipts import verify_no_effect
-from tools.high_effect_admission import AdapterCapability, AdmissionDenied, admit_high_effect
+from tools.high_effect_admission import AdapterCapability, AdmissionDenied, admit_high_effect, target_within_scope
 
 LOG = logging.getLogger("evaluation_gateway")
 
@@ -1419,7 +1419,7 @@ def high_effect_capability(action: Action) -> AdapterCapability | None:
                 return None
             cap=AdapterCapability(**entry);cap.validate()
             if (cap.action_type==action.action_type and cap.effect_class==action.effect_class
-                    and action.target.startswith(cap.target_prefix)):
+                    and target_within_scope(action.target,cap.target_prefix)):
                 matches.append(cap)
         return matches[0] if len(matches)==1 else None
     except Exception:
