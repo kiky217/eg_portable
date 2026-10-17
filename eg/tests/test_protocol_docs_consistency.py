@@ -15,7 +15,7 @@ def test_actionable_gate_cannot_be_normatively_superseded():
 
 
 def test_remediation_snapshot_identified_as_historical():
-    snapshot=(ROOT/"docs/KNOWN_ISSUES_20261016.md").read_text()
+    snapshot=(ROOT/"artifacts/KNOWN_ISSUES_20261016.md").read_text()
     assert "**historical issue snapshot**" in snapshot
     assert "#19" in snapshot and "#20" in snapshot
     assert "#21" in snapshot and "#25" in snapshot

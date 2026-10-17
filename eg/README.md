@@ -59,5 +59,6 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 | `tools/check_live_cutover_readiness.py` | Read-only cutover readiness and provenance checks |
 | `tests/` | Regression and E2E tests |
 | `docs/` | Operational runbook, protocol, architecture, and release criteria |
+| `artifacts/` | Historical acceptance records and issue snapshots (excluded from runtime bundles) |
 
 EG has **one canonical task registry and evaluator**. The trusted worker is an execution adapter, not an alternative evaluator.

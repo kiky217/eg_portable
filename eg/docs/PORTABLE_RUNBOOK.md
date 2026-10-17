@@ -84,7 +84,7 @@ remains BLOCKED.
 
 ## Historical examples and release verification
 
-Archive-only: `ACCEPTANCE_POST_CUTOVER_20261016.md` and the original JSON
+Archive-only: [`ACCEPTANCE_POST_CUTOVER_20261016.md`](../artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md) and the [original JSON](../artifacts/acceptance-post-cutover-20261016.json)
 record the previous Colab owner decision. Neither is a current task ID,
 live deployment checkpoint, or skip-verification policy for other installs.
 

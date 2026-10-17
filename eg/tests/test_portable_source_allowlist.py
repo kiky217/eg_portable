@@ -23,12 +23,15 @@ def test_secret_sentinels_excluded(tmp_path):
     (src/'backups/gateway.db').write_text('SECRET-CANARY')
     (src/'app/.env').write_text('SECRET-CANARY')
     (src/'docs/private.key').write_text('SECRET-CANARY')
+    (src/'artifacts').mkdir()
+    (src/'artifacts/legacy-report.json').write_text('HISTORICAL-ONLY-CANARY')
     out=tmp_path/'bundle'
     copy_eg_source(src,out)
     assert (out/'.env.example').is_file()
     assert (out/'app/main.py').is_file()
     assert not (out/'.env').exists()
     assert not (out/'evidence').exists()
+    assert not (out/'artifacts').exists()
     assert all('SECRET-CANARY' not in f.read_text() for f in out.rglob('*') if f.is_file())
 
 def test_source_symlink_denied(tmp_path):

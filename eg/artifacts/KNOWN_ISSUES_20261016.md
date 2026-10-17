@@ -35,4 +35,4 @@ Every registered step requires EG PRE and POST validation **including staging**.
 
 GitHub source CI, published immutable release assets, independently signed rollback evidence, and an authenticated live production EG `SATISFIED` outcome are **four different claims**. A successful one never implies the others. The historical Colab task records are preserved and cannot be recreated from source control.
 
-For current operational instructions, use [PORTABLE_RUNBOOK.md](PORTABLE_RUNBOOK.md), [EXECUTOR_PROTOCOL.md](EXECUTOR_PROTOCOL.md), and [PRODUCTION_PROMOTION.md](PRODUCTION_PROMOTION.md).
+For current operational instructions, use [PORTABLE_RUNBOOK.md](../docs/PORTABLE_RUNBOOK.md), [EXECUTOR_PROTOCOL.md](../docs/EXECUTOR_PROTOCOL.md), and [PRODUCTION_PROMOTION.md](../docs/PRODUCTION_PROMOTION.md).
