@@ -130,3 +130,49 @@ def test_separate_process_worker_validates_live_eg_pre_and_signed_post(monkeypat
     finally:
         if proc.poll() is None:proc.kill();proc.wait(timeout=5)
         server.shutdown();server.server_close()
+
+
+def test_worker_denies_wrong_signing_identity_before_effect(monkeypatch,tmp_path):
+    """A PRE bound to a different key must not physically write a target."""
+    from datetime import datetime,timezone
+    from tools.disposable_rpc_worker import execute_once,RpcDenied
+    from tools.high_effect_admission import action_fingerprint
+    import tools.disposable_rpc_worker as rpc_module
+    actual=Ed25519PrivateKey.generate()
+    original=Ed25519PrivateKey.generate()
+    fp_data=b'{"safe":true}'
+    target=tmp_path/"never-created.json"
+    action={"action_type":"sandbox_cutover","effect_class":"E3",
+            "target":str(target),"payload_sha256":hashlib.sha256(fp_data).hexdigest(),
+            "payload_bytes":len(fp_data),"reversible":True,"real_world_effect":True,
+            "proofs":[]}
+    fp=action_fingerprint(action)
+    task="task-wrong-worker-key"
+    adapter_id="trusted-adapter-rpc-e3"
+    nonce="signed-original-approval"
+    pin={"adapter_id":adapter_id,"public_key_b64":pub(original),
+         "action_fingerprint":fp,"approval_nonce":nonce}
+    now=datetime.now(timezone.utc).isoformat()
+    state={"status":"IN_PROGRESS","current_step":"01.01",
+           "pending_execution_gate":{"task_id":task,"step_key":"01.01",
+                "verdict":"READY_TO_EXECUTE","hitl_approved":True,
+                "action_fingerprint":fp,"checkpoint_no":1,
+                "high_effect_pin":pin},
+           "latest_checkpoint":{"checkpoint_no":1,"verdict":"READY_TO_EXECUTE"}}
+    detail={"task":{"contract_status":"OPEN"},
+            "checkpoints":[{"checkpoint_no":1,"created_at":now,
+                            "verdict":"READY_TO_EXECUTE"}]}
+    monkeypatch.setattr(rpc_module,"eg_get",
+        lambda _url,_key,_task,suffix:state if suffix=="/state" else detail)
+    class MustNotExecute:
+        private=actual
+        def execute(self,**kwargs):
+            raise AssertionError("unsafe effect was called")
+    MustNotExecute.adapter_id=adapter_id
+    req={"task_id":task,"step_key":"01.01","action":action,
+         "approval":{"nonce":nonce},
+         "data_b64":base64.b64encode(fp_data).decode(),"operation":"execute"}
+    with pytest.raises(RpcDenied,match="ORIGINAL_PRE_EXECUTOR_IDENTITY_MISMATCH"):
+        execute_once(req,adapter=MustNotExecute(),eg_url="http://127.0.0.1:8765",
+                     eg_key="test",hitl_key="test")
+    assert not target.exists()
