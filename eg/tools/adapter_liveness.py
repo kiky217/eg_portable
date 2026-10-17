@@ -145,4 +145,5 @@ def probe_unix(path,*,adapter_id,capability_sha256,public_key_b64,
     verify(message,reply,adapter_id=adapter_id,
            capability_sha256=capability_sha256,public_key_b64=public_key_b64)
     return {"status":"SIGNED_LIVENESS_ONLY_NOT_EXECUTION_ADMITTED",
-            "adapter_id":adapter_id,"challenge_sha256":_digest(message)}
+            "adapter_id":adapter_id,"challenge_sha256":_digest(message),
+            "challenge":message,"signed_response":reply}

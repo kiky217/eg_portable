@@ -85,6 +85,14 @@ def test_separate_process_worker_validates_live_eg_pre_and_signed_post(monkeypat
         pre=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
                      action=action,hitl_approval=ap)
         assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+        signed_live=pre.json()["high_effect_liveness"]
+        from tools.adapter_liveness import verify as verify_liveness
+        assert signed_live["status"]=="SIGNED_LIVENESS_ONLY_NOT_EXECUTION_ADMITTED"
+        assert verify_liveness(signed_live["challenge"],signed_live["signed_response"],
+               adapter_id=adapter_id,
+               capability_sha256=signed_live["challenge"]["capability_sha256"],
+               public_key_b64=pub(key))
+
         req={"task_id":task,"step_key":"01.01","action":action,"approval":ap,
              "data_b64":base64.b64encode(data).decode(),"operation":"execute"}
         def rpc(r):
@@ -204,4 +212,5 @@ def test_high_effect_pre_requires_live_rpc_not_just_registry(monkeypatch,tmp_pat
                action=action,hitl_approval=approval)
     assert r.status_code==200 and r.json()["verdict"]=="REQUIRES_HITL",r.text
     assert "HIGH_EFFECT_LIVE_EXECUTOR_UNAVAILABLE" in r.json()["reason"]
+    assert r.json()["high_effect_liveness"] is None
     assert not (tmp_path/"offline.json").exists()

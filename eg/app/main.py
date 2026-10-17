@@ -1739,7 +1739,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
 
         verdict = Verdict.VERIFIED_PASS if step_pass else Verdict.UNVERIFIED
         reason = "all acceptance criteria independently verified with signed phase/checkpoint-bound criterion bindings" if step_pass else "one or more acceptance criteria lack fresh criterion-bound notarized evidence"
-        action_rows: list[tuple[str, Evidence, EvidenceResult]] = []; hitl_approved = False; high_effect_pin = None
+        action_rows: list[tuple[str, Evidence, EvidenceResult]] = []; hitl_approved = False; high_effect_pin = None; high_effect_liveness = None
         if req.phase == "PRE_EXECUTION":
             if step_pass:
                 action_v, action_reason, action_rows = action_check(req.task_id, expected, req.action, req.checkpoint_no)
@@ -1757,10 +1757,12 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                             approval=legacy,signed_approval=signed,hitl_public_key_b64=HITL_PUBLIC_KEY_B64,
                             task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1)
                         if HIGH_EFFECT_REQUIRE_RPC_LIVENESS:
+                            if type(HIGH_EFFECT_RPC_WORKER_UID) is not int or HIGH_EFFECT_RPC_WORKER_UID<0:
+                                raise AdmissionDenied("HIGH_EFFECT_WORKER_UID_NOT_PINNED")
                             fingerprint=hashlib.sha256(json.dumps(asdict(cap),
                                 sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
                             try:
-                                probe_unix(HIGH_EFFECT_RPC_SOCKET,adapter_id=cap.adapter_id,
+                                high_effect_liveness=probe_unix(HIGH_EFFECT_RPC_SOCKET,adapter_id=cap.adapter_id,
                                            capability_sha256=fingerprint,
                                            public_key_b64=cap.public_key_b64,
                                            task_id=req.task_id,step_key=expected,
@@ -1821,7 +1823,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                 contract_status = "SATISFIED"
 
         status = "COMPLETED" if contract_status == "SATISFIED" else ("TASK_TERMINATED_UNRESOLVED" if contract_status == "UNRESOLVED" else ("RECOVERY_PENDING" if t["status"] == "RECOVERY_PENDING" and req.phase == "POST_EXECUTION" and not verified else "IN_PROGRESS"))
-        out = {"gateway_version": APP_VERSION, "task_id": req.task_id, "step_key": expected, "verdict": verdict.value, "reason": reason, "step_verified": verified, "contract_status": contract_status, "checkpoint_no": newcp, "evidence_notes": notes, "hitl_approved": hitl_approved, "action_fingerprint": fp, "action_intent_fingerprint": intent_fp, "gate_checkpoint_no": gate_cp, "high_effect_pin": high_effect_pin, "evidence_digest": digest, "materialized_evidence": materialized, "completed_at": completed_at, "remedial_outcome": remedial_outcome, "recovery_strategy": recovery_strategy, "idempotent_replay": False}
+        out = {"gateway_version": APP_VERSION, "task_id": req.task_id, "step_key": expected, "verdict": verdict.value, "reason": reason, "step_verified": verified, "contract_status": contract_status, "checkpoint_no": newcp, "evidence_notes": notes, "hitl_approved": hitl_approved, "action_fingerprint": fp, "action_intent_fingerprint": intent_fp, "gate_checkpoint_no": gate_cp, "high_effect_pin": high_effect_pin, "high_effect_liveness": high_effect_liveness, "evidence_digest": digest, "materialized_evidence": materialized, "completed_at": completed_at, "remedial_outcome": remedial_outcome, "recovery_strategy": recovery_strategy, "idempotent_replay": False}
         c.execute("UPDATE task_registry SET checkpoint_no=?,status=?,contract_status=?,completed_at=? WHERE task_id=?", (newcp, status, contract_status, completed_at, req.task_id))
         c.execute("INSERT INTO task_registry_checkpoints(task_id,checkpoint_no,step_key,event_id,verdict,verified,evidence_digest,created_at) VALUES(?,?,?,?,?,?,?,?)", (req.task_id, newcp, expected, req.event_id, verdict.value, int(verified), digest, now))
         if req.phase == "PRE_EXECUTION":
