@@ -131,7 +131,7 @@ class DisposableAdapter:
                "action_fingerprint":fp,"adapter_id":self.adapter_id}
         if self.ledger.claim_status(approval["nonce"],**scope) is not None:
             if target.exists(): raise EffectDenied("COMPENSATION_UNKNOWN_NO_REPLAY")
-            observed=b""
+            observed=b'{"target_absent":true}'
         else:
             if not target.exists(): raise EffectDenied("COMPENSATION_TARGET_ABSENT")
             self.ledger.consume(approval,hitl_public_key_b64,now=current,**scope)
@@ -139,7 +139,7 @@ class DisposableAdapter:
             dirfd=os.open(self.root,os.O_DIRECTORY|os.O_RDONLY|os.O_NOFOLLOW)
             try:os.fsync(dirfd)
             finally:os.close(dirfd)
-            observed=b""
+            observed=b'{"target_absent":true}'
         receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                           "trusted-worker-"+self.adapter_id,str(target),observed,
                           approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
