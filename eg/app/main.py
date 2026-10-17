@@ -224,6 +224,8 @@ class Action(Strict):
     real_world_effect: bool = False
     payload_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
     payload_bytes: int | None = Field(default=None, ge=1, le=512*1024)
+    source_action_fingerprint: str | None = Field(default=None, pattern=HASH_RE.pattern)
+    source_gate_checkpoint_no: int | None = Field(default=None, ge=1)
     proofs: list[ActionProof] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")

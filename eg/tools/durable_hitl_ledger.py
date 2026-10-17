@@ -28,6 +28,8 @@ class ApprovalLedger:
             conn.execute("CREATE TABLE IF NOT EXISTS revocations (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
         os.chmod(self.db,0o600)
         with self._connect() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS executed_effects (target TEXT PRIMARY KEY, task_id TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL, digest TEXT NOT NULL)")
+        with self._connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS no_effect_retired (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
         with self._connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS compensation_completed (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
@@ -130,3 +132,21 @@ class ApprovalLedger:
             conn.execute("INSERT INTO no_effect_retired VALUES (?,?,?,?,?,?)",(nonce,*scope))
             conn.commit()
         return "NO_EFFECT_RETIRED_DURABLE"
+
+    def record_executed_effect(self, target, *, task_id, gate_checkpoint_no, action_fingerprint, adapter_id, digest):
+        scope=(task_id,gate_checkpoint_no,action_fingerprint,adapter_id,digest)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row=conn.execute("SELECT task_id,gate_no,action_fp,adapter_id,digest FROM executed_effects WHERE target=?",(target,)).fetchone()
+            if row is None:
+                conn.execute("INSERT INTO executed_effects VALUES (?,?,?,?,?,?)",(target,*scope))
+            elif row!=scope:
+                conn.rollback()
+                raise ApprovalClaimDenied("EXECUTED_EFFECT_PROVENANCE_MISMATCH")
+            conn.commit()
+
+    def require_original_effect(self, target, *, task_id, gate_checkpoint_no, action_fingerprint, adapter_id):
+        with self._connect() as conn:
+            row=conn.execute("SELECT task_id,gate_no,action_fp,adapter_id FROM executed_effects WHERE target=?",(target,)).fetchone()
+        if row!=(task_id,gate_checkpoint_no,action_fingerprint,adapter_id):
+            raise ApprovalClaimDenied("COMPENSATION_ORIGINAL_EFFECT_NOT_PROVEN")

@@ -77,7 +77,13 @@ class DisposableAdapter:
             except OSError as exc: raise EffectDenied("CLAIMED_EFFECT_UNKNOWN_NO_REPLAY") from exc
             if observed!=data:
                 raise EffectDenied("CLAIMED_EFFECT_MISMATCH_NO_REPLAY")
-            receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
+            self.ledger.record_executed_effect(str(target),task_id=task_id,
+                gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
+                adapter_id=self.adapter_id,digest=hashlib.sha256(data).hexdigest())
+            self.ledger.record_executed_effect(str(target),task_id=task_id,
+            gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
+            adapter_id=self.adapter_id,digest=hashlib.sha256(data).hexdigest())
+        receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                               "trusted-worker-"+self.adapter_id,str(target),observed,
                               approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
             return {"status":"RECOVERED_EXECUTED_POST_NOT_VERIFIED","receipt":receipt}
@@ -110,6 +116,10 @@ class DisposableAdapter:
         if self.effect_class=="E5":
             raise EffectDenied("E5_COMPENSATION_FORBIDDEN_IRREVERSIBLE")
         expected=COMPENSATION[self.effect_class]
+        if (type(action.get("source_gate_checkpoint_no")) is not int or
+            action["source_gate_checkpoint_no"]<1 or
+            not isinstance(action.get("source_action_fingerprint"),str)):
+            raise EffectDenied("COMPENSATION_ORIGINAL_BINDING_REQUIRED")
         if (action.get("payload_sha256")!=hashlib.sha256(ROLLBACK_PAYLOAD).hexdigest()
             or type(action.get("payload_bytes")) is not int
             or action["payload_bytes"]!=len(ROLLBACK_PAYLOAD)):
@@ -133,6 +143,10 @@ class DisposableAdapter:
         verify_approval(approval,hitl_public_key_b64,task_id=task_id,step_key=step_key,
                         gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
                         adapter_id=self.adapter_id,now=current)
+        self.ledger.require_original_effect(str(target),task_id=task_id,
+            gate_checkpoint_no=action["source_gate_checkpoint_no"],
+            action_fingerprint=action["source_action_fingerprint"],
+            adapter_id=self.adapter_id)
         scope={"task_id":task_id,"step_key":step_key,"gate_checkpoint_no":gate_checkpoint_no,
                "action_fingerprint":fp,"adapter_id":self.adapter_id}
         claimed=self.ledger.claim_status(approval["nonce"],**scope)
