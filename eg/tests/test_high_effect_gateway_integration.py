@@ -88,3 +88,55 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
         task_claims=[H.task_claim(task_ref,criterion="physical effect verified")],stdout="PARENT=PASS",value="PARENT=PASS")
     assert ppost.status_code==200 and ppost.json()["contract_status"]=="SATISFIED",ppost.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
+
+
+@pytest.mark.parametrize("effect,atype,rollback_type",[
+ ("E3","sandbox_cutover","sandbox_cutover_rollback"),
+ ("E4","sandbox_critical_update","sandbox_critical_update_rollback")])
+def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_path,effect,atype,rollback_type):
+    import json
+    from tools.disposable_effect_adapter import DisposableAdapter
+    root=tmp_path/"effects";ledger=tmp_path/"ledger";root.mkdir(mode=0o700);ledger.mkdir(mode=0o700)
+    task=f"rollback-{effect.lower()}-{H.eid('x')}"
+    reg=H.CLIENT.post("/v1/tasks/register",headers=H.HEAD,json={
+        "event_id":H.eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),"agent":"ChatGPT",
+        "original_instruction":"apply then compensate","acceptance_criteria":["rollback verified"],
+        "steps":[{"step_key":"01","title":"parent","acceptance_criteria":["parent"],"required":True,"execution_required":False},
+                 {"step_key":"01.01","title":"apply","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False},
+                 {"step_key":"01.02","title":"rollback","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False}]})
+    assert reg.status_code==200,reg.text
+    ch=reg.json()["contract_hash"];human=Ed25519PrivateKey.generate();adapter_id=f"trusted-adapter-{effect.lower()}"
+    data=b'{"applied":true}';target=root/f"{effect}.json"
+    apply={"action_type":atype,"target":str(target),"effect_class":effect,"reversible":True,"real_world_effect":True,
+           "payload_sha256":hashlib.sha256(data).hexdigest(),"payload_bytes":len(data),"proofs":[]}
+    rollback={"action_type":rollback_type,"target":str(target),"effect_class":effect,"reversible":True,"real_world_effect":True,
+              "payload_sha256":hashlib.sha256(b"").hexdigest(),"payload_bytes":0,"proofs":[]}
+    caps=[{"adapter_id":adapter_id,"action_type":x["action_type"],"effect_class":effect,"target_prefix":str(root)+"/",
+           "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64} for x in (apply,rollback)]
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps(caps));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
+    adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect);now=time.time()
+    ap=signed(human,task,apply,adapter_id,1,now)
+    pre=raw_eval(task,ch,0,step="01.01",claims=[claim(step_ref(task,"PRE_EXECUTION",0,step="01.01"))],
+                 phase="PRE_EXECUTION",action=apply,hitl_approval=ap)
+    assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+    gate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
+    done=adapter.execute(task_id=task,step_key="01.01",gate_checkpoint_no=pre.json()["gate_checkpoint_no"],
+        gate_created_at=gate["created_at"],action=apply,data=data,approval=ap,hitl_public_key_b64=pub(human),ready_gate=gate,now=time.time())
+    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
+        claims=[claim(step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01"))],
+        phase="POST_EXECUTION",action=apply,execution_receipt=done["receipt"])
+    assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
+    rgate_no=post.json()["checkpoint_no"]+1;rap=signed(human,task,rollback,adapter_id,rgate_no,time.time())
+    rpre=raw_eval(task,ch,post.json()["checkpoint_no"],step="01.02",
+        claims=[claim(step_ref(task,"PRE_EXECUTION",post.json()["checkpoint_no"],step="01.02"))],
+        phase="PRE_EXECUTION",action=rollback,hitl_approval=rap)
+    assert rpre.status_code==200 and rpre.json()["verdict"]=="READY_TO_EXECUTE",rpre.text
+    rgate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
+    undone=adapter.compensate(task_id=task,step_key="01.02",gate_checkpoint_no=rpre.json()["gate_checkpoint_no"],
+        gate_created_at=rgate["created_at"],action=rollback,approval=rap,hitl_public_key_b64=pub(human),ready_gate=rgate,now=time.time())
+    assert not target.exists()
+    rpost=raw_eval(task,ch,rpre.json()["checkpoint_no"],step="01.02",
+        claims=[claim(step_ref(task,"POST_EXECUTION",rpre.json()["gate_checkpoint_no"],step="01.02"))],
+        phase="POST_EXECUTION",action=rollback,execution_receipt=undone["receipt"])
+    assert rpost.status_code==200 and rpost.json()["verdict"]=="VERIFIED_PASS",rpost.text
+    assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
