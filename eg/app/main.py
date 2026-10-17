@@ -1431,7 +1431,7 @@ def worker_capability(action: Action) -> tuple[bool,str]:
     if action.effect_class in ("E3","E4","E5"):
         cap=high_effect_capability(action)
         if cap is None:
-            return False,"HIGH_EFFECT_ADAPTER_UNAVAILABLE_FAIL_CLOSED"
+            return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
         if action.payload_sha256 is None or action.payload_bytes is None:
             return False,"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"
         return True,"HIGH_EFFECT_ADAPTER_CAPABILITY_ADMITTED"
