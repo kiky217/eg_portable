@@ -8,19 +8,23 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import hmac
 import json
 import os
 import socket
 import stat
 import struct
+from dataclasses import asdict
 from pathlib import Path
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from urllib.request import Request,urlopen
 
 from tools.adapter_attestation_worker import _read_private_key,_private_directory
-from tools.adapter_liveness import canon
-from tools.disposable_effect_adapter import DisposableAdapter,EffectDenied
+from tools.adapter_liveness import canon, attest
+from tools.disposable_effect_adapter import DisposableAdapter,EffectDenied,ALLOWED
+from tools.high_effect_admission import AdapterCapability
+from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 from tools.high_effect_admission import action_fingerprint
 from tools.trusted_execution_worker import gate_allows_new_effect
 
@@ -126,6 +130,13 @@ def serve(*,socket_path,output_root,ledger_root,private_key_path,eg_url,eg_api_k
     key=_read_private_key(private_key_path)
     eg_key=_secret_file(eg_api_key_file)
     adapter=DisposableAdapter(output_root,ledger_root,key,adapter_id,effect_class)
+    capability=AdapterCapability(adapter_id=adapter_id,action_type=ALLOWED[effect_class],
+        effect_class=effect_class,target_prefix=str(adapter.root)+"/",
+        maximum_payload_bytes=512*1024,isolated=True,
+        public_key_b64=base64.b64encode(key.public_key().public_bytes(
+            Encoding.Raw,PublicFormat.Raw)).decode())
+    capability.validate()
+    cap_sha=hashlib.sha256(canon(asdict(capability))).hexdigest()
     old_umask=os.umask(0o077)
     count=0
     try:
@@ -147,10 +158,17 @@ def serve(*,socket_path,output_root,ledger_root,private_key_path,eg_url,eg_api_k
                                 payload=stream.readline(1048577)
                             if not payload.endswith(b"\n") or len(payload)>1048576:
                                 raise RpcDenied("RPC_PAYLOAD_TOO_LARGE")
-                            result=execute_once(json.loads(payload),adapter=adapter,
-                                                eg_url=eg_url,eg_key=eg_key,
-                                                hitl_key=hitl_public_key_b64)
-                            reply={"status":"PASS","result":result}
+                            request=json.loads(payload)
+                            if isinstance(request,dict) and request.get("operation")=="attest":
+                                if set(request)!={"operation","challenge"}:
+                                    raise RpcDenied("INVALID_ATTEST_RPC")
+                                reply=attest(request["challenge"],adapter_id=adapter_id,
+                                             capability_sha256=cap_sha,private_key=key)
+                            else:
+                                result=execute_once(request,adapter=adapter,
+                                                    eg_url=eg_url,eg_key=eg_key,
+                                                    hitl_key=hitl_public_key_b64)
+                                reply={"status":"PASS","result":result}
                         except Exception as exc:
                             reply={"status":"DENIED","reason":type(exc).__name__}
                         client.sendall(canon(reply)+b"\n")

@@ -208,3 +208,12 @@ different or substituted signing identity is denied before a physical effect.
 A malicious/mismatched worker must not cause an effect and wait for POST
 to reject its receipt. This is still **CI-only** execution, not production
 admission of arbitrary resources.
+
+## Same independent executor liveness required before CI PRE (v3.1.55)
+In the opt-in internal CI test mode EG sends a fresh gate, action and capability
+scoped Ed25519 challenge to the same IPC socket that will execute E3/E4/E5.
+The worker fingerprints its actual typed adapter policy and signs with its
+execution receipt key. Wrong UID/key/capability or an offline worker keeps
+PRE at REQUIRES_HITL. Tests prove E3/E4/E5 PRE -> live executor -> signed
+effect -> durable restart recovery -> POST/SATISFIED. Production remains
+fail-closed until a separately provisioned real-world adapter is proven.

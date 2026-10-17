@@ -65,16 +65,16 @@ def test_separate_process_worker_validates_live_eg_pre_and_signed_post(monkeypat
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter_id,1,time.time())
-    pre=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
-                 action=action,hitl_approval=ap)
-    assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+    monkeypatch.setattr(gw,"HIGH_EFFECT_REQUIRE_RPC_LIVENESS",True)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_SOCKET",str(sock))
+    monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_WORKER_UID",os.getuid())
     argv=[sys.executable,"-m","tools.disposable_rpc_worker",
           "--socket",str(sock),"--output-root",str(effect_root),
           "--ledger-root",str(journal),"--private-key",str(keyfile),
           "--eg-url",f"http://127.0.0.1:{server.server_address[1]}",
           "--eg-api-key-file",str(eg_keyfile),"--adapter-id",adapter_id,
           "--effect-class",effect,"--hitl-public-key-b64",pub(human),
-          "--controller-uid",str(os.getuid()),"--max-requests","2"]
+          "--controller-uid",str(os.getuid()),"--max-requests","3"]
     env={**os.environ,"PYTHONPATH":str(Path(__file__).resolve().parents[1])}
     proc=subprocess.Popen(argv,env=env)
     try:
@@ -82,6 +82,9 @@ def test_separate_process_worker_validates_live_eg_pre_and_signed_post(monkeypat
             if sock.exists() or proc.poll() is not None:break
             time.sleep(0.02)
         assert proc.poll() is None,"worker initialization failed"
+        pre=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
+                     action=action,hitl_approval=ap)
+        assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
         req={"task_id":task,"step_key":"01.01","action":action,"approval":ap,
              "data_b64":base64.b64encode(data).decode(),"operation":"execute"}
         def rpc(r):
@@ -176,3 +179,29 @@ def test_worker_denies_wrong_signing_identity_before_effect(monkeypatch,tmp_path
         execute_once(req,adapter=MustNotExecute(),eg_url="http://127.0.0.1:8765",
                      eg_key="test",hitl_key="test")
     assert not target.exists()
+
+def test_high_effect_pre_requires_live_rpc_not_just_registry(monkeypatch,tmp_path):
+    task,ch=register_high_effect()
+    human=Ed25519PrivateKey.generate()
+    key=Ed25519PrivateKey.generate()
+    adapter_id="trusted-adapter-offline"
+    payload=b'{"offline":true}'
+    action={"action_type":"sandbox_cutover","effect_class":"E3",
+            "target":str(tmp_path/"offline.json"),"reversible":True,
+            "real_world_effect":True,"payload_sha256":hashlib.sha256(payload).hexdigest(),
+            "payload_bytes":len(payload),"proofs":[]}
+    cap={"adapter_id":adapter_id,"action_type":"sandbox_cutover","effect_class":"E3",
+         "target_prefix":str(tmp_path)+"/","maximum_payload_bytes":524288,
+         "isolated":True,"public_key_b64":pub(key)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
+    monkeypatch.setattr(gw,"HIGH_EFFECT_REQUIRE_RPC_LIVENESS",True)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_SOCKET",str(tmp_path/"offline.sock"))
+    monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_WORKER_UID",os.getuid())
+    approval=signed(human,task,action,adapter_id,1,time.time())
+    r=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
+               action=action,hitl_approval=approval)
+    assert r.status_code==200 and r.json()["verdict"]=="REQUIRES_HITL",r.text
+    assert "HIGH_EFFECT_LIVE_EXECUTOR_UNAVAILABLE" in r.json()["reason"]
+    assert not (tmp_path/"offline.json").exists()
