@@ -3,7 +3,7 @@ from harness import CLIENT, HEAD, gw, eid, register, e2_action, do_pre, EXEC_PRI
 from app.no_effect_receipts import sign_no_effect
 
 def test_signed_no_effect_closes_gate_without_advancing_step():
-    task,ch=register()
+    task,ch=register(physical=True)
     action=e2_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
@@ -42,7 +42,7 @@ def test_actual_worker_attests_no_effect_and_gateway_reauthorizes(tmp_path,monke
     from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
     import harness as H
     from tools import trusted_execution_worker as worker
-    task,ch=register()
+    task,ch=register(physical=True)
     output=tmp_path/"outputs";journal=tmp_path/"journal"
     output.mkdir(mode=0o700);journal.mkdir(mode=0o700)
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT",str(output))
@@ -85,7 +85,7 @@ def test_durable_intent_before_create_is_reconciled_without_write(tmp_path,monke
     from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
     import json
     from tools import trusted_execution_worker as worker
-    task,ch=register()
+    task,ch=register(physical=True)
     output=tmp_path/"outputs";journal=tmp_path/"journal"
     output.mkdir(mode=0o700);journal.mkdir(mode=0o700)
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT",str(output))

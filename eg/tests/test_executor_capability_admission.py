@@ -21,7 +21,7 @@ def test_outside_worker_scope_rejected(target):
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
 
 def test_supported_write_can_ready_and_capabilities_advertised():
-    task,ch=register()
+    task,ch=register(physical=True)
     a=e2_action(task,0)
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==200 and r.json()["verdict"]=="READY_TO_EXECUTE"

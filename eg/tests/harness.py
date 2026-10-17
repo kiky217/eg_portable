@@ -96,11 +96,12 @@ def claim(ref, idx=0, text=CRIT):
     return {"criterion_index": idx, "claim": text, "evidence": [evp(ref)]}
 
 
-def register(task=None, criteria_child=None, global_criteria=None):
+def register(task=None, criteria_child=None, global_criteria=None, physical=False):
     task = task or eid("task"); criteria_child = criteria_child or [CRIT]; global_criteria = global_criteria or ["all steps evidenced"]
     body = {"event_id": eid("reg"), "task_id": task, "protocol_hash": gw.protocol_hash(), "agent": "ChatGPT", "original_instruction": "perform exact work", "acceptance_criteria": global_criteria, "steps": [
         {"step_key": "01", "title": "Parent", "acceptance_criteria": ["parent criterion"], "required": True,"execution_required":False},
-        {"step_key": "01.01", "title": "Child", "acceptance_criteria": criteria_child, "required": True,"execution_required":False}]}
+        {"step_key": "01.01", "title": "Child", "acceptance_criteria": criteria_child, "required": True,
+         "execution_required":physical,**({"preconditions":criteria_child} if physical else {})}]}
     r = CLIENT.post("/v1/tasks/register", headers=HEAD, json=body)
     assert r.status_code == 200, r.text
     return task, r.json()["contract_hash"]

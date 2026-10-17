@@ -9,7 +9,7 @@ from tools import trusted_execution_worker as worker
 
 
 def test_sealed_receipt_survives_failed_post_and_retries_without_new_effect(tmp_path,monkeypatch):
-    task,contract=register()
+    task,contract=register(physical=True)
     output=tmp_path/'outputs'
     journal=tmp_path/'journal'
     output.mkdir(mode=0o700)

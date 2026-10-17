@@ -4,7 +4,7 @@ from test_vnext_suspend import req as suspend
 
 
 def test_concrete_pre_cannot_replace_original_unconsumed_gate():
-    task,ch=register()
+    task,ch=register(physical=True)
     action=e2_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
@@ -20,7 +20,7 @@ def test_concrete_pre_cannot_replace_original_unconsumed_gate():
 
 
 def test_failed_post_keeps_recovery_pending_until_same_gate_verified():
-    task,ch=register()
+    task,ch=register(physical=True)
     action=e2_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     assert suspend(task,ch,1,"pause").status_code==200

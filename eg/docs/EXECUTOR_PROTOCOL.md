@@ -120,3 +120,12 @@ PRE can advertise executable readiness.
 41. E3/E4 compensation requires its own canonical PRE, signed scoped approval,
     exact rollback operation digest/length, durable single-use claim and signed
     POST. E5 compensation remains forbidden.
+
+## Immutable logical/physical admission hardening (v3.1.46)
+42. For new PRE requests, an action of **any** concrete effect class E0–E5
+    MUST be bound to a registered step whose immutable `execution_required`
+    is `true`, with separately signed precondition evidence. A logical
+    `execution_required=false` step cannot be relabelled via `evaluate.action`.
+43. Historic actionable PRE gates retain their immutable registration and
+    original signer; this change MUST NOT retroactively invalidate legitimate
+    same-gate POST or rewrite audit records. New PRE requires current policy.

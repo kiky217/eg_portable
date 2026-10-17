@@ -1668,9 +1668,8 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         # A fresh E3-E5 PRE must never reclassify an immutable logical step
         # as physical. Historical signed logical gates may still complete POST.
         if (req.phase=="PRE_EXECUTION" and req.action is not None
-            and req.action.effect_class in ("E3","E4","E5")
             and not step_contract.get("execution_required",False)):
-            raise HTTPException(409,{"code":"IMMUTABLE_LOGICAL_STEP_FORBIDS_HIGH_EFFECT"})
+            raise HTTPException(409,{"code":"IMMUTABLE_LOGICAL_STEP_FORBIDS_ACTION"})
         fp = action_fingerprint(req.action); intent_fp = action_intent_fingerprint(req.action)
         gate = None
         if req.phase == "PRE_EXECUTION":

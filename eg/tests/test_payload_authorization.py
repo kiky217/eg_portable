@@ -11,7 +11,7 @@ def test_missing_payload_denied_before_pre_checkpoint():
     assert CLIENT.get(f"/v1/tasks/{task}/state",headers=HEAD).json()["latest_checkpoint"] is None
 
 def test_reviewed_payload_proof_does_not_apply_to_different_bytes():
-    task,ch=register()
+    task,ch=register(physical=True)
     a=e2_action(task,0,payload=b"APPROVED_A")
     b={**a,"payload_sha256":hashlib.sha256(b"UNREVIEWED_B").hexdigest(),
         "payload_bytes":len(b"UNREVIEWED_B")}

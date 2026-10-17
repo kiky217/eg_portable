@@ -35,7 +35,7 @@ def resume(task,ch,cp):
     assert b.status_code==200 and b.json()["status"]=="RECOVERY_PENDING"
 
 def test_crash_after_physical_write_uses_original_receipt_path(tmp_path,monkeypatch):
-    task,ch=register()
+    task,ch=register(physical=True)
     w,output,journal=make_worker(tmp_path,monkeypatch,task)
     target=output/"written.txt"
     payload=b"WRITTEN_AFTER_PRE"
@@ -64,7 +64,7 @@ def test_crash_after_physical_write_uses_original_receipt_path(tmp_path,monkeypa
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
 
 def test_unknown_journal_remains_blocked_without_replay(tmp_path,monkeypatch):
-    task,ch=register()
+    task,ch=register(physical=True)
     w,output,journal=make_worker(tmp_path,monkeypatch,task)
     target=output/"unknown.txt"
     action=e2_action(task,0,target=str(target))
