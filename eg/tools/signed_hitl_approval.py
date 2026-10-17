@@ -59,3 +59,9 @@ def verify_revocation(envelope, public_key_b64, **scope):
     result=verify_decision(envelope,public_key_b64,allowed_decisions={"REVOKED"},**scope)
     return {"status":"SIGNED_REVOCATION_VERIFIED_NOT_DURABLE",
             "nonce":result["nonce"],"expires_at":result["expires_at"]}
+
+
+def verify_denial(envelope, public_key_b64, **scope):
+    result=verify_decision(envelope,public_key_b64,allowed_decisions={"DENIED"},**scope)
+    return {"status":"SIGNED_DENIAL_VERIFIED_EFFECT_DENIED",
+            "nonce":result["nonce"],"expires_at":result["expires_at"]}
