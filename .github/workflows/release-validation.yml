@@ -44,6 +44,9 @@ jobs:
         env:
           PYTHONPATH: .:tests
         run: sudo env PYTHONPATH=.:tests "$(command -v python)" -m pytest -q tests/test_notary_domain_e2e.py
+      - name: Live distinct UID adapter attestation and peer credential boundary
+        working-directory: eg
+        run: sudo env PYTHONPATH=.:tests "$(command -v python)" -m pytest -q tests/test_adapter_cross_uid_live.py
       - name: Prepare isolated separate-UID test source
         run: |
           sudo install -d -m 0755 /tmp/eg-ci-source
