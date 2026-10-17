@@ -24,6 +24,7 @@ def test_canonical_pre_requires_registered_capability_and_signed_hitl(monkeypatc
             "payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
     cap={"adapter_id":adapter,"action_type":atype,"effect_class":effect,"target_prefix":"/tmp/eg-high/",
          "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",__import__("json").dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ref=step_ref(task,"PRE_EXECUTION",0)
@@ -43,6 +44,7 @@ def test_header_hitl_cannot_replace_signed_high_effect_approval(monkeypatch):
             "reversible":True,"real_world_effect":True,"payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
     cap={"adapter_id":"trusted-adapter-e3","action_type":"sandbox_cutover","effect_class":"E3","target_prefix":"/tmp/eg-high/",
          "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",__import__("json").dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ref=step_ref(task,"PRE_EXECUTION",0)
@@ -67,6 +69,7 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
             "real_world_effect":True,"payload_sha256":hashlib.sha256(data).hexdigest(),"payload_bytes":len(data),"proofs":[]}
     cap={"adapter_id":adapter_id,"action_type":atype,"effect_class":effect,"target_prefix":str(root)+"/",
          "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     now=time.time();ap=signed(human,task,{**action},adapter_id,1,now)
     pre_ref=step_ref(task,"PRE_EXECUTION",0,step="01.01")
@@ -121,6 +124,7 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
               "payload_sha256":hashlib.sha256(b'{"operation":"delete"}').hexdigest(),"payload_bytes":22,"proofs":[]}
     caps=[{"adapter_id":adapter_id,"action_type":x["action_type"],"effect_class":effect,"target_prefix":str(root)+"/",
            "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64} for x in (apply,rollback)]
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps(caps));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect);now=time.time()
     ap=signed(human,task,apply,adapter_id,1,now)
@@ -172,6 +176,7 @@ def test_canonical_post_uses_pinned_per_adapter_key_not_global(monkeypatch,effec
     cap={"adapter_id":adapter,"action_type":atype,"effect_class":effect,
          "target_prefix":"/tmp/eg-high/","maximum_payload_bytes":524288,
          "isolated":True,"public_key_b64":pub(worker)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter,1,time.time())
@@ -183,6 +188,7 @@ def test_canonical_post_uses_pinned_per_adapter_key_not_global(monkeypatch,effec
     receipt=sign(body(task,"01.01",1,tool_fp(action),"trusted-worker-"+adapter,action["target"],
                       data,ap["nonce"]),worker)
     # Rotating the configured registry cannot rotate the original audited PRE key.
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([{**cap,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}]))
     post=raw_eval(task,ch,1,claims=[claim(step_ref(task,"POST_EXECUTION",1))],
                   phase="POST_EXECUTION",action=action,execution_receipt=receipt)
@@ -204,6 +210,7 @@ def test_high_effect_independent_no_effect_reconciliation(monkeypatch,tmp_path,e
     cap={"adapter_id":adapter_id,"action_type":atype,"effect_class":effect,
          "target_prefix":str(root)+"/","maximum_payload_bytes":524288,
          "isolated":True,"public_key_b64":pub(worker)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter_id,1,time.time())
@@ -232,3 +239,26 @@ def test_high_effect_independent_no_effect_reconciliation(monkeypatch,tmp_path,e
     result=H.CLIENT.post(f"/v1/tasks/{task}/reconcile",headers=H.HEAD,json=req)
     assert result.status_code==200 and result.json()["reconciled_effect"]=="NOT_EXECUTED",result.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
+
+def test_configured_high_effect_without_independent_transport_cannot_be_ready(monkeypatch):
+    import json
+    task,ch=register();human=Ed25519PrivateKey.generate()
+    action={"action_type":"sandbox_cutover","target":"/tmp/eg-high/inert.json",
+        "effect_class":"E3","reversible":True,"real_world_effect":True,
+        "payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
+    worker=Ed25519PrivateKey.generate();adapter="trusted-adapter-inert"
+    cap={"adapter_id":adapter,"action_type":"sandbox_cutover","effect_class":"E3",
+         "target_prefix":"/tmp/eg-high/","maximum_payload_bytes":524288,
+         "isolated":True,"public_key_b64":pub(worker)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",False)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
+    ap=signed(human,task,action,adapter,1,time.time())
+    denied=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],
+                    action=action,hitl_approval=ap)
+    assert denied.status_code==409,denied.text
+    assert denied.json()["detail"]["code"]=="UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
+    p=H.CLIENT.get("/v1/protocol",headers=H.HEAD).json()
+    assert p["high_effect_execution_mode"]=="UNPROVISIONED_FAIL_CLOSED"
+    assert p["high_effect_capability_catalog"][0]["availability"]=="UNPROVISIONED"
+    assert all(x["effect_class"] not in ("E3","E4","E5") for x in p["executor_capabilities"])

@@ -197,3 +197,10 @@ intercept commands from an external host-root agent, a free shell or an
 unconnected scheduler; such systems need their own isolation and EG adaptor
 before claiming mandatory end-to-end enforcement. Staging, remediation, and
 recovery remain subject to the same registered PRE/POST rules.
+
+## Portable high-effect boundary
+The built-in executable production worker remains E0/E2-only. The E3–E5
+registry diagnostic catalog is not proof of worker liveness; the CI-only
+disposable fixture never becomes production-ready via environment settings.
+External independent executor provisioning, authenticated liveness and signed
+per-adapter receipts require separate verified transport (issue #26).

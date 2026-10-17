@@ -120,3 +120,10 @@ or a QEMU guest sharing the same host root. A separate, verifiable root
 security domain is required. An expired PRE with no observed action requires
 a new PRE after native executor admission; an effect already present instead
 requires reconciliation, not re-execution or a retrospective receipt.
+
+## E3–E5 operational limits (v3.1.37)
+Production runtime has no provisioned E3–E5 worker transport. Do not treat
+`EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON` as a liveness/privilege
+attestation or set an in-process CI-only dispatcher as production transport.
+Only authenticated original-gate PRE signing roots may validate subsequent
+E3–E5 POST or no-effect reconciliation; absence of a trustworthy root is BLOCKED.

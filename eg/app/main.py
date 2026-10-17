@@ -52,6 +52,9 @@ EXECUTOR_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64"
 ADMISSION_MODE = os.getenv("EVALUATION_GATEWAY_ADMISSION_MODE", "enabled")
 EXECUTOR_OUTPUT_ROOT = os.getenv("EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT", "")
 HIGH_EFFECT_CAPABILITIES_JSON = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON", "")
+# Internal test switch, deliberately unavailable as an environment override.
+# A configured JSON manifest and signed HITL do not prove an independent worker.
+HIGH_EFFECT_CI_FIXTURE_ENABLED = False
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
@@ -1406,24 +1409,42 @@ def _require_registered_protocol(
         raise HTTPException(428, {"code": "IMMUTABLE_TASK_PROTOCOL_MISMATCH"})
 
 
-def high_effect_capability(action: Action) -> AdapterCapability | None:
-    if action.effect_class not in ("E3","E4","E5") or not HIGH_EFFECT_CAPABILITIES_JSON:
-        return None
+def configured_high_effect_capabilities() -> list[AdapterCapability]:
+    """One typed registry; never equate configured records with live admission."""
+    if not HIGH_EFFECT_CAPABILITIES_JSON:
+        return []
     try:
         entries=json.loads(HIGH_EFFECT_CAPABILITIES_JSON)
         if not isinstance(entries,list) or len(entries)>16:
-            return None
-        matches=[]
-        for entry in entries:
-            if not isinstance(entry,dict):
-                return None
-            cap=AdapterCapability(**entry);cap.validate()
-            if (cap.action_type==action.action_type and cap.effect_class==action.effect_class
-                    and target_within_scope(action.target,cap.target_prefix)):
-                matches.append(cap)
-        return matches[0] if len(matches)==1 else None
+            return []
+        caps=[AdapterCapability(**entry) for entry in entries]
+        for cap in caps: cap.validate()
+        identifiers=[(cap.adapter_id,cap.action_type,cap.effect_class,cap.target_prefix) for cap in caps]
+        if len(identifiers)!=len(set(identifiers)):
+            return []
+        return caps
     except Exception:
+        return []
+
+
+def high_effect_catalog() -> list[dict]:
+    """Diagnostic metadata only, never advertise an online E3-E5 executor."""
+    return [{"adapter_id":cap.adapter_id,"effect_class":cap.effect_class,
+             "action_type":cap.action_type,"availability":"CI_ONLY_NOT_PRODUCTION"
+             if HIGH_EFFECT_CI_FIXTURE_ENABLED else "UNPROVISIONED"}
+            for cap in configured_high_effect_capabilities()]
+
+
+def high_effect_capability(action: Action) -> AdapterCapability | None:
+    # The sole repository adapter is in-process and CI-only. A production
+    # provisioned transport must provide independent authenticated liveness
+    # before this can be enabled for real external effects (see Issue #26).
+    if not HIGH_EFFECT_CI_FIXTURE_ENABLED or action.effect_class not in ("E3","E4","E5"):
         return None
+    matches=[cap for cap in configured_high_effect_capabilities()
+             if cap.action_type==action.action_type and cap.effect_class==action.effect_class
+             and target_within_scope(action.target,cap.target_prefix)]
+    return matches[0] if len(matches)==1 else None
 
 
 

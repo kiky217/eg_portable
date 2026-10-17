@@ -95,3 +95,28 @@ to report a physical side effect as completed. Historical task contracts stay
 immutable and keep their intake protocol hash. Do not backfill or rewrite old
 TASK_INTAKE events. Unsupported cutovers must use a registered adapter before
 PRE can advertise executable readiness.
+
+## Signed high-effect sandbox admission and production boundary (v3.1.37)
+36. E3-E5 require a verified, scoped Ed25519 approval from the separate
+    `EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64` authority. The legacy
+    `X-Evaluation-HITL-Key` header alone MUST NOT convert high effect to READY.
+37. Approval must bind exact task, step, PRE checkpoint, immutable full action,
+    adapter identity, nonce, expiry and signed decision. A durable nonce claim
+    is not proof that the physical effect occurred.
+38. The verified PRE must record its selected high-effect executor identity,
+    public signing key, immutable action fingerprint and signed approval nonce
+    in the authenticated audit response. POST and NOT_EXECUTED reconciliation
+    validate the receipt/proof against that **original** PRE signer, never
+    a rotated mutable registry or the global E0/E2 worker key.
+39. E3-E5 disposable sandbox adapters and `dispatch_disposable_ci` are
+    **repository CI-only**. No production high-effect transport is currently
+    provisioned by this portable distribution. A JSON registry, boolean
+    `isolated=true` and signed HITL alone MUST NOT advertise online/live
+    execution or grant real-world READY. Admission remains fail-closed pending
+    independently protected worker transport and attestation.
+40. On independently proven NOT_EXECUTED, reconcile the original gate without
+    claiming step VERIFIED. Claimed, uncertain or unproven physical effects
+    remain UNKNOWN/BLOCKED; no duplicate effect or automatic fresh PRE.
+41. E3/E4 compensation requires its own canonical PRE, signed scoped approval,
+    exact rollback operation digest/length, durable single-use claim and signed
+    POST. E5 compensation remains forbidden.

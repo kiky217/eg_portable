@@ -36,3 +36,20 @@ progress is blocked on unsupported effects. Production deployment requires
 an independent executor security domain; a local Colab host-root agent
 therefore cannot satisfy universal enforcement without a privilege-boundary
 change outside this repository.
+
+## Capability contract and security domains (v3.1.37)
+- The canonical evaluator in `app/main.py` owns one PRE/POST ledger.
+- E0/E2 is implemented by a separate restricted Unix-socket worker. Its
+  `EXECUTOR_PUBLIC_KEY_B64` is the trusted receipt key.
+- E3/E4/E5 capability registry uses typed `AdapterCapability` records.
+  The repository adapter and `dispatch_disposable_ci` are **CI-only**.
+  Neither a manifest entry nor a claimed `isolated` boolean demonstrates a
+  live independently secured executor.
+- Authenticated PRE audit records pin high-effect adapter identity, signing
+  root, action fingerprint and signed approval nonce for POST/reconciliation.
+- `GET /v1/protocol` distinguishes executable E0/E2 capabilities from a
+  high-effect *diagnostic* catalog marked UNPROVISIONED (or CI_ONLY in tests).
+- No production E3–E5 dispatch until a separately protected RPC transport,
+  worker attestation/liveness and independently verified trust model exist.
+- Historical accepted task contracts and their hashes remain immutable;
+  signed task audit and NO_EFFECT recovery must never be rewritten.
