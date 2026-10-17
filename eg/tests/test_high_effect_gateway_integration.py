@@ -188,3 +188,47 @@ def test_canonical_post_uses_pinned_per_adapter_key_not_global(monkeypatch,effec
                   phase="POST_EXECUTION",action=action,execution_receipt=receipt)
     assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
+
+@pytest.mark.parametrize("effect,atype",[("E3","sandbox_cutover"),("E4","sandbox_critical_update"),("E5","sandbox_irreversible_commit")])
+def test_high_effect_independent_no_effect_reconciliation(monkeypatch,tmp_path,effect,atype):
+    import json
+    from tools.disposable_effect_adapter import DisposableAdapter,EffectDenied
+    from app.no_effect_receipts import verify_no_effect
+    from tools.durable_hitl_ledger import ApprovalClaimDenied
+    root=tmp_path/"root";journal=tmp_path/"ledger";root.mkdir(mode=0o700);journal.mkdir(mode=0o700)
+    task,ch=register(); human=Ed25519PrivateKey.generate(); worker=Ed25519PrivateKey.generate()
+    adapter_id="trusted-adapter-"+effect.lower();target=root/(effect+".json");data=b'{"ok":true}'
+    action={"action_type":atype,"effect_class":effect,"target":str(target),
+        "reversible":effect!="E5","real_world_effect":True,
+        "payload_sha256":hashlib.sha256(data).hexdigest(),"payload_bytes":len(data),"proofs":[]}
+    cap={"adapter_id":adapter_id,"action_type":atype,"effect_class":effect,
+         "target_prefix":str(root)+"/","maximum_payload_bytes":524288,
+         "isolated":True,"public_key_b64":pub(worker)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
+    ap=signed(human,task,action,adapter_id,1,time.time())
+    pre=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=action,hitl_approval=ap)
+    assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+    cp=pre.json()["checkpoint_no"]
+    base={"contract_hash":ch,"protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,"reason":"worker never called"}
+    assert H.CLIENT.post(f"/v1/tasks/{task}/pause",headers=H.HEAD,json={"event_id":H.eid("pause"),**base}).status_code==200
+    assert H.CLIENT.post(f"/v1/tasks/{task}/resume",headers=H.HEAD,json={"event_id":H.eid("resume"),**base}).json()["status"]=="RECOVERY_PENDING"
+    gate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
+    a=DisposableAdapter(root,journal,worker,adapter_id,effect)
+    proof=a.reconcile_no_effect(task_id=task,step_key="01.01",
+         gate_checkpoint_no=cp,action=action,approval=ap,ready_gate=gate,
+         hitl_public_key_b64=pub(human))
+    assert verify_no_effect(proof,public_b64=pub(worker),task_id=task,step_key="01.01",
+         gate_checkpoint_no=cp,action_fingerprint=tool_fp(action),target=str(target),
+         gate_created_at=gate["created_at"])
+    with pytest.raises(ApprovalClaimDenied,match="RETIRED"):
+        a.execute(task_id=task,step_key="01.01",gate_checkpoint_no=cp,
+            gate_created_at=gate["created_at"],action=action,data=data,approval=ap,
+            hitl_public_key_b64=pub(human),ready_gate=gate,now=time.time())
+    req={"event_id":H.eid("reconcile"),"contract_hash":ch,
+         "protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,
+         "step_key":"01.01","action":action,"proof":proof,
+         "executor_public_key_b64":pub(worker)}
+    result=H.CLIENT.post(f"/v1/tasks/{task}/reconcile",headers=H.HEAD,json=req)
+    assert result.status_code==200 and result.json()["reconciled_effect"]=="NOT_EXECUTED",result.text
+    assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"

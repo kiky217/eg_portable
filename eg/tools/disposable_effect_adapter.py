@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from app.execution_receipts import body, sign
+from app.no_effect_receipts import sign_no_effect
 from tools.durable_hitl_ledger import ApprovalLedger
 from tools.high_effect_admission import AdapterCapability, action_fingerprint
 from tools.signed_hitl_approval import verify_approval
@@ -157,3 +158,36 @@ class DisposableAdapter:
                           "trusted-worker-"+self.adapter_id,str(target),observed,
                           approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
         return {"status":"COMPENSATED_POST_NOT_VERIFIED","receipt":receipt}
+
+    def reconcile_no_effect(self,*,task_id,step_key,gate_checkpoint_no,action,
+                            approval,hitl_public_key_b64,ready_gate,now=None):
+        """CI-only independent no-effect attestation with atomic nonce retirement."""
+        if (not ready_gate or ready_gate.get("task_id")!=task_id or
+            ready_gate.get("step_key")!=step_key or
+            ready_gate.get("checkpoint_no")!=gate_checkpoint_no or
+            ready_gate.get("verdict")!="READY_TO_EXECUTE" or
+            ready_gate.get("action_fingerprint")!=action_fingerprint(action)):
+            raise EffectDenied("EG_READY_PRE_REQUIRED")
+        if (action.get("effect_class")!=self.effect_class or action.get("action_type") not in
+            (ALLOWED[self.effect_class],COMPENSATION.get(self.effect_class))):
+            raise EffectDenied("NO_EFFECT_UNSUPPORTED_ACTION")
+        target=Path(action.get("target",""))
+        if (not target.is_absolute() or target.is_symlink() or
+            target.resolve(strict=False).parent!=self.root or target.suffix!=".json"):
+            raise EffectDenied("NO_EFFECT_TARGET_OUT_OF_SCOPE")
+        from tools.signed_hitl_approval import verify_approval
+        current=time.time() if now is None else now
+        verify_approval(approval,hitl_public_key_b64,task_id=task_id,
+                        step_key=step_key,gate_checkpoint_no=gate_checkpoint_no,
+                        action_fingerprint=action_fingerprint(action),adapter_id=self.adapter_id,now=current)
+        if target.exists():
+            raise EffectDenied("NO_EFFECT_TARGET_PRESENT_UNKNOWN")
+        scope={"task_id":task_id,"step_key":step_key,"gate_checkpoint_no":gate_checkpoint_no,
+               "action_fingerprint":action_fingerprint(action),"adapter_id":self.adapter_id}
+        self.ledger.retire_no_effect(approval["nonce"],**scope)
+        if target.exists():
+            raise EffectDenied("NO_EFFECT_TARGET_RACE_UNKNOWN")
+        return sign_no_effect(self.private,task_id=task_id,step_key=step_key,
+                 gate_checkpoint_no=gate_checkpoint_no,
+                 action_fingerprint=action_fingerprint(action),
+                 target=str(target),executor_id="trusted-worker-"+self.adapter_id)

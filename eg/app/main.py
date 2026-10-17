@@ -1873,17 +1873,27 @@ def reconcile_task(task_id: str, req: ReconcileRequest):
         gate=latest_gate(c,task_id,req.step_key)
         if not gate or gate["consumed"] or gate["pre_verdict"]!="READY_TO_EXECUTE":
             raise HTTPException(409,{"code":"NO_UNCONSUMED_EXECUTION_GATE"})
-        if (req.action.action_type!="write" or req.action.effect_class!="E2"
-            or not ct(gate["action_fingerprint"],action_fingerprint(req.action))):
+        if not ct(gate["action_fingerprint"],action_fingerprint(req.action)):
             raise HTTPException(409,{"code":"RECONCILIATION_ACTION_MISMATCH"})
-        if not ct(req.executor_public_key_b64, EXECUTOR_PUBLIC_KEY_B64):
+        if req.action.effect_class in ("E3","E4","E5"):
+            pin=pinned_high_effect_gate(c,task_id,req.step_key,int(gate["pre_checkpoint_no"]),req.action)
+            expected_key=pin["public_key_b64"]
+            expected_executor="trusted-worker-"+pin["adapter_id"]
+        elif req.action.action_type=="write" and req.action.effect_class=="E2":
+            expected_key=EXECUTOR_PUBLIC_KEY_B64
+            expected_executor=None
+        else:
+            raise HTTPException(409,{"code":"RECONCILIATION_ACTION_MISMATCH"})
+        if not ct(req.executor_public_key_b64,expected_key):
             raise HTTPException(409,{"code":"RECONCILIATION_EXECUTOR_TRUST_MISMATCH"})
-        if not verify_no_effect(req.proof,public_b64=EXECUTOR_PUBLIC_KEY_B64,
+        if not verify_no_effect(req.proof,public_b64=expected_key,
                 task_id=task_id,step_key=req.step_key,
                 gate_checkpoint_no=int(gate["pre_checkpoint_no"]),
                 action_fingerprint=gate["action_fingerprint"],
                 target=req.action.target,gate_created_at=gate["created_at"]):
             raise HTTPException(409,{"code":"NO_EFFECT_WORKER_PROOF_INVALID"})
+        if expected_executor is not None and req.proof["executor_id"]!=expected_executor:
+            raise HTTPException(409,{"code":"NO_EFFECT_EXECUTOR_ADAPTER_MISMATCH"})
         c.execute("UPDATE execution_gates SET consumed=1 WHERE gate_id=?",(gate["gate_id"],))
         c.execute("UPDATE task_registry SET status='IN_PROGRESS' WHERE task_id=?",(task_id,))
         out={"gateway_version":APP_VERSION,"task_id":task_id,"step_key":req.step_key,

@@ -28,6 +28,8 @@ class ApprovalLedger:
             conn.execute("CREATE TABLE IF NOT EXISTS revocations (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
         os.chmod(self.db,0o600)
         with self._connect() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS no_effect_retired (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
+        with self._connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS compensation_completed (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
 
     def _connect(self):
@@ -69,6 +71,9 @@ class ApprovalLedger:
                                action_fingerprint=action_fingerprint,adapter_id=adapter_id,now=now)
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM no_effect_retired WHERE nonce=?",(result["nonce"],)).fetchone():
+                conn.rollback()
+                raise ApprovalClaimDenied("HITL_GATE_RETIRED_NO_EFFECT")
             if conn.execute("SELECT 1 FROM revocations WHERE nonce=?",(result["nonce"],)).fetchone():
                 conn.rollback()
                 raise ApprovalClaimDenied("HITL_REVOKED_NO_EXECUTION")
@@ -107,3 +112,21 @@ class ApprovalLedger:
                 conn.rollback()
                 raise ApprovalClaimDenied("COMPENSATION_COMPLETION_ALREADY_DURABLE") from exc
         return "COMPENSATION_COMPLETION_DURABLE"
+
+    def retire_no_effect(self, nonce, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id):
+        scope=(task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM claims WHERE nonce=?",(nonce,)).fetchone():
+                conn.rollback()
+                raise ApprovalClaimDenied("UNKNOWN_EFFECT_CLAIM_EXISTS_NO_RETIRE")
+            existing=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id FROM no_effect_retired WHERE nonce=?",(nonce,)).fetchone()
+            if existing is not None:
+                if existing!=scope:
+                    conn.rollback()
+                    raise ApprovalClaimDenied("RETIRED_SCOPE_MISMATCH")
+                conn.commit()
+                return "NO_EFFECT_ALREADY_RETIRED"
+            conn.execute("INSERT INTO no_effect_retired VALUES (?,?,?,?,?,?)",(nonce,*scope))
+            conn.commit()
+        return "NO_EFFECT_RETIRED_DURABLE"
