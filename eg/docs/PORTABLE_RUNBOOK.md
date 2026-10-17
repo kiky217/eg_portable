@@ -53,8 +53,9 @@ No staging action is exempt from this lifecycle.
 ## Cutover and rollback
 
 Current built-in worker supports bounded E0 reads and E2 file writes only;
-unsupported service cutover/E3 and shell must be BLOCKED until a separately
-trusted tested executor adapter is admitted. Replan into bounded steps only
+real-world service cutover/E3 and shell remain BLOCKED until a separately
+trusted, deployed executor adapter is admitted. The isolated disposable E3–E5
+CI-only adapters are regression fixtures, not production service transports. Replan into bounded steps only
 if each step actually uses a supported capability; never mislabel E3 as a
 logical check to bypass admission.
 

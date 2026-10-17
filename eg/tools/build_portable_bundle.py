@@ -219,7 +219,7 @@ set +a
 exec "$ROOT/run.sh"
 '''
     write_text(root/'start.sh',envrunner);(root/'start.sh').chmod(0o755)
-    doc='''# EG Offline Portable 3.1.0 (Linux x86-64)
+    doc=f'''# EG Offline Portable {RELEASE_VERSION} (Linux x86-64)
 
 Relocatable bundled Python 3.12, stdlib, all pinned runtime libraries and EG source.
 Requires Linux x86-64 ABI compatible with the build environment (glibc-compatible).
@@ -252,7 +252,7 @@ on shell commands or a fully production-safe deployment.
 
 No secret/private-key/runtime data is included in the archive.
 '''
-    write_text(root/'README_PORTABLE.md',doc.replace('3.1.0',RELEASE_VERSION))
+    write_text(root/'README_PORTABLE.md',doc)
     # Manifest only for contents actually inside bundle; no secrets.
     files=sorted(x for x in root.rglob('*') if x.is_file())
     manifest={str(x.relative_to(root)):filehash(x) for x in files}

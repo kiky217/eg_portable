@@ -24,7 +24,7 @@ If POST fails, EG does not authorize repeating the physical action. An interrupt
 
 EG provides a task registry, hierarchical step ordering, evidence validation, explicit PRE/POST checkpoints, authenticated audit history, pause/resume, failure escalation, linked remediation, and controlled recovery. A separate cutover checker can verify signed provenance and rehearse restoration, but this does **not** by itself certify a production service cutover.
 
-The built-in worker admits only restricted **E0 reads** and reversible **E2 file writes**, limited to `.txt` and valid `.json` inside its protected `output_root`, with a maximum content size of 512 KiB. E3–E5 and arbitrary shell/service changes are **not** supported by this adapter and must be blocked. HITL approval is separate from executor capability.
+The built-in worker admits only restricted **E0 reads** and reversible **E2 file writes**, limited to `.txt` and valid `.json` inside its protected `output_root`, with a maximum content size of 512 KiB. E3–E5 are **not** supported by the production built-in E0/E2 worker. The repository contains isolated disposable E3–E5 **CI-only** adapters with authenticated EG PRE and signed-receipt POST tests. Real-world service changes and arbitrary shells remain BLOCKED without separately deployed trusted transports. HITL approval is separate from executor capability.
 
 A production instance requires external durable state, protected signing keys, and worker privileges isolated from the agent. Neither a GitHub release nor local tests prove that a specific external instance is production-ready.
 

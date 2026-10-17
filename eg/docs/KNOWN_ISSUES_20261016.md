@@ -17,9 +17,9 @@ Issues **#2–#18** were marked closed on GitHub after source and CI remediation
 
 Repository E2E reference: [exact-SHA CI run 38946377609](https://github.com/kiky217/eg_portable/actions/runs/38946377609), HEAD `309f51c0f0235b76a5989777d5483b0f83bc8b44`, 190 tests passed.
 
-## Open follow-up work (recorded 2026-10-16)
+## Historical follow-up snapshot (recorded 2026-10-16; NOT live open-state)
 
-- [#19](https://github.com/kiky217/eg_portable/issues/19): portable E3–E5 executor capability + hybrid HITL; no approval-only READY.
+- [#19](https://github.com/kiky217/eg_portable/issues/19): subsequently CLOSED on 2026-10-17 with v3.1.31 repository-only E2E; CI adapters are not real-world production executors.
 - [#20](https://github.com/kiky217/eg_portable/issues/20): mandatory EG-gated agent execution within integrated dispatcher boundaries, including staging; no retrospective verification.
 - [#21](https://github.com/kiky217/eg_portable/issues/21): portable notary secret separation.
 - [#22](https://github.com/kiky217/eg_portable/issues/22): immutable release version versus tested HEAD mismatch.

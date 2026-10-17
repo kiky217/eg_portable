@@ -40,7 +40,7 @@ A step is not complete merely because a command exited successfully, the agent s
 
 EG is **not** a general-purpose remote shell or a universal controller of everything an agent can do.
 
-The built-in trusted worker currently supports **bounded E0 reads** and **reversible E2 file creation** in a protected output directory (`.txt` or valid `.json`). E3–E5 and service cutovers have no built-in executor adapter; an approval (HITL) alone cannot make an unsupported operation executable. Other actions are blocked until a properly isolated and tested adapter is available.
+The built-in trusted worker currently supports **bounded E0 reads** and **reversible E2 file creation** in a protected output directory (`.txt` or valid `.json`). E3–E5 have isolated disposable sandbox adapters for **repository-only CI testing**, including independently signed HITL, PRE/POST verification, crash recovery, and E3/E4 compensation. These are **not production executors**; the production dispatcher remains limited to E0/E2 until an independently provisioned and isolated high-effect transport is validated. Real service cutovers remain BLOCKED; HITL alone cannot make an unsupported operation executable. Other actions are blocked until a properly isolated and tested adapter is available.
 
 EG also cannot prevent commands issued entirely outside its trusted execution boundary. A public repository or passing CI run is **not** evidence that a separate production installation has performed a verified cutover.
 
