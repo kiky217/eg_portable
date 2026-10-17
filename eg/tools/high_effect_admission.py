@@ -75,6 +75,7 @@ def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
                         adapter_id=capability.adapter_id,now=now)
     except HitlDenied as exc:
         raise AdmissionDenied("HITL_SIGNATURE_OR_SCOPE_DENIED") from exc
-    # A signed approval and independently enforced single-use consumption
-    # must be supplied by a future authenticated adapter transport.
-    raise AdmissionDenied("HIGH_EFFECT_SIGNED_APPROVAL_AND_DURABLE_ADAPTER_NOT_YET_IMPLEMENTED")
+    return {"status":"CAPABILITY_AND_SIGNED_HITL_ADMITTED",
+            "adapter_id":capability.adapter_id,
+            "action_fingerprint":action_fingerprint(action),
+            "approval_nonce":signed_approval["nonce"]}

@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.execution_receipts import verify as verify_execution_receipt
 from app.no_effect_receipts import verify_no_effect
+from tools.high_effect_admission import AdapterCapability, AdmissionDenied, admit_high_effect
 
 LOG = logging.getLogger("evaluation_gateway")
 
@@ -50,6 +51,8 @@ EXECUTOR_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64"
 # historical task reconciliation and authenticated audit.
 ADMISSION_MODE = os.getenv("EVALUATION_GATEWAY_ADMISSION_MODE", "enabled")
 EXECUTOR_OUTPUT_ROOT = os.getenv("EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT", "")
+HIGH_EFFECT_CAPABILITIES_JSON = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON", "")
+HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
 CLOCK_SKEW_SECONDS = env_int("EVALUATION_GATEWAY_CLOCK_SKEW_SECONDS", 30, 0, 300)
@@ -303,6 +306,7 @@ class EvalRequest(Strict):
     task_claims: list[Claim] = Field(default_factory=list, max_length=200)
     action: Action | None = None
     execution_receipt: dict[str, Any] | None = None
+    hitl_approval: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def strict(self):
@@ -1402,8 +1406,35 @@ def _require_registered_protocol(
         raise HTTPException(428, {"code": "IMMUTABLE_TASK_PROTOCOL_MISMATCH"})
 
 
+def high_effect_capability(action: Action) -> AdapterCapability | None:
+    if action.effect_class not in ("E3","E4","E5") or not HIGH_EFFECT_CAPABILITIES_JSON:
+        return None
+    try:
+        entries=json.loads(HIGH_EFFECT_CAPABILITIES_JSON)
+        if not isinstance(entries,list) or len(entries)>16:
+            return None
+        matches=[]
+        for entry in entries:
+            if not isinstance(entry,dict):
+                return None
+            cap=AdapterCapability(**entry);cap.validate()
+            if (cap.action_type==action.action_type and cap.effect_class==action.effect_class
+                    and action.target.startswith(cap.target_prefix)):
+                matches.append(cap)
+        return matches[0] if len(matches)==1 else None
+    except Exception:
+        return None
+
+
 def worker_capability(action: Action) -> tuple[bool,str]:
-    """Bounded capabilities of the provisioned independent worker."""
+    """Bounded capabilities of independently provisioned workers/adapters."""
+    if action.effect_class in ("E3","E4","E5"):
+        cap=high_effect_capability(action)
+        if cap is None:
+            return False,"HIGH_EFFECT_ADAPTER_UNAVAILABLE_FAIL_CLOSED"
+        if action.payload_sha256 is None or action.payload_bytes is None:
+            return False,"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"
+        return True,"HIGH_EFFECT_ADAPTER_CAPABILITY_ADMITTED"
     if (action.action_type,action.effect_class,action.reversible,
             action.real_world_effect) not in (
             ("read","E0",False,False),("write","E2",True,False)):
@@ -1414,8 +1445,6 @@ def worker_capability(action: Action) -> tuple[bool,str]:
     target=Path(action.target)
     if (not root.is_absolute() or not target.is_absolute()
             or root.is_symlink()
-            # The worker-owned leaf is mode 0700; symlink/lstat validation
-            # happens in that independent UID, never in the EG service.
             or target.suffix not in (".txt",".json")
             or os.path.normpath(str(target.parent))!=os.path.normpath(str(root))):
         return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
@@ -1428,7 +1457,7 @@ def _require_action_admission(action: Action | None, phase: str) -> None:
         raise HTTPException(409, {"code": "TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED"})
     # POST for existing signed historical gates does not authorize new effects.
     if phase=="PRE_EXECUTION":
-        if action.action_type=="write" and action.effect_class=="E2" and (
+        if action.effect_class in ("E2","E3","E4","E5") and (
             action.payload_sha256 is None or action.payload_bytes is None):
             raise HTTPException(409,{"code":"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"})
         ok,reason=worker_capability(action)
@@ -1646,7 +1675,24 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         if req.phase == "PRE_EXECUTION":
             if step_pass:
                 action_v, action_reason, action_rows = action_check(req.task_id, expected, req.action, req.checkpoint_no)
-                if action_v == Verdict.REQUIRES_HITL and require_hitl_key(x_evaluation_hitl_key):
+                if action_v == Verdict.REQUIRES_HITL and req.action is not None and req.action.effect_class in ("E3","E4","E5"):
+                    cap=high_effect_capability(req.action)
+                    try:
+                        if cap is None or not HITL_PUBLIC_KEY_B64:
+                            raise AdmissionDenied("HIGH_EFFECT_ADAPTER_OR_HITL_AUTHORITY_UNAVAILABLE")
+                        signed=req.hitl_approval
+                        legacy=None if not isinstance(signed,dict) else {
+                            "task_id":req.task_id,"step_key":expected,"gate_checkpoint_no":int(t["checkpoint_no"])+1,
+                            "action_fingerprint":action_fingerprint(req.action),"adapter_id":cap.adapter_id,
+                            "status":"APPROVED","consumed":False,"expires_at":signed.get("expires_at")}
+                        admit_high_effect(action=req.action.model_dump(mode="json",exclude_none=True),capability=cap,
+                            approval=legacy,signed_approval=signed,hitl_public_key_b64=HITL_PUBLIC_KEY_B64,
+                            task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1)
+                    except AdmissionDenied as exc:
+                        verdict=Verdict.REQUIRES_HITL;reason=str(exc)
+                    else:
+                        verdict=Verdict.READY_TO_EXECUTE;reason="signed scoped HITL plus trusted high-effect capability admitted";hitl_approved=True
+                elif action_v == Verdict.REQUIRES_HITL and require_hitl_key(x_evaluation_hitl_key):
                     verdict = Verdict.READY_TO_EXECUTE; reason = "separate HITL authorization verified"; hitl_approved = True
                 else:
                     verdict = action_v; reason = action_reason

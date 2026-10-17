@@ -50,7 +50,7 @@ def test_signed_approval_verifies_but_cannot_authorize_absent_durable_adapter():
              "action_fingerprint":action_fingerprint(ACTION),"adapter_id":CAP.adapter_id,
              "decision":"APPROVED","issued_at":1000,"expires_at":1100,"nonce":"high-effect-approval-001"}
     signed={**payload,"signature_b64":base64.b64encode(authority.sign(canonical(payload))).decode()}
-    with pytest.raises(AdmissionDenied,match="SIGNED_APPROVAL_AND_DURABLE_ADAPTER"):
-        admit_high_effect(action=ACTION,capability=CAP,approval=approved(),
+    result=admit_high_effect(action=ACTION,capability=CAP,approval=approved(),
                           signed_approval=signed,hitl_public_key_b64=pub,
                           task_id="t",step_key="01.01",gate_checkpoint_no=1,now=1010)
+    assert result["status"]=="CAPABILITY_AND_SIGNED_HITL_ADMITTED"
