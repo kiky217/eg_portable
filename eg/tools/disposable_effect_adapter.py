@@ -53,7 +53,11 @@ class DisposableAdapter:
         try:json.loads(data)
         except (UnicodeError,ValueError) as exc:raise EffectDenied("INVALID_JSON_EFFECT") from exc
         current=time.time() if now is None else now
-        try:\n            gate_epoch=datetime.fromisoformat(gate_created_at).timestamp()\n        except (TypeError,ValueError,OverflowError) as exc:\n            raise EffectDenied(\"INVALID_PRE_TIMESTAMP\") from exc\n        if current < gate_epoch-30 or current-gate_epoch>300:
+        try:
+            gate_epoch=datetime.fromisoformat(gate_created_at).timestamp()
+        except (TypeError,ValueError,OverflowError) as exc:
+            raise EffectDenied("INVALID_PRE_TIMESTAMP") from exc
+        if current < gate_epoch-30 or current-gate_epoch>300:
             raise EffectDenied("PRE_LEASE_EXPIRED")
         fp=action_fingerprint(action)
         verify_approval(approval,hitl_public_key_b64,task_id=task_id,step_key=step_key,
