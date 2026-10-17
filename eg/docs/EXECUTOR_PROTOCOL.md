@@ -160,3 +160,17 @@ same-UID access. Inter-UID access requires a separate audited owner/group ACL
 layout and distinct identity smoke tests; do not open directory or key permissions
 to make a missing transport work. Neither peer credentials nor signed liveness
 grant E3–E5 production execution.
+
+## Cross-UID attestation socket deployment (v3.1.51)
+For Linux with separate worker/controller UIDs, provision a dedicated private
+shared group to both processes. Create the worker-owned socket parent with
+mode `2710` (group execute-only, no read/write); keep the Ed25519 private
+key `0600`, worker UID-owned. Start the worker with `--controller-uid`
+and `--controller-gid`. It verifies the connecting controller's UID using
+kernel SO_PEERCRED before handling messages; the client must pass
+`expected_worker_uid` to verify the other direction. Socket `0660`
+permits connection only to that private group, which does not confer
+authorization without UID verification. A separate GitHub Actions **root-run
+live test** forks worker, controller, and rogue as three distinct Linux UIDs
+and verifies signed liveness, denied rogue access and private-key isolation.
+This still grants **no E3–E5 effect execution**.

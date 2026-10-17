@@ -23,10 +23,13 @@ class WorkerSetupDenied(RuntimeError):
     pass
 
 
-def _private_directory(path):
+def _private_directory(path,controller_gid=None):
     if (path.is_symlink() or not path.is_dir() or
         path.stat().st_uid!=os.getuid() or
-        stat.S_IMODE(path.stat().st_mode)&0o077):
+        (path.stat().st_gid!=controller_gid if controller_gid is not None else False)
+        or (stat.S_IMODE(path.stat().st_mode)&(0o067 if controller_gid is not None else 0o077))
+        or (controller_gid is not None and
+            stat.S_IMODE(path.stat().st_mode)&0o010==0)):
         raise WorkerSetupDenied("WORKER_SOCKET_DIRECTORY_NOT_PRIVATE")
 
 
@@ -50,11 +53,11 @@ def _read_private_key(path):
 
 
 def serve(*,socket_path,private_key_path,adapter_id,capability_sha256,max_requests=0,
-          controller_uid=None):
+          controller_uid=None,controller_gid=None):
     """Run a strictly read-only attestation service in its own process/UID."""
     root=Path(socket_path).parent
     path=Path(socket_path)
-    _private_directory(root)
+    _private_directory(root,controller_gid)
     if path.exists() or path.is_symlink():
         raise WorkerSetupDenied("WORKER_SOCKET_ALREADY_EXISTS")
     if (not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")
@@ -67,13 +70,19 @@ def serve(*,socket_path,private_key_path,adapter_id,capability_sha256,max_reques
         controller_uid=os.getuid()  # local-only default; production supplies independent UID
     if type(controller_uid) is not int or controller_uid<0:
         raise WorkerSetupDenied("CONTROLLER_UID_INVALID")
+    if controller_gid is not None and (
+        type(controller_gid) is not int or controller_gid<0 or controller_uid==os.getuid()
+    ):
+        raise WorkerSetupDenied("CROSS_UID_GROUP_CONFIGURATION_INVALID")
     requests=0
     original_umask=os.umask(0o077)
     try:
         with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as server:
             try:
                 server.bind(str(path))
-                os.chmod(path,0o600)
+                if controller_gid is not None:
+                    os.chown(path,-1,controller_gid)
+                os.chmod(path,0o660 if controller_gid is not None else 0o600)
                 inode=path.lstat().st_ino
                 server.listen(8)
                 while not max_requests or requests<max_requests:
@@ -114,12 +123,15 @@ def main():
     parser.add_argument("--adapter-id",required=True)
     parser.add_argument("--capability-sha256",required=True)
     parser.add_argument("--max-requests",type=int,default=0,help="test only; 0 serves continuously")
+    parser.add_argument("--controller-gid",type=int,default=None,
+                        help="Private shared group for distinct-UID controller socket access")
     parser.add_argument("--controller-uid",type=int,required=True,
                         help="Numeric OS UID allowed to send attestation challenges")
     a=parser.parse_args()
     serve(socket_path=a.socket,private_key_path=a.private_key,
           adapter_id=a.adapter_id,capability_sha256=a.capability_sha256,
-          max_requests=a.max_requests,controller_uid=a.controller_uid)
+          max_requests=a.max_requests,controller_uid=a.controller_uid,
+          controller_gid=a.controller_gid)
 
 
 if __name__=="__main__":
