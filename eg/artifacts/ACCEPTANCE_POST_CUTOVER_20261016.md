@@ -83,4 +83,4 @@ Therefore:
 **Meaning of this revision:** a superseding owner operational acceptance,
 not a replacement for an EG `VERIFIED_PASS`/terminal `SATISFIED` receipt.
 
-Machine-readable version: `docs/acceptance-post-cutover-20261016.json`.
+Machine-readable version: `acceptance-post-cutover-20261016.json`.

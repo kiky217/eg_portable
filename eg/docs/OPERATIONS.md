@@ -85,7 +85,7 @@ BLOCKED without a separately verified capable worker; direct shell is not a
 fallback.
 
 The dated Colab 2026-10-15 owner-accepted cutover is documented in
-[ACCEPTANCE_POST_CUTOVER_20261016.md](ACCEPTANCE_POST_CUTOVER_20261016.md).
+[ACCEPTANCE_POST_CUTOVER_20261016.md](../artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md).
 That historical addendum is retained, not an order to skip new cutover steps,
 and never changes its original 12/16 VERIFIED canonical task ledger.
 
