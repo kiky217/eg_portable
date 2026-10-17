@@ -80,10 +80,7 @@ class DisposableAdapter:
             self.ledger.record_executed_effect(str(target),task_id=task_id,
                 gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
                 adapter_id=self.adapter_id,digest=hashlib.sha256(data).hexdigest())
-            self.ledger.record_executed_effect(str(target),task_id=task_id,
-            gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
-            adapter_id=self.adapter_id,digest=hashlib.sha256(data).hexdigest())
-        receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
+            receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                               "trusted-worker-"+self.adapter_id,str(target),observed,
                               approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
             return {"status":"RECOVERED_EXECUTED_POST_NOT_VERIFIED","receipt":receipt}
@@ -104,6 +101,9 @@ class DisposableAdapter:
         dirfd=os.open(self.root,os.O_DIRECTORY|os.O_RDONLY|os.O_NOFOLLOW)
         try:os.fsync(dirfd)
         finally:os.close(dirfd)
+        self.ledger.record_executed_effect(str(target),task_id=task_id,
+            gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
+            adapter_id=self.adapter_id,digest=hashlib.sha256(data).hexdigest())
         receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                           "trusted-worker-"+self.adapter_id,str(target),observed,
                           approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
