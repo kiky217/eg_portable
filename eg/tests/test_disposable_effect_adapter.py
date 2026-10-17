@@ -43,10 +43,12 @@ def test_physical_effect_signed_receipt_and_replay_denial(tmp_path,effect):
         gate_checkpoint_no=gate,action_fingerprint=action_fingerprint(action),target=str(target),
         gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),time_now_ns=int(now*1e9))
     assert ok,note
-    with pytest.raises(Exception):
-        a.execute(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
-            gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=action,data=data,
-            approval=hitl,hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    ino=target.stat().st_ino
+    replay=a.execute(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+        gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=action,data=data,
+        approval=hitl,hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    assert replay["status"]=="RECOVERED_EXECUTED_POST_NOT_VERIFIED"
+    assert target.stat().st_ino==ino
 
 @pytest.mark.parametrize("mutation",["missing_gate","wrong_fp","expired","forged","target","payload"])
 def test_fail_closed_before_effect(tmp_path,mutation):
