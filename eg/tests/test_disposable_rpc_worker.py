@@ -97,6 +97,24 @@ def test_separate_process_worker_validates_live_eg_pre_and_signed_post(monkeypat
         receipt=result["result"]["receipt"]
         assert target.read_bytes()==data
         assert proc.wait(timeout=10)==0
+        inode=target.stat().st_ino
+        # Restart same worker with same independent key and durable ledger.
+        argv[-1]="1"  # max-requests: serve exactly one recovery RPC
+        replay_worker=subprocess.Popen(argv,env=env)
+        try:
+            for _ in range(100):
+                if sock.exists() or replay_worker.poll() is not None:break
+                time.sleep(0.02)
+            assert replay_worker.poll() is None,"restart failed"
+            repeated=rpc(req)
+            assert repeated["status"]=="PASS",repeated
+            assert repeated["result"]["status"]=="RECOVERED_EXECUTED_POST_NOT_VERIFIED"
+            assert repeated["result"]["receipt"]==receipt
+            assert target.stat().st_ino==inode and target.read_bytes()==data
+            assert replay_worker.wait(timeout=10)==0
+        finally:
+            if replay_worker.poll() is None:
+                replay_worker.kill();replay_worker.wait(timeout=5)
         post=raw_eval(task,ch,pre.json()["checkpoint_no"],phase="POST_EXECUTION",
                       claims=[claim(step_ref(task,"POST_EXECUTION",1))],
                       action=action,execution_receipt=receipt)

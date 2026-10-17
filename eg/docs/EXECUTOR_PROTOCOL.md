@@ -187,3 +187,13 @@ read-only HTTP proxy for E3/E4/E5: REGISTER → signed HITL PRE → effect journ
 and readback → signed receipt → EG POST → SATISFIED, with wrong-action denial.
 This is strong **CI E2E evidence only**. Independent production provision,
 real application cutover and live promotion (#26) are still required.
+
+## Durable signed receipt restart semantics (v3.1.53)
+The CI sandbox ledger now seals the original Ed25519 receipt in synchronous
+SQLite after effect readback/transaction commit. After worker crash/restart,
+an already claimed effect is **never applied twice**: original target readback
+and durable provenance are checked, and the identical signed receipt is
+returned. An uncertain effect remains UNKNOWN and BLOCKED. Live out-of-process
+E3/E4/E5 regression restarts the worker between effect and POST and checks the
+same signed receipt, target inode and payload before EG POST/SATISFIED. This
+does not authorize unprovisioned production E3–E5 cutovers.

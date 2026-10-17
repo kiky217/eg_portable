@@ -6,6 +6,7 @@ Signed revocations are durable and race atomically with approval consumption.
 """
 from __future__ import annotations
 import os
+import json
 import sqlite3
 from pathlib import Path
 from tools.signed_hitl_approval import verify_approval,verify_revocation
@@ -27,6 +28,8 @@ class ApprovalLedger:
             conn.execute("CREATE TABLE IF NOT EXISTS claims (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status='UNKNOWN'))")
             conn.execute("CREATE TABLE IF NOT EXISTS revocations (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
         os.chmod(self.db,0o600)
+        with self._connect() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS sealed_receipts (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL, receipt_json TEXT NOT NULL)")
         with self._connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS executed_effects (target TEXT PRIMARY KEY, task_id TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL, digest TEXT NOT NULL)")
         with self._connect() as conn:
@@ -150,3 +153,25 @@ class ApprovalLedger:
             row=conn.execute("SELECT task_id,gate_no,action_fp,adapter_id FROM executed_effects WHERE target=?",(target,)).fetchone()
         if row!=(task_id,gate_checkpoint_no,action_fingerprint,adapter_id):
             raise ApprovalClaimDenied("COMPENSATION_ORIGINAL_EFFECT_NOT_PROVEN")
+
+    def seal_receipt(self, nonce, receipt, *, task_id, step_key, gate_checkpoint_no,
+                     action_fingerprint, adapter_id):
+        """Keep the *same* signed receipt across crashes/restarts, never re-sign a sealed effect."""
+        scope=(task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            claim=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id FROM claims WHERE nonce=?",(nonce,)).fetchone()
+            if claim!=scope:
+                conn.rollback()
+                raise ApprovalClaimDenied("RECEIPT_WITHOUT_SCOPE_BOUND_DURABLE_CLAIM")
+            previous=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id,receipt_json FROM sealed_receipts WHERE nonce=?",(nonce,)).fetchone()
+            if previous is not None:
+                if previous[:5]!=scope:
+                    conn.rollback()
+                    raise ApprovalClaimDenied("SEALED_RECEIPT_SCOPE_MISMATCH")
+                conn.commit()
+                return json.loads(previous[5])
+            conn.execute("INSERT INTO sealed_receipts VALUES (?,?,?,?,?,?,?)",
+                         (nonce,*scope,json.dumps(receipt,sort_keys=True,separators=(",",":"))))
+            conn.commit()
+            return receipt
