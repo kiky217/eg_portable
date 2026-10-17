@@ -74,11 +74,9 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     state=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json();gate=state["pending_execution_gate"]
     adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect)
-    ready={"task_id":task,"step_key":"01.01","checkpoint_no":pre.json()["gate_checkpoint_no"],
-           "verdict":pre.json()["verdict"],"action_fingerprint":pre.json()["action_fingerprint"]}
     executed=adapter.execute(task_id=task,step_key="01.01",gate_checkpoint_no=pre.json()["gate_checkpoint_no"],
         gate_created_at=gate["created_at"],action=action,data=data,approval=ap,
-        hitl_public_key_b64=pub(human),ready_gate=ready,now=time.time())
+        hitl_public_key_b64=pub(human),ready_gate=gate,now=time.time())
     assert target.read_bytes()==data and executed["status"]=="EXECUTED_POST_NOT_VERIFIED"
     post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01")
     post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",claims=[claim(post_ref)],phase="POST_EXECUTION",

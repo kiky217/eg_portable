@@ -1921,7 +1921,7 @@ def task_state(task_id: str):
         gate = latest_gate(c, task_id, next_step) if next_step else None
         pending_gate = None
         if gate and gate["pre_verdict"] == "READY_TO_EXECUTE" and not gate["consumed"]:
-            pending_gate = {"pre_checkpoint_no": int(gate["pre_checkpoint_no"]), "action_fingerprint": gate["action_fingerprint"], "hitl_approved": bool(gate["hitl_approved"])}
+            pending_gate = {"task_id":task_id,"step_key":gate["step_key"],"checkpoint_no":int(gate["pre_checkpoint_no"]),"pre_checkpoint_no": int(gate["pre_checkpoint_no"]), "verdict":gate["pre_verdict"],"action_fingerprint": gate["action_fingerprint"], "hitl_approved": bool(gate["hitl_approved"]),"created_at":gate["created_at"]}
         return {
             "task_id": task_id,
             "state_version": int(t["checkpoint_no"]),
