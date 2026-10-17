@@ -23,7 +23,7 @@ def test_canonical_pre_requires_registered_capability_and_signed_hitl(monkeypatc
             "reversible":effect!="E5","real_world_effect":True,
             "payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
     cap={"adapter_id":adapter,"action_type":atype,"effect_class":effect,"target_prefix":"/tmp/eg-high/",
-         "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":H.EXEC_PUB}
+         "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",__import__("json").dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ref=step_ref(task,"PRE_EXECUTION",0)
@@ -42,7 +42,7 @@ def test_header_hitl_cannot_replace_signed_high_effect_approval(monkeypatch):
     action={"action_type":"sandbox_cutover","target":"/tmp/eg-high/x.json","effect_class":"E3",
             "reversible":True,"real_world_effect":True,"payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
     cap={"adapter_id":"trusted-adapter-e3","action_type":"sandbox_cutover","effect_class":"E3","target_prefix":"/tmp/eg-high/",
-         "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":H.EXEC_PUB}
+         "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",__import__("json").dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ref=step_ref(task,"PRE_EXECUTION",0)

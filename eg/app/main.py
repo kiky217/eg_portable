@@ -1457,11 +1457,11 @@ def _require_action_admission(action: Action | None, phase: str) -> None:
         raise HTTPException(409, {"code": "TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED"})
     # POST for existing signed historical gates does not authorize new effects.
     if phase=="PRE_EXECUTION":
+        ok,reason=worker_capability(action)
+        if not ok:raise HTTPException(409,{"code":reason})
         if action.effect_class in ("E2","E3","E4","E5") and (
             action.payload_sha256 is None or action.payload_bytes is None):
             raise HTTPException(409,{"code":"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"})
-        ok,reason=worker_capability(action)
-        if not ok:raise HTTPException(409,{"code":reason})
 
 
 @app.post("/v1/tasks/register", dependencies=[Depends(require_key)])
