@@ -129,3 +129,13 @@ PRE can advertise executable readiness.
 43. Historic actionable PRE gates retain their immutable registration and
     original signer; this change MUST NOT retroactively invalidate legitimate
     same-gate POST or rewrite audit records. New PRE requires current policy.
+
+## Issue #26: read-only remote liveness prototype (v3.1.48)
+`tools.adapter_liveness.probe_unix` sends a bounded, random-nonce,
+gate/action/capability-scoped challenge to a separate Unix-socket process and
+verifies a domain-separated Ed25519 response against the configured key.
+Wrong key, stale response, different nonce/scope and offline process fail closed.
+This attests **current key possession only**, not OS isolation, transport
+authorization, physical execution, EG READY or production cutover.
+Production E3–E5 dispatch remains unprovisioned until independent worker
+admission, auditable effect journal and live promotion are separately proven.
