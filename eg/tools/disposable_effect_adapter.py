@@ -83,6 +83,7 @@ class DisposableAdapter:
             receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                               "trusted-worker-"+self.adapter_id,str(target),observed,
                               approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
+            receipt=self.ledger.seal_receipt(approval["nonce"],receipt,**scope)
             return {"status":"RECOVERED_EXECUTED_POST_NOT_VERIFIED","receipt":receipt}
         if target.exists():raise EffectDenied("PREEXISTING_EFFECT_RETROACTIVE_DENIED")
         # Claim before physical effect. A crash after this point never permits replay.
@@ -107,6 +108,7 @@ class DisposableAdapter:
         receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                           "trusted-worker-"+self.adapter_id,str(target),observed,
                           approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
+        receipt=self.ledger.seal_receipt(approval["nonce"],receipt,**scope)
         return {"status":"EXECUTED_POST_NOT_VERIFIED","receipt":receipt}
 
 
@@ -171,6 +173,7 @@ class DisposableAdapter:
         receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                           "trusted-worker-"+self.adapter_id,str(target),observed,
                           approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
+        receipt=self.ledger.seal_receipt(approval["nonce"],receipt,**scope)
         return {"status":"COMPENSATED_POST_NOT_VERIFIED","receipt":receipt}
 
     def reconcile_no_effect(self,*,task_id,step_key,gate_checkpoint_no,action,
