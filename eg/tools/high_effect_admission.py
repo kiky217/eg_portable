@@ -45,9 +45,13 @@ class AdapterCapability:
     maximum_payload_bytes: int
     isolated: bool
     public_key_b64: str
+    version: int = 1
+    ci_only: bool = True
 
     def validate(self) -> None:
-        if (not self.adapter_id.startswith("trusted-adapter-") or
+        if (type(self.version) is not int or self.version!=1
+            or self.ci_only is not True or
+            not self.adapter_id.startswith("trusted-adapter-") or
             self.effect_class not in ("E3","E4","E5") or
             not self.action_type or not self.target_prefix.startswith("/") or
             not 0 < self.maximum_payload_bytes <= 512*1024 or

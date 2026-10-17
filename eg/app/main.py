@@ -1434,7 +1434,8 @@ def configured_high_effect_capabilities() -> list[AdapterCapability]:
 
 def high_effect_catalog() -> list[dict]:
     """Diagnostic metadata only, never advertise an online E3-E5 executor."""
-    return [{"adapter_id":cap.adapter_id,"effect_class":cap.effect_class,
+    return [{"adapter_id":cap.adapter_id,"version":cap.version,"ci_only":cap.ci_only,
+             "effect_class":cap.effect_class,
              "action_type":cap.action_type,"availability":"CI_ONLY_NOT_PRODUCTION"
              if HIGH_EFFECT_CI_FIXTURE_ENABLED else "UNPROVISIONED"}
             for cap in configured_high_effect_capabilities()]

@@ -60,3 +60,7 @@ single action-routing contract. E0/E2 route via the privileged worker socket;
 E3/E4/E5 are available **only** through explicit disposable CI adapters in
 this repository. The core never executes physical actions directly and a
 configured high-effect registry cannot grant a production transport.
+
+The versioned `AdapterCapability` schema explicitly marks repository high-effect
+entries `ci_only=True` and rejects unsupported schema versions. No production
+high-effect descriptor may be admitted without Issue #26 independent transport.

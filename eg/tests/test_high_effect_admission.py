@@ -84,3 +84,11 @@ def test_high_effect_rejects_non_ed25519_registry_key():
     from dataclasses import replace
     with pytest.raises(AdmissionDenied,match="TRUST_ROOT"):
         replace(CAP,public_key_b64="malformed").validate()
+
+def test_typed_adapter_descriptor_is_versioned_ci_only_and_fail_closed():
+    from dataclasses import replace
+    assert CAP.version==1 and CAP.ci_only is True
+    for invalid in (replace(CAP,version=2),replace(CAP,version=True),
+                    replace(CAP,ci_only=False)):
+        with pytest.raises(AdmissionDenied,match="NOT_PROVISIONED"):
+            invalid.validate()
