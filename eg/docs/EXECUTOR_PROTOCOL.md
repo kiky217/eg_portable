@@ -150,3 +150,13 @@ Socket RPC permits only `attest`, with signed task/step/gate/action/capability
 challenge. All other operations are denied; no physical actions are exposed.
 A successful challenge proves signing-key possession, NOT independent
 production executor authorization, effect journaling, or EG VERIFIED.
+
+## Linux peer credential boundary (v3.1.50)
+The attest-only worker CLI now requires `--controller-uid`, enforced via
+kernel `SO_PEERCRED`. A controller can independently pin `expected_worker_uid`
+when calling `probe_unix`; mismatched UIDs fail closed **before sending** a challenge.
+The worker's original private 0700 directory and 0600 socket still allow only
+same-UID access. Inter-UID access requires a separate audited owner/group ACL
+layout and distinct identity smoke tests; do not open directory or key permissions
+to make a missing transport work. Neither peer credentials nor signed liveness
+grant E3–E5 production execution.

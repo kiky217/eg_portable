@@ -68,7 +68,8 @@ def test_read_only_attestation_worker_in_separate_process(tmp_path):
     sock=root/"service.sock"
     argv=[sys.executable,"-m","tools.adapter_attestation_worker","--socket",str(sock),
           "--private-key",str(key),"--adapter-id",ADAPTER,
-          "--capability-sha256",CAP,"--max-requests","2"]
+          "--capability-sha256",CAP,"--max-requests","2",
+          "--controller-uid",str(os.getuid())]
     env={**os.environ,"PYTHONPATH":str(Path(__file__).resolve().parents[1])}
     process=subprocess.Popen(argv,env=env)
     try:
@@ -86,7 +87,8 @@ def test_read_only_attestation_worker_in_separate_process(tmp_path):
             denied=json.loads(peer.makefile("rb").readline())
         assert denied=={"status":"DENIED"}
         result=probe_unix(sock,adapter_id=ADAPTER,capability_sha256=CAP,
-                          public_key_b64=pub,task_id="task-read-only",step_key="01.01",
+                          public_key_b64=pub,expected_worker_uid=os.getuid(),
+                  task_id="task-read-only",step_key="01.01",
                           gate_checkpoint_no=1,action_fingerprint=ACTION)
         assert result["status"]=="SIGNED_LIVENESS_ONLY_NOT_EXECUTION_ADMITTED"
         assert process.wait(timeout=5)==0
@@ -95,3 +97,46 @@ def test_read_only_attestation_worker_in_separate_process(tmp_path):
     finally:
         if process.poll() is None:
             process.kill();process.wait(timeout=5)
+
+def test_attestation_worker_rejects_wrong_controller_uid(tmp_path):
+    root,key,pub=_args(tmp_path)
+    sock=root/"service.sock"
+    argv=[sys.executable,"-m","tools.adapter_attestation_worker","--socket",str(sock),
+          "--private-key",str(key),"--adapter-id",ADAPTER,"--capability-sha256",CAP,
+          "--max-requests","1","--controller-uid",str(os.getuid()+1)]
+    env={**os.environ,"PYTHONPATH":str(Path(__file__).resolve().parents[1])}
+    process=subprocess.Popen(argv,env=env)
+    try:
+        for _ in range(100):
+            if sock.exists() or process.poll() is not None:break
+            time.sleep(0.02)
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
+            peer.settimeout(3)
+            peer.connect(str(sock))
+            peer.sendall(canon({"operation":"attest","challenge":{}})+b"\n")
+            response=json.loads(peer.makefile("rb").readline())
+        assert response=={"status":"DENIED"}
+        assert process.wait(timeout=5)==0
+    finally:
+        if process.poll() is None:process.kill();process.wait(timeout=5)
+
+
+def test_client_rejects_wrong_worker_uid_before_request(tmp_path):
+    root,key,pub=_args(tmp_path)
+    sock=root/"service.sock"
+    argv=[sys.executable,"-m","tools.adapter_attestation_worker","--socket",str(sock),
+          "--private-key",str(key),"--adapter-id",ADAPTER,"--capability-sha256",CAP,
+          "--max-requests","1","--controller-uid",str(os.getuid())]
+    env={**os.environ,"PYTHONPATH":str(Path(__file__).resolve().parents[1])}
+    process=subprocess.Popen(argv,env=env)
+    try:
+        for _ in range(100):
+            if sock.exists() or process.poll() is not None:break
+            time.sleep(0.02)
+        with pytest.raises(Exception,match="WORKER_UID_MISMATCH"):
+            probe_unix(sock,adapter_id=ADAPTER,capability_sha256=CAP,
+                       public_key_b64=pub,task_id="task-test",step_key="01.01",
+                       gate_checkpoint_no=1,action_fingerprint=ACTION,
+                       expected_worker_uid=os.getuid()+1)
+    finally:
+        process.kill();process.wait(timeout=5)
