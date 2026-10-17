@@ -126,7 +126,7 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
         claims=[claim(step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01"))],
         phase="POST_EXECUTION",action=apply,execution_receipt=done["receipt"])
     assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
-    rgate_no=post.json()["checkpoint_no"]+1;rap=signed(human,task,rollback,adapter_id,rgate_no,time.time())
+    rgate_no=post.json()["checkpoint_no"]+1;rap=signed(human,task,rollback,adapter_id,rgate_no,time.time(),step="01.02")
     rpre=raw_eval(task,ch,post.json()["checkpoint_no"],step="01.02",
         claims=[claim(step_ref(task,"PRE_EXECUTION",post.json()["checkpoint_no"],step="01.02"))],
         phase="PRE_EXECUTION",action=rollback,hitl_approval=rap)
