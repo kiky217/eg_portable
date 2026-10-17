@@ -56,6 +56,20 @@ jobs:
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
       - name: Remedial E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
+      - name: Build and smoke production Docker runtime imports
+        run: |
+          docker build -t eg-runtime-smoke eg
+          docker run --rm -i --entrypoint python eg-runtime-smoke - <<'PY'
+          import os, importlib.util
+          from app.main import app
+          from tools.high_effect_admission import AdapterCapability
+          from tools.adapter_liveness import probe_unix
+          from tools.signed_hitl_approval import verify_approval
+          assert os.geteuid() == 10001
+          assert app.version
+          assert importlib.util.find_spec("tools.disposable_effect_adapter") is None
+          assert importlib.util.find_spec("tools.disposable_rpc_worker") is None
+          PY
       - name: Build portable archive against Debian Bookworm glibc
         run: |
           docker run --rm -v "$PWD:/source" -w /source/eg python:3.12.15-slim-bookworm /bin/sh -ec '
