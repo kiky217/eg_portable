@@ -1,0 +1,114 @@
+"""CI-only real UDS subprocess E3/E4/E5 EG-PRE -> effect -> receipt -> EG-POST."""
+import base64
+import hashlib
+import json
+import os
+import socket
+import subprocess
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+import pytest
+import harness as H
+from harness import gw,raw_eval,step_ref,claim
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,NoEncryption
+from test_high_effect_gateway_integration import (
+    pub,signed,register_high_effect,high_pre_ref,high_pre_claim,HIGH_PRE)
+from tools.adapter_liveness import canon
+
+
+@pytest.mark.parametrize("effect,atype",[("E3","sandbox_cutover"),
+                                         ("E4","sandbox_critical_update"),
+                                         ("E5","sandbox_irreversible_commit")])
+def test_separate_process_worker_validates_live_eg_pre_and_signed_post(monkeypatch,tmp_path,effect,atype):
+    root=tmp_path/"worker";root.mkdir(mode=0o700)
+    effect_root=root/"effects";effect_root.mkdir(mode=0o700)
+    journal=root/"journal";journal.mkdir(mode=0o700)
+    key=Ed25519PrivateKey.generate()
+    keyfile=root/"signer.pem"
+    keyfile.write_bytes(key.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
+    keyfile.chmod(0o600)
+    eg_keyfile=root/"eg-key"
+    eg_keyfile.write_text(H.API_KEY);eg_keyfile.chmod(0o600)
+    sock=root/"effect.sock"
+
+    # A real HTTP transport forwards authenticated live reads to canonical EG.
+    class ReadOnlyProxy(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.headers.get("X-Evaluation-Key")!=H.API_KEY:
+                self.send_response(403);self.end_headers();return
+            res=H.CLIENT.get(self.path,headers=H.HEAD)
+            self.send_response(res.status_code)
+            self.send_header("Content-Type","application/json")
+            self.end_headers()
+            self.wfile.write(res.content)
+        def log_message(self,*args):pass
+    server=ThreadingHTTPServer(("127.0.0.1",0),ReadOnlyProxy)
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    task,ch=register_high_effect()
+    human=Ed25519PrivateKey.generate()
+    adapter_id="trusted-adapter-rpc-"+effect.lower()
+    data=json.dumps({"effect":effect,"applied":True}).encode()
+    target=effect_root/(effect+".json")
+    action={"action_type":atype,"target":str(target),"effect_class":effect,
+            "reversible":effect!="E5","real_world_effect":True,
+            "payload_sha256":hashlib.sha256(data).hexdigest(),
+            "payload_bytes":len(data),"proofs":[]}
+    cap={"adapter_id":adapter_id,"action_type":atype,"effect_class":effect,
+         "target_prefix":str(effect_root)+"/","maximum_payload_bytes":524288,
+         "isolated":True,"public_key_b64":pub(key)}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
+    ap=signed(human,task,action,adapter_id,1,time.time())
+    pre=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
+                 action=action,hitl_approval=ap)
+    assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+    argv=[sys.executable,"-m","tools.disposable_rpc_worker",
+          "--socket",str(sock),"--output-root",str(effect_root),
+          "--ledger-root",str(journal),"--private-key",str(keyfile),
+          "--eg-url",f"http://127.0.0.1:{server.server_address[1]}",
+          "--eg-api-key-file",str(eg_keyfile),"--adapter-id",adapter_id,
+          "--effect-class",effect,"--hitl-public-key-b64",pub(human),
+          "--controller-uid",str(os.getuid()),"--max-requests","2"]
+    env={**os.environ,"PYTHONPATH":str(Path(__file__).resolve().parents[1])}
+    proc=subprocess.Popen(argv,env=env)
+    try:
+        for _ in range(100):
+            if sock.exists() or proc.poll() is not None:break
+            time.sleep(0.02)
+        assert proc.poll() is None,"worker initialization failed"
+        req={"task_id":task,"step_key":"01.01","action":action,"approval":ap,
+             "data_b64":base64.b64encode(data).decode(),"operation":"execute"}
+        def rpc(r):
+            with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+                client.settimeout(10);client.connect(str(sock))
+                client.sendall(canon(r)+b"\n")
+                return json.loads(client.makefile("rb").readline(1048576))
+        # Wrong scope cannot turn into an effect; subsequent correct invocation still works.
+        wrong=rpc({**req,"action":{**action,"target":str(effect_root/"alien.json")}})
+        assert wrong["status"]=="DENIED" and not target.exists()
+        result=rpc(req)
+        assert result["status"]=="PASS",result
+        receipt=result["result"]["receipt"]
+        assert target.read_bytes()==data
+        assert proc.wait(timeout=10)==0
+        post=raw_eval(task,ch,pre.json()["checkpoint_no"],phase="POST_EXECUTION",
+                      claims=[claim(step_ref(task,"POST_EXECUTION",1))],
+                      action=action,execution_receipt=receipt)
+        assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
+        ppre,_=H.do_pre(task,ch,post.json()["checkpoint_no"],step="01",
+                        criteria=[(0,"parent criterion")],stdout="PARENT=PASS",value="PARENT=PASS")
+        gref=H.task_ref(task,ppre.json()["gate_checkpoint_no"],criterion="all steps evidenced")
+        final,_=H.do_post(task,ch,ppre,step="01",criteria=[(0,"parent criterion")],
+                          finalize=True,task_claims=[H.task_claim(gref)],
+                          stdout="PARENT=PASS",value="PARENT=PASS")
+        assert final.status_code==200 and final.json()["contract_status"]=="SATISFIED",final.text
+        assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
+    finally:
+        if proc.poll() is None:proc.kill();proc.wait(timeout=5)
+        server.shutdown();server.server_close()

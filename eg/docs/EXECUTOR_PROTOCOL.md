@@ -174,3 +174,16 @@ authorization without UID verification. A separate GitHub Actions **root-run
 live test** forks worker, controller, and rogue as three distinct Linux UIDs
 and verifies signed liveness, denied rogue access and private-key isolation.
 This still grants **no E3–E5 effect execution**.
+
+## Out-of-process CI-only high-effect RPC acceptance (v3.1.52)
+`tools.disposable_rpc_worker` is an **isolated GitHub CI sandbox fixture**,
+not a production service adapter. It reads original PRE state and checkpoints
+from authenticated EG over HTTP rather than trusting caller-supplied READY,
+accepts only bounded E3/E4/E5 JSON creation/compensation and no-effect
+reconciliation through `DisposableAdapter`, and returns a separately signed
+receipt to be submitted to EG POST. It has no shell or host-service RPC.
+Regression executes a live Unix-socket subprocess plus real authenticated EG
+read-only HTTP proxy for E3/E4/E5: REGISTER → signed HITL PRE → effect journal
+and readback → signed receipt → EG POST → SATISFIED, with wrong-action denial.
+This is strong **CI E2E evidence only**. Independent production provision,
+real application cutover and live promotion (#26) are still required.
