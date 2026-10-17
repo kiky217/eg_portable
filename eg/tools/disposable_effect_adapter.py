@@ -81,5 +81,5 @@ class DisposableAdapter:
         finally:os.close(dirfd)
         receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                           "trusted-worker-"+self.adapter_id,str(target),observed,
-                          approval["nonce"],completed_ns=int(current*1e9)),self.private)
+                          approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
         return {"status":"EXECUTED_POST_NOT_VERIFIED","receipt":receipt}
