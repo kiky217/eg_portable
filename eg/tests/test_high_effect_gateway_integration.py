@@ -15,10 +15,33 @@ def signed(k,task,action,adapter,gate,now,step="01.01"):
        "issued_at":now-1,"expires_at":now+120,"nonce":f"canonical-hitl-{step.replace('.','-')}-{gate}-{tool_fp(action)[:12]}"}
     return {**b,"signature_b64":base64.b64encode(k.sign(canonical(b))).decode()}
 
+
+HIGH_PRE="high-effect independent baseline ready"
+
+def register_high_effect():
+    task=H.eid("physical-high")
+    body={"event_id":H.eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),
+          "agent":"ChatGPT","original_instruction":"bounded independently reviewed effect",
+          "acceptance_criteria":["all steps evidenced"],
+          "steps":[{"step_key":"01","title":"parent","acceptance_criteria":["parent criterion"],
+                    "required":True,"execution_required":False},
+                   {"step_key":"01.01","title":"physical effect",
+                    "preconditions":[HIGH_PRE],
+                    "acceptance_criteria":[H.CRIT],"required":True,"execution_required":True}]}
+    reg=H.CLIENT.post("/v1/tasks/register",headers=H.HEAD,json=body)
+    assert reg.status_code==200,reg.text
+    return task,reg.json()["contract_hash"]
+
+def high_pre_ref(task,cp,step="01.01"):
+    return step_ref(task,"PRE_EXECUTION",cp,step=step,criteria=[(0,HIGH_PRE)])
+
+def high_pre_claim(ref):
+    return claim(ref,0,HIGH_PRE)
+
 @pytest.mark.parametrize("effect,atype",[
  ("E3","sandbox_cutover"),("E4","sandbox_critical_update"),("E5","sandbox_irreversible_commit")])
 def test_canonical_pre_requires_registered_capability_and_signed_hitl(monkeypatch,effect,atype):
-    task,ch=register();human=Ed25519PrivateKey.generate();adapter=f"trusted-adapter-{effect.lower()}"
+    task,ch=register_high_effect();human=Ed25519PrivateKey.generate();adapter=f"trusted-adapter-{effect.lower()}"
     action={"action_type":atype,"target":f"/tmp/eg-high/{effect}.json","effect_class":effect,
             "reversible":effect!="E5","real_world_effect":True,
             "payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
@@ -27,19 +50,19 @@ def test_canonical_pre_requires_registered_capability_and_signed_hitl(monkeypatc
     monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",__import__("json").dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
-    ref=step_ref(task,"PRE_EXECUTION",0)
-    claims=[claim(ref)]
+    ref=high_pre_ref(task,0)
+    claims=[high_pre_claim(ref)]
     no=raw_eval(task,ch,0,claims=claims,phase="PRE_EXECUTION",action=action)
     assert no.status_code==200 and no.json()["verdict"]=="REQUIRES_HITL"
     # First PRE consumed checkpoint 1; fresh evidence and approval bind the next canonical gate.
-    ref2=step_ref(task,"PRE_EXECUTION",1)
+    ref2=high_pre_ref(task,1)
     approval=signed(human,task,action,adapter,2,time.time())
-    yes=raw_eval(task,ch,1,claims=[claim(ref2)],phase="PRE_EXECUTION",action=action,hitl_approval=approval)
+    yes=raw_eval(task,ch,1,claims=[high_pre_claim(ref2)],phase="PRE_EXECUTION",action=action,hitl_approval=approval)
     assert yes.status_code==200 and yes.json()["verdict"]=="READY_TO_EXECUTE"
     assert yes.json()["hitl_approved"] is True and yes.json()["gate_checkpoint_no"]==2
 
 def test_header_hitl_cannot_replace_signed_high_effect_approval(monkeypatch):
-    task,ch=register();human=Ed25519PrivateKey.generate()
+    task,ch=register_high_effect();human=Ed25519PrivateKey.generate()
     action={"action_type":"sandbox_cutover","target":"/tmp/eg-high/x.json","effect_class":"E3",
             "reversible":True,"real_world_effect":True,"payload_sha256":hashlib.sha256(b"{}").hexdigest(),"payload_bytes":2,"proofs":[]}
     cap={"adapter_id":"trusted-adapter-e3","action_type":"sandbox_cutover","effect_class":"E3","target_prefix":"/tmp/eg-high/",
@@ -47,9 +70,9 @@ def test_header_hitl_cannot_replace_signed_high_effect_approval(monkeypatch):
     monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",__import__("json").dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
-    ref=step_ref(task,"PRE_EXECUTION",0)
+    ref=high_pre_ref(task,0)
     headers={**H.HEAD,"X-Evaluation-HITL-Key":H.HITL_KEY}
-    r=raw_eval(task,ch,0,claims=[claim(ref)],phase="PRE_EXECUTION",action=action,headers=headers)
+    r=raw_eval(task,ch,0,claims=[high_pre_claim(ref)],phase="PRE_EXECUTION",action=action,headers=headers)
     assert r.status_code==200 and r.json()["verdict"]=="REQUIRES_HITL"
 
 @pytest.mark.parametrize("effect,atype",[("E3","sandbox_cutover"),("E4","sandbox_critical_update"),("E5","sandbox_irreversible_commit")])
@@ -61,7 +84,7 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
     body={"event_id":H.eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),"agent":"ChatGPT",
           "original_instruction":"bounded high effect","acceptance_criteria":["physical effect verified"],
           "steps":[{"step_key":"01","title":"parent","acceptance_criteria":["parent criterion"],"required":True,"execution_required":False},
-                   {"step_key":"01.01","title":"effect","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False}]}
+                   {"step_key":"01.01","title":"effect","preconditions":[HIGH_PRE],"acceptance_criteria":[H.CRIT],"required":True,"execution_required":True}]}
     reg=H.CLIENT.post("/v1/tasks/register",headers=H.HEAD,json=body);assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"];human=Ed25519PrivateKey.generate();adapter_id=f"trusted-adapter-{effect.lower()}"
     data=json.dumps({"effect":effect,"ok":True},sort_keys=True).encode();target=root/f"{effect}.json"
@@ -72,8 +95,8 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
     monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     now=time.time();ap=signed(human,task,{**action},adapter_id,1,now)
-    pre_ref=step_ref(task,"PRE_EXECUTION",0,step="01.01")
-    pre=raw_eval(task,ch,0,step="01.01",claims=[claim(pre_ref)],phase="PRE_EXECUTION",action=action,hitl_approval=ap)
+    pre_ref=high_pre_ref(task,0,step="01.01")
+    pre=raw_eval(task,ch,0,step="01.01",claims=[high_pre_claim(pre_ref)],phase="PRE_EXECUTION",action=action,hitl_approval=ap)
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     state=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json();gate=state["pending_execution_gate"]
     adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect)
@@ -113,8 +136,8 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
         "event_id":H.eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),"agent":"ChatGPT",
         "original_instruction":"apply then compensate","acceptance_criteria":["rollback verified"],
         "steps":[{"step_key":"01","title":"parent","acceptance_criteria":["parent"],"required":True,"execution_required":False},
-                 {"step_key":"01.01","title":"apply","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False},
-                 {"step_key":"01.02","title":"rollback","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False}]})
+                 {"step_key":"01.01","title":"apply","preconditions":[HIGH_PRE],"acceptance_criteria":[H.CRIT],"required":True,"execution_required":True},
+                 {"step_key":"01.02","title":"rollback","preconditions":[HIGH_PRE],"acceptance_criteria":[H.CRIT],"required":True,"execution_required":True}]})
     assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"];human=Ed25519PrivateKey.generate();adapter_id=f"trusted-adapter-{effect.lower()}"
     data=b'{"applied":true}';target=root/f"{effect}.json"
@@ -128,7 +151,7 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps(caps));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect);now=time.time()
     ap=signed(human,task,apply,adapter_id,1,now)
-    pre=raw_eval(task,ch,0,step="01.01",claims=[claim(step_ref(task,"PRE_EXECUTION",0,step="01.01"))],
+    pre=raw_eval(task,ch,0,step="01.01",claims=[high_pre_claim(high_pre_ref(task,0,step="01.01"))],
                  phase="PRE_EXECUTION",action=apply,hitl_approval=ap)
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     gate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
@@ -140,7 +163,7 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
     assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
     rgate_no=post.json()["checkpoint_no"]+1;rap=signed(human,task,rollback,adapter_id,rgate_no,time.time(),step="01.02")
     rpre=raw_eval(task,ch,post.json()["checkpoint_no"],step="01.02",
-        claims=[claim(step_ref(task,"PRE_EXECUTION",post.json()["checkpoint_no"],step="01.02"))],
+        claims=[high_pre_claim(high_pre_ref(task,post.json()["checkpoint_no"],step="01.02"))],
         phase="PRE_EXECUTION",action=rollback,hitl_approval=rap)
     assert rpre.status_code==200 and rpre.json()["verdict"]=="READY_TO_EXECUTE",rpre.text
     rgate=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()["pending_execution_gate"]
@@ -166,7 +189,7 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
 def test_canonical_post_uses_pinned_per_adapter_key_not_global(monkeypatch,effect,atype):
     import json
     from app.execution_receipts import body,sign
-    task,ch=register(); human=Ed25519PrivateKey.generate()
+    task,ch=register_high_effect(); human=Ed25519PrivateKey.generate()
     worker=Ed25519PrivateKey.generate()
     adapter="trusted-adapter-independent-"+effect.lower()
     data=b'{"ok":true}'
@@ -180,7 +203,7 @@ def test_canonical_post_uses_pinned_per_adapter_key_not_global(monkeypatch,effec
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter,1,time.time())
-    pre=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=action,hitl_approval=ap)
+    pre=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],action=action,hitl_approval=ap)
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     pin=pre.json()["high_effect_pin"]
     assert pin["public_key_b64"]==pub(worker) and pin["adapter_id"]==adapter
@@ -202,7 +225,7 @@ def test_high_effect_independent_no_effect_reconciliation(monkeypatch,tmp_path,e
     from app.no_effect_receipts import verify_no_effect
     from tools.durable_hitl_ledger import ApprovalClaimDenied
     root=tmp_path/"root";journal=tmp_path/"ledger";root.mkdir(mode=0o700);journal.mkdir(mode=0o700)
-    task,ch=register(); human=Ed25519PrivateKey.generate(); worker=Ed25519PrivateKey.generate()
+    task,ch=register_high_effect(); human=Ed25519PrivateKey.generate(); worker=Ed25519PrivateKey.generate()
     adapter_id="trusted-adapter-"+effect.lower();target=root/(effect+".json");data=b'{"ok":true}'
     action={"action_type":atype,"effect_class":effect,"target":str(target),
         "reversible":effect!="E5","real_world_effect":True,
@@ -214,7 +237,7 @@ def test_high_effect_independent_no_effect_reconciliation(monkeypatch,tmp_path,e
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter_id,1,time.time())
-    pre=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=action,hitl_approval=ap)
+    pre=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],action=action,hitl_approval=ap)
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     cp=pre.json()["checkpoint_no"]
     base={"contract_hash":ch,"protocol_hash":gw.protocol_hash(),"checkpoint_no":cp,"reason":"worker never called"}
@@ -254,7 +277,7 @@ def test_configured_high_effect_without_independent_transport_cannot_be_ready(mo
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter,1,time.time())
-    denied=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],
+    denied=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
                     action=action,hitl_approval=ap)
     assert denied.status_code==409,denied.text
     assert denied.json()["detail"]["code"]=="UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"

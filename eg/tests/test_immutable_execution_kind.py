@@ -84,3 +84,32 @@ def test_new_step_registration_without_explicit_classification_is_rejected():
                     "acceptance_criteria":["child"]}]}
     result=CLIENT.post("/v1/tasks/register",headers=HEAD,json=body)
     assert result.status_code==422,result.text
+
+def test_new_logical_high_effect_cannot_get_actionable_pre(monkeypatch):
+    import hashlib,base64,json,time
+    from harness import register,raw_eval,claim,step_ref,CLIENT,HEAD,gw
+    from tools.signed_hitl_approval import canonical
+    from tools.high_effect_admission import action_fingerprint
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
+    task,ch=register()
+    human=Ed25519PrivateKey.generate()
+    key=base64.b64encode(human.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
+    action={"action_type":"sandbox_cutover","effect_class":"E3","target":"/sandbox/fixture.json",
+            "reversible":True,"real_world_effect":True,"payload_sha256":hashlib.sha256(b"{}").hexdigest(),
+            "payload_bytes":2,"proofs":[]}
+    cap={"adapter_id":"trusted-adapter-fixture","action_type":"sandbox_cutover","effect_class":"E3",
+        "target_prefix":"/sandbox/","maximum_payload_bytes":524288,
+        "isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",key)
+    now=time.time();payload={"version":1,"task_id":task,"step_key":"01.01","gate_checkpoint_no":1,
+        "action_fingerprint":action_fingerprint(action),"adapter_id":"trusted-adapter-fixture",
+        "decision":"APPROVED","issued_at":now-1,"expires_at":now+120,"nonce":"logical-step-high-effect-001"}
+    approval={**payload,"signature_b64":base64.b64encode(human.sign(canonical(payload))).decode()}
+    ref=step_ref(task,"PRE_EXECUTION",0)
+    r=raw_eval(task,ch,0,action=action,claims=[claim(ref)],hitl_approval=approval)
+    assert r.status_code==409 and r.json()["detail"]["code"]=="IMMUTABLE_LOGICAL_STEP_FORBIDS_HIGH_EFFECT"
+    assert CLIENT.get(f"/v1/tasks/{task}/state",headers=HEAD).json()["latest_checkpoint"] is None
+    assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
