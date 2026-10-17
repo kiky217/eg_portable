@@ -58,7 +58,8 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
     task=f"chain-{effect.lower()}-{H.eid('x')}"
     body={"event_id":H.eid("reg"),"task_id":task,"protocol_hash":gw.protocol_hash(),"agent":"ChatGPT",
           "original_instruction":"bounded high effect","acceptance_criteria":["physical effect verified"],
-          "steps":[{"step_key":"01","title":"effect","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False}]}
+          "steps":[{"step_key":"01","title":"parent","acceptance_criteria":["parent criterion"],"required":True,"execution_required":False},
+                   {"step_key":"01.01","title":"effect","acceptance_criteria":[H.CRIT],"required":True,"execution_required":False}]}
     reg=H.CLIENT.post("/v1/tasks/register",headers=H.HEAD,json=body);assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"];human=Ed25519PrivateKey.generate();adapter_id=f"trusted-adapter-{effect.lower()}"
     data=json.dumps({"effect":effect,"ok":True},sort_keys=True).encode();target=root/f"{effect}.json"
@@ -68,25 +69,24 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
          "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     now=time.time();ap=signed(human,task,{**action},adapter_id,1,now)
-    # helper signs 01.01; rebuild exact one-step scope.
-    b={k:v for k,v in ap.items() if k!="signature_b64"};b["step_key"]="01"
-    ap={**b,"signature_b64":base64.b64encode(human.sign(canonical(b))).decode()}
-    pre_ref=step_ref(task,"PRE_EXECUTION",0,step="01")
-    pre=raw_eval(task,ch,0,step="01",claims=[claim(pre_ref)],phase="PRE_EXECUTION",action=action,hitl_approval=ap)
+    pre_ref=step_ref(task,"PRE_EXECUTION",0,step="01.01")
+    pre=raw_eval(task,ch,0,step="01.01",claims=[claim(pre_ref)],phase="PRE_EXECUTION",action=action,hitl_approval=ap)
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     state=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json();gate=state["pending_execution_gate"]
     adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect)
-    ready={"task_id":task,"step_key":"01","checkpoint_no":pre.json()["gate_checkpoint_no"],
+    ready={"task_id":task,"step_key":"01.01","checkpoint_no":pre.json()["gate_checkpoint_no"],
            "verdict":pre.json()["verdict"],"action_fingerprint":pre.json()["action_fingerprint"]}
-    executed=adapter.execute(task_id=task,step_key="01",gate_checkpoint_no=pre.json()["gate_checkpoint_no"],
+    executed=adapter.execute(task_id=task,step_key="01.01",gate_checkpoint_no=pre.json()["gate_checkpoint_no"],
         gate_created_at=gate["created_at"],action=action,data=data,approval=ap,
         hitl_public_key_b64=pub(human),ready_gate=ready,now=time.time())
     assert target.read_bytes()==data and executed["status"]=="EXECUTED_POST_NOT_VERIFIED"
-    post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01")
-    task_ref=H.task_ref(task,pre.json()["gate_checkpoint_no"],criterion="physical effect verified")
-    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01",claims=[claim(post_ref)],phase="POST_EXECUTION",
-        action=action,execution_receipt=executed["receipt"],finalize=True,
-        task_claims=[H.task_claim(task_ref,criterion="physical effect verified")])
+    post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01")
+    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",claims=[claim(post_ref)],phase="POST_EXECUTION",
+        action=action,execution_receipt=executed["receipt"])
     assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
-    assert post.json()["contract_status"]=="SATISFIED"
+    ppre,_=H.do_pre(task,ch,post.json()["checkpoint_no"],step="01",criteria=[(0,"parent criterion")],stdout="PARENT=PASS",value="PARENT=PASS")
+    task_ref=H.task_ref(task,ppre.json()["gate_checkpoint_no"],criterion="physical effect verified")
+    ppost,_=H.do_post(task,ch,ppre,step="01",criteria=[(0,"parent criterion")],finalize=True,
+        task_claims=[H.task_claim(task_ref,criterion="physical effect verified")],stdout="PARENT=PASS",value="PARENT=PASS")
+    assert ppost.status_code==200 and ppost.json()["contract_status"]=="SATISFIED",ppost.text
     assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
