@@ -2,12 +2,13 @@
 
 A durable claim is NOT proof of physical execution. After a crash it remains
 UNKNOWN and must be independently reconciled; never auto-reissue the grant.
+Signed revocations are durable and race atomically with approval consumption.
 """
 from __future__ import annotations
 import os
 import sqlite3
 from pathlib import Path
-from tools.signed_hitl_approval import verify_approval
+from tools.signed_hitl_approval import verify_approval,verify_revocation
 
 class ApprovalClaimDenied(RuntimeError):
     pass
@@ -24,6 +25,7 @@ class ApprovalLedger:
         with self._connect() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("CREATE TABLE IF NOT EXISTS claims (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status='UNKNOWN'))")
+            conn.execute("CREATE TABLE IF NOT EXISTS revocations (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
         os.chmod(self.db,0o600)
 
     def _connect(self):
@@ -32,12 +34,33 @@ class ApprovalLedger:
         conn.execute("PRAGMA synchronous=FULL")
         return conn
 
+    def revoke(self, revocation, key, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id, now=None):
+        result=verify_revocation(revocation,key,task_id=task_id,step_key=step_key,
+                                 gate_checkpoint_no=gate_checkpoint_no,
+                                 action_fingerprint=action_fingerprint,adapter_id=adapter_id,now=now)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM claims WHERE nonce=?",(result["nonce"],)).fetchone():
+                conn.rollback()
+                raise ApprovalClaimDenied("HITL_ALREADY_CONSUMED_REVOCATION_TOO_LATE")
+            try:
+                conn.execute("INSERT INTO revocations VALUES (?,?,?,?,?,?)",
+                    (result["nonce"],task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                conn.rollback()
+                raise ApprovalClaimDenied("HITL_ALREADY_REVOKED")
+        return {"status":"REVOCATION_DURABLE_EFFECT_DENIED","nonce":result["nonce"]}
+
     def consume(self, approval, key, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id, now=None):
         result=verify_approval(approval,key,task_id=task_id,step_key=step_key,
                                gate_checkpoint_no=gate_checkpoint_no,
                                action_fingerprint=action_fingerprint,adapter_id=adapter_id,now=now)
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM revocations WHERE nonce=?",(result["nonce"],)).fetchone():
+                conn.rollback()
+                raise ApprovalClaimDenied("HITL_REVOKED_NO_EXECUTION")
             try:
                 conn.execute("INSERT INTO claims VALUES (?,?,?,?,?,?,?)",
                     (result["nonce"],task_id,step_key,gate_checkpoint_no,
@@ -46,5 +69,4 @@ class ApprovalLedger:
             except sqlite3.IntegrityError as exc:
                 conn.rollback()
                 raise ApprovalClaimDenied("HITL_ALREADY_CONSUMED_OR_UNKNOWN_NO_REPLAY") from exc
-        return {"status":"CLAIM_DURABLE_EFFECT_NOT_AUTHORIZED",
-                "nonce":result["nonce"]}
+        return {"status":"CLAIM_DURABLE_EFFECT_NOT_AUTHORIZED","nonce":result["nonce"]}
