@@ -3,6 +3,7 @@ import base64, hashlib, hmac, json, logging, math, os, re, sqlite3, stat, thread
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from enum import Enum
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -12,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.execution_receipts import verify as verify_execution_receipt
 from app.no_effect_receipts import verify_no_effect
 from tools.high_effect_admission import AdapterCapability, AdmissionDenied, admit_high_effect, target_within_scope
+from tools.adapter_liveness import probe_unix, ProbeDenied
 
 LOG = logging.getLogger("evaluation_gateway")
 
@@ -55,6 +57,10 @@ HIGH_EFFECT_CAPABILITIES_JSON = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_CAPABI
 # Internal test switch, deliberately unavailable as an environment override.
 # A configured JSON manifest and signed HITL do not prove an independent worker.
 HIGH_EFFECT_CI_FIXTURE_ENABLED = False
+# Test-only: signed liveness of the same separate effect process.
+HIGH_EFFECT_REQUIRE_RPC_LIVENESS = False
+HIGH_EFFECT_RPC_SOCKET = ""
+HIGH_EFFECT_RPC_WORKER_UID = None
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
@@ -1750,6 +1756,19 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                         admit_high_effect(action=req.action.model_dump(mode="json",exclude_none=True),capability=cap,
                             approval=legacy,signed_approval=signed,hitl_public_key_b64=HITL_PUBLIC_KEY_B64,
                             task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1)
+                        if HIGH_EFFECT_REQUIRE_RPC_LIVENESS:
+                            fingerprint=hashlib.sha256(json.dumps(asdict(cap),
+                                sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+                            try:
+                                probe_unix(HIGH_EFFECT_RPC_SOCKET,adapter_id=cap.adapter_id,
+                                           capability_sha256=fingerprint,
+                                           public_key_b64=cap.public_key_b64,
+                                           task_id=req.task_id,step_key=expected,
+                                           gate_checkpoint_no=int(t["checkpoint_no"])+1,
+                                           action_fingerprint=action_fingerprint(req.action),
+                                           expected_worker_uid=HIGH_EFFECT_RPC_WORKER_UID)
+                            except ProbeDenied as exc:
+                                raise AdmissionDenied("HIGH_EFFECT_LIVE_EXECUTOR_UNAVAILABLE") from exc
                     except AdmissionDenied as exc:
                         verdict=Verdict.REQUIRES_HITL;reason=str(exc)
                     else:
