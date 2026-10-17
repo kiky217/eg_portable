@@ -1377,6 +1377,9 @@ def protocol():
             "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
                                        {"action_type":"write","effect_class":"E2"}]
                                       if ADMISSION_MODE=="enabled" and EXECUTOR_OUTPUT_ROOT else []),
+            "high_effect_execution_mode": ("CI_DISPOSABLE_ONLY" if HIGH_EFFECT_CI_FIXTURE_ENABLED
+                                           else "UNPROVISIONED_FAIL_CLOSED"),
+            "high_effect_capability_catalog": high_effect_catalog(),
             "executor_target_root_provisioned":bool(EXECUTOR_OUTPUT_ROOT),
             "executor_target_suffixes":[".txt",".json"],
             "document": PROTOCOL_PATH.read_text(encoding="utf-8")}

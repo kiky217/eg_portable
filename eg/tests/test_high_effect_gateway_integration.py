@@ -277,7 +277,7 @@ def test_configured_high_effect_without_independent_transport_cannot_be_ready(mo
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
     monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
     ap=signed(human,task,action,adapter,1,time.time())
-    denied=raw_eval(task,ch,0,claims=[high_pre_claim(high_pre_ref(task,0))],
+    denied=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],
                     action=action,hitl_approval=ap)
     assert denied.status_code==409,denied.text
     assert denied.json()["detail"]["code"]=="UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
