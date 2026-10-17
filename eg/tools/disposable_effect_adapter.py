@@ -36,7 +36,7 @@ class DisposableAdapter:
         self.private=executor_private
 
     def execute(self,*,task_id,step_key,gate_checkpoint_no,gate_created_at,
-                action,data,approval,hitl_public_key_b64,ready_gate,now=None):
+                action,data,approval,hitl_public_key_b64,ready_gate,now=None,fault_hook=None):
         # No alternate runner/shell: require an authenticated gate snapshot from
         # a future EG integration. CI supplies a deterministic signed-policy fixture.
         if not ready_gate or ready_gate.get("task_id")!=task_id or ready_gate.get("step_key")!=step_key or ready_gate.get("checkpoint_no")!=gate_checkpoint_no or ready_gate.get("verdict")!="READY_TO_EXECUTE" or ready_gate.get("action_fingerprint")!=action_fingerprint(action):
@@ -49,7 +49,6 @@ class DisposableAdapter:
         if (not target.is_absolute() or target.is_symlink() or target.resolve(strict=False).parent!=self.root or
             target.suffix!=".json"):
             raise EffectDenied("TARGET_OUTSIDE_DISPOSABLE_SCOPE")
-        if target.exists():raise EffectDenied("PREEXISTING_EFFECT_RETROACTIVE_DENIED")
         try:json.loads(data)
         except (UnicodeError,ValueError) as exc:raise EffectDenied("INVALID_JSON_EFFECT") from exc
         current=time.time() if now is None else now
@@ -63,10 +62,26 @@ class DisposableAdapter:
         verify_approval(approval,hitl_public_key_b64,task_id=task_id,step_key=step_key,
                         gate_checkpoint_no=gate_checkpoint_no,action_fingerprint=fp,
                         adapter_id=self.adapter_id,now=current)
-        # Claim before physical effect, crash makes action UNKNOWN, never replay.
-        self.ledger.consume(approval,hitl_public_key_b64,task_id=task_id,
-                            step_key=step_key,gate_checkpoint_no=gate_checkpoint_no,
-                            action_fingerprint=fp,adapter_id=self.adapter_id,now=current)
+        scope={"task_id":task_id,"step_key":step_key,"gate_checkpoint_no":gate_checkpoint_no,
+               "action_fingerprint":fp,"adapter_id":self.adapter_id}
+        claimed=self.ledger.claim_status(approval["nonce"],**scope)
+        if claimed is not None:
+            # Restart reconciliation: never execute again. Exact physical readback
+            # may recover the original receipt; absent/mismatched effect stays UNKNOWN.
+            if not target.exists():
+                raise EffectDenied("CLAIMED_EFFECT_UNKNOWN_NO_REPLAY")
+            try: observed=target.read_bytes()
+            except OSError as exc: raise EffectDenied("CLAIMED_EFFECT_UNKNOWN_NO_REPLAY") from exc
+            if observed!=data:
+                raise EffectDenied("CLAIMED_EFFECT_MISMATCH_NO_REPLAY")
+            receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
+                              "trusted-worker-"+self.adapter_id,str(target),observed,
+                              approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)
+            return {"status":"RECOVERED_EXECUTED_POST_NOT_VERIFIED","receipt":receipt}
+        if target.exists():raise EffectDenied("PREEXISTING_EFFECT_RETROACTIVE_DENIED")
+        # Claim before physical effect. A crash after this point never permits replay.
+        self.ledger.consume(approval,hitl_public_key_b64,now=current,**scope)
+        if fault_hook is not None:fault_hook("after_claim")
         fd=os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
         try:
             with os.fdopen(fd,"wb") as output:
@@ -74,6 +89,7 @@ class DisposableAdapter:
         except BaseException:
             # Unknown effect: nonce remains durably claimed.
             raise
+        if fault_hook is not None:fault_hook("after_effect")
         observed=target.read_bytes()
         if observed!=data:raise EffectDenied("READBACK_MISMATCH")
         dirfd=os.open(self.root,os.O_DIRECTORY|os.O_RDONLY|os.O_NOFOLLOW)
