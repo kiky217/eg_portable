@@ -56,7 +56,7 @@ def test_signed_approval_verifies_but_cannot_authorize_absent_durable_adapter():
     assert result["status"]=="CAPABILITY_AND_SIGNED_HITL_ADMITTED"
 
 
-@pytest.mark.parametrize("bad",["/sandbox/service-evil","/sandbox/../escape","/sandbox/","sandbox/service","/other/../sandbox/service"])
+@pytest.mark.parametrize("bad",["/sandbox-evil/service","/sandbox/../escape","/sandbox/","sandbox/service","/other/../sandbox/service"])
 def test_capability_path_boundary_fail_closed(bad):
     from tools.high_effect_admission import target_within_scope
     assert not target_within_scope(bad,"/sandbox/")
@@ -68,6 +68,7 @@ def test_capability_path_boundary_fail_closed(bad):
 def test_capability_target_accepts_only_segment_child():
     from tools.high_effect_admission import target_within_scope
     assert target_within_scope("/sandbox/service","/sandbox/")
+    assert target_within_scope("/sandbox/service-evil","/sandbox/")
     assert not target_within_scope("/sandboxer/service","/sandbox")
     assert not target_within_scope("/sandbox","/sandbox")
 
