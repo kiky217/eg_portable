@@ -128,3 +128,18 @@ def test_e5_compensation_is_forbidden(tmp_path):
         a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=gate+1,
             gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action={},
             approval=hitl,hitl_public_key_b64=pub(human),ready_gate={},now=now)
+
+
+def test_compensation_failure_is_explicit_and_fail_closed(tmp_path):
+    from tools.disposable_effect_adapter import COMPENSATION
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,"E3")
+    raction={"action_type":COMPENSATION["E3"],"effect_class":"E3","target":str(target),
+             "payload_sha256":hashlib.sha256(b"").hexdigest(),"payload_bytes":0}
+    fp=action_fingerprint(raction);rgate=gate+1
+    rready={"task_id":"task-19","step_key":"01.02","checkpoint_no":rgate,
+            "verdict":"READY_TO_EXECUTE","action_fingerprint":fp}
+    rap=approval(human,"task-19","01.02",rgate,fp,a.adapter_id,now,nonce="rollback-failure-nonce-01")
+    with pytest.raises(EffectDenied,match="TARGET_ABSENT"):
+        a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=rgate,
+            gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=raction,
+            approval=rap,hitl_public_key_b64=pub(human),ready_gate=rready,now=now)
