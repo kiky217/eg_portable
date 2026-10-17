@@ -165,10 +165,10 @@ def test_worker_denies_wrong_signing_identity_before_effect(monkeypatch,tmp_path
     monkeypatch.setattr(rpc_module,"eg_get",
         lambda _url,_key,_task,suffix:state if suffix=="/state" else detail)
     class MustNotExecute:
-        adapter_id=adapter_id
         private=actual
         def execute(self,**kwargs):
             raise AssertionError("unsafe effect was called")
+    MustNotExecute.adapter_id=adapter_id
     req={"task_id":task,"step_key":"01.01","action":action,
          "approval":{"nonce":nonce},
          "data_b64":base64.b64encode(fp_data).decode(),"operation":"execute"}
