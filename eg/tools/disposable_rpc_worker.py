@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hmac
 import json
 import os
 import socket
 import stat
 import struct
 from pathlib import Path
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from urllib.request import Request,urlopen
 
 from tools.adapter_attestation_worker import _read_private_key,_private_directory
@@ -79,6 +81,21 @@ def execute_once(request,*,adapter,eg_url,eg_key,hitl_key):
         or gate.get("checkpoint_no")!=latest.get("checkpoint_no")
         or latest.get("verdict")!="READY_TO_EXECUTE"):
         raise RpcDenied("CANONICAL_EG_PRE_NOT_READY")
+    # Never physically execute with a key different from the original
+    # HMAC-audited PRE signer. A later POST rejection cannot undo an effect.
+    pin=gate.get("high_effect_pin")
+    worker_key=base64.b64encode(adapter.private.public_key().public_bytes(
+        Encoding.Raw,PublicFormat.Raw)).decode()
+    if (not isinstance(pin,dict) or
+        set(pin)!={"adapter_id","public_key_b64","action_fingerprint","approval_nonce"} or
+        not isinstance(pin["public_key_b64"],str) or
+        not isinstance(pin["adapter_id"],str) or
+        not isinstance(pin["approval_nonce"],str) or
+        not hmac.compare_digest(pin["public_key_b64"],worker_key) or
+        not hmac.compare_digest(pin["adapter_id"],adapter.adapter_id) or
+        pin["action_fingerprint"]!=fp or
+        pin["approval_nonce"]!=approval.get("nonce")):
+        raise RpcDenied("ORIGINAL_PRE_EXECUTOR_IDENTITY_MISMATCH")
     cp=gate["checkpoint_no"]
     record=next((r for r in detail.get("checkpoints",[])
                  if r.get("checkpoint_no")==cp),None)

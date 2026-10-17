@@ -1997,6 +1997,18 @@ def task_state(task_id: str):
         pending_gate = None
         if gate and gate["pre_verdict"] == "READY_TO_EXECUTE" and not gate["consumed"]:
             pending_gate = {"task_id":task_id,"step_key":gate["step_key"],"checkpoint_no":int(gate["pre_checkpoint_no"]),"pre_checkpoint_no": int(gate["pre_checkpoint_no"]), "verdict":gate["pre_verdict"],"action_fingerprint": gate["action_fingerprint"], "hitl_approved": bool(gate["hitl_approved"]),"created_at":gate["created_at"]}
+            # The original audited signer is readable by the independently
+            # credentialed worker, never replaced from a mutable registry.
+            for audit_row in c.execute(
+                "SELECT response_json FROM audit WHERE task_id=? AND event_type='EVALUATION' ORDER BY seq DESC",
+                (task_id,),
+            ):
+                original=json.loads(audit_row["response_json"])
+                if (original.get("checkpoint_no")==int(gate["pre_checkpoint_no"])
+                    and original.get("step_key")==gate["step_key"]):
+                    if original.get("high_effect_pin") is not None:
+                        pending_gate["high_effect_pin"]=original["high_effect_pin"]
+                    break
         return {
             "task_id": task_id,
             "state_version": int(t["checkpoint_no"]),

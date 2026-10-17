@@ -197,3 +197,14 @@ returned. An uncertain effect remains UNKNOWN and BLOCKED. Live out-of-process
 E3/E4/E5 regression restarts the worker between effect and POST and checks the
 same signed receipt, target inode and payload before EG POST/SATISFIED. This
 does not authorize unprovisioned production E3–E5 cutovers.
+
+## Worker-side immutable PRE signer enforcement (v3.1.54)
+Authenticated `GET /v1/tasks/{task_id}/state` now includes the original
+audit-authenticated high-effect PRE signer pin on a pending READY gate.
+Before any sandbox high-effect RPC operation, the separate worker compares
+its actual Ed25519 public key, adapter identity, action fingerprint and
+signed HITL approval nonce to the **original** PRE record. An absent,
+different or substituted signing identity is denied before a physical effect.
+A malicious/mismatched worker must not cause an effect and wait for POST
+to reject its receipt. This is still **CI-only** execution, not production
+admission of arbitrary resources.
