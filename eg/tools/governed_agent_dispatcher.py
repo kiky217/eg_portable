@@ -92,3 +92,65 @@ def dispatch(request: dict, *, eg_url: str, api_key: str, worker_socket: str,
     # the canonical EG POST gate; a successful dispatcher return is NOT VERIFIED.
     return {"status":"RECEIPT_VERIFIED_POST_REQUIRED","execution_receipt":receipt,
             "gate_checkpoint_no":gate["checkpoint_no"]}
+
+
+def dispatch_disposable_ci(*, task_id: str, step_key: str, action: dict,
+                           approval: dict, data: bytes, adapter,
+                           eg_url: str, api_key: str, hitl_public_key_b64: str,
+                           executor_public_key_b64: str,
+                           operation: str = "execute", ci_only: bool = False) -> dict:
+    """Repository CI-only E3-E5 adapter pathway, not a production transport.
+
+    Production requires a separately administered authenticated executor
+    RPC/trust domain. Arbitrary shell execution is never permitted here.
+    """
+    import hashlib
+    from tools.disposable_effect_adapter import DisposableAdapter
+    from tools.high_effect_admission import action_fingerprint
+    from tools.signed_hitl_approval import verify_approval
+    if not ci_only or type(adapter) is not DisposableAdapter:
+        raise DispatchDenied("HIGH_EFFECT_PRODUCTION_TRANSPORT_NOT_PROVISIONED")
+    if operation not in ("execute","compensate") or not isinstance(data,bytes):
+        raise DispatchDenied("INVALID_HIGH_EFFECT_OPERATION")
+    if not isinstance(action,dict) or action.get("effect_class") not in ("E3","E4","E5") or adapter.effect_class!=action["effect_class"]:
+        raise DispatchDenied("HIGH_EFFECT_CLASS_MISMATCH")
+    if operation=="compensate" and (adapter.effect_class=="E5" or data):
+        raise DispatchDenied("HIGH_EFFECT_COMPENSATION_DENIED")
+    if operation=="execute" and (not data or action.get("payload_sha256")!=hashlib.sha256(data).hexdigest()
+                                or action.get("payload_bytes")!=len(data)):
+        raise DispatchDenied("HIGH_EFFECT_PAYLOAD_NOT_BOUND")
+    state=_get(eg_url,api_key,task_id,"/state")
+    detail=_get(eg_url,api_key,task_id,"")
+    gate=state.get("pending_execution_gate")
+    latest=state.get("latest_checkpoint")
+    fp=action_fingerprint(action)
+    if (state.get("status")!="IN_PROGRESS" or state.get("current_step")!=step_key or
+        detail.get("task",{}).get("contract_status")!="OPEN" or
+        not isinstance(gate,dict) or not isinstance(latest,dict) or
+        gate.get("task_id")!=task_id or gate.get("step_key")!=step_key or
+        gate.get("verdict")!="READY_TO_EXECUTE" or not gate.get("hitl_approved") or
+        gate.get("action_fingerprint")!=fp or
+        latest.get("checkpoint_no")!=gate.get("checkpoint_no") or
+        latest.get("verdict")!="READY_TO_EXECUTE"):
+        raise DispatchDenied("HIGH_EFFECT_CANONICAL_PRE_DENIED")
+    checkpoint=gate["checkpoint_no"]
+    record=next((r for r in detail.get("checkpoints",[]) if r.get("checkpoint_no")==checkpoint),None)
+    if not record or record.get("verdict")!="READY_TO_EXECUTE" or not gate_allows_new_effect(record["created_at"]):
+        raise DispatchDenied("HIGH_EFFECT_PRE_LEASE_DENIED")
+    verify_approval(approval,hitl_public_key_b64,task_id=task_id,step_key=step_key,
+                    gate_checkpoint_no=checkpoint,action_fingerprint=fp,
+                    adapter_id=adapter.adapter_id)
+    args=dict(task_id=task_id,step_key=step_key,gate_checkpoint_no=checkpoint,
+              gate_created_at=record["created_at"],action=action,approval=approval,
+              hitl_public_key_b64=hitl_public_key_b64,ready_gate=gate)
+    result=(adapter.execute(**args,data=data) if operation=="execute"
+            else adapter.compensate(**args))
+    receipt=result["receipt"]
+    valid,reason=verify(receipt,public_b64=executor_public_key_b64,task_id=task_id,
+                        step_key=step_key,gate_checkpoint_no=checkpoint,
+                        action_fingerprint=fp,target=action["target"],
+                        gate_created_at=record["created_at"])
+    if not valid:
+        raise DispatchDenied("HIGH_EFFECT_RECEIPT_INVALID:"+str(reason))
+    return {"status":"RECEIPT_VERIFIED_POST_REQUIRED","execution_receipt":receipt,
+            "gate_checkpoint_no":checkpoint}

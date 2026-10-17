@@ -74,13 +74,21 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
     assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
     state=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json();gate=state["pending_execution_gate"]
     adapter=DisposableAdapter(root,ledger,H.EXEC_PRIV,adapter_id,effect)
-    executed=adapter.execute(task_id=task,step_key="01.01",gate_checkpoint_no=pre.json()["gate_checkpoint_no"],
-        gate_created_at=gate["created_at"],action=action,data=data,approval=ap,
-        hitl_public_key_b64=pub(human),ready_gate=gate,now=time.time())
-    assert target.read_bytes()==data and executed["status"]=="EXECUTED_POST_NOT_VERIFIED"
+    import tools.governed_agent_dispatcher as dispatcher
+    def ci_get(_url,_key,_task,suffix):
+        assert _task==task
+        response=H.CLIENT.get(f"/v1/tasks/{task}"+suffix,headers=H.HEAD)
+        assert response.status_code==200,response.text
+        return response.json()
+    monkeypatch.setattr(dispatcher,"_get",ci_get)
+    executed=dispatcher.dispatch_disposable_ci(
+        task_id=task,step_key="01.01",action=action,data=data,approval=ap,
+        adapter=adapter,eg_url="ci-eg",api_key="ci-api",hitl_public_key_b64=pub(human),
+        executor_public_key_b64=pub(H.EXEC_PRIV),ci_only=True)
+    assert target.read_bytes()==data and executed["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
     post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01")
     post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",claims=[claim(post_ref)],phase="POST_EXECUTION",
-        action=action,execution_receipt=executed["receipt"])
+        action=action,execution_receipt=executed["execution_receipt"])
     assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
     ppre,_=H.do_pre(task,ch,post.json()["checkpoint_no"],step="01",criteria=[(0,"parent criterion")],stdout="PARENT=PASS",value="PARENT=PASS")
     task_ref=H.task_ref(task,ppre.json()["gate_checkpoint_no"],criterion="physical effect verified")

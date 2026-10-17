@@ -52,3 +52,11 @@ def test_no_shell_arbitrary_agent_request():
         dispatch({**REQ,"shell_command":"sh -c echo bypass"},
                  eg_url="http://127.0.0.1:1",api_key="unused",
                  worker_socket="/tmp/no-socket",executor_public_key_b64="unused")
+
+
+def test_high_effect_ci_dispatch_requires_explicit_isolated_adapter():
+    from tools.governed_agent_dispatcher import dispatch_disposable_ci
+    with pytest.raises(DispatchDenied,match="PRODUCTION_TRANSPORT_NOT_PROVISIONED"):
+        dispatch_disposable_ci(task_id="t",step_key="01.01",action={"effect_class":"E3"},
+          data=b"{}",approval={},adapter=None,eg_url="http://invalid",api_key="key",
+          hitl_public_key_b64="invalid",executor_public_key_b64="invalid")
