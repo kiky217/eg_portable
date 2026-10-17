@@ -12,6 +12,7 @@ import os
 import secrets
 import socket
 import stat
+import struct
 import time
 from pathlib import Path
 
@@ -109,8 +110,9 @@ def verify(message,reply,*,adapter_id,capability_sha256,public_key_b64,now_ns=No
 
 
 def probe_unix(path,*,adapter_id,capability_sha256,public_key_b64,
-               task_id,step_key,gate_checkpoint_no,action_fingerprint):
-    """One bounded read-only UDS probe; success never authorizes an effect."""
+               task_id,step_key,gate_checkpoint_no,action_fingerprint,
+               expected_worker_uid=None):
+    """One bounded read-only UDS probe; optional OS UID pin prevents socket impersonation."""
     path=Path(path)
     try:
         if path.is_symlink() or not stat.S_ISSOCK(path.stat().st_mode):
@@ -122,6 +124,14 @@ def probe_unix(path,*,adapter_id,capability_sha256,public_key_b64,
         with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
             peer.settimeout(3)
             peer.connect(str(path))
+            if expected_worker_uid is not None:
+                if type(expected_worker_uid) is not int or expected_worker_uid<0:
+                    raise ProbeDenied("LIVENESS_WORKER_UID_INVALID")
+                rawcred=peer.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,
+                                        struct.calcsize("3i"))
+                _,peer_uid,_=struct.unpack("3i",rawcred)
+                if peer_uid!=expected_worker_uid:
+                    raise ProbeDenied("LIVENESS_WORKER_UID_MISMATCH")
             peer.sendall(canon({"operation":"attest","challenge":message})+b"\n")
             data=bytearray()
             while b"\n" not in data:

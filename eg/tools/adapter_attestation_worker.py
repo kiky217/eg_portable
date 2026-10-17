@@ -11,6 +11,7 @@ import json
 import os
 import socket
 import stat
+import struct
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -48,7 +49,8 @@ def _read_private_key(path):
         os.close(fd)
 
 
-def serve(*,socket_path,private_key_path,adapter_id,capability_sha256,max_requests=0):
+def serve(*,socket_path,private_key_path,adapter_id,capability_sha256,max_requests=0,
+          controller_uid=None):
     """Run a strictly read-only attestation service in its own process/UID."""
     root=Path(socket_path).parent
     path=Path(socket_path)
@@ -61,6 +63,10 @@ def serve(*,socket_path,private_key_path,adapter_id,capability_sha256,max_reques
         or type(max_requests) is not int or max_requests<0):
         raise WorkerSetupDenied("WORKER_CAPABILITY_CONFIGURATION_INVALID")
     key=_read_private_key(Path(private_key_path))
+    if controller_uid is None:
+        controller_uid=os.getuid()  # local-only default; production supplies independent UID
+    if type(controller_uid) is not int or controller_uid<0:
+        raise WorkerSetupDenied("CONTROLLER_UID_INVALID")
     requests=0
     original_umask=os.umask(0o077)
     try:
@@ -75,6 +81,11 @@ def serve(*,socket_path,private_key_path,adapter_id,capability_sha256,max_reques
                         requests+=1
                         peer.settimeout(3)
                         try:
+                            rawcred=peer.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,
+                                                    struct.calcsize("3i"))
+                            _,peer_uid,_=struct.unpack("3i",rawcred)
+                            if peer_uid!=controller_uid:
+                                raise ProbeDenied("WORKER_CALLER_UID_DENIED")
                             with peer.makefile("rb") as stream:
                                 raw=stream.readline(8193)
                             if not raw.endswith(b"\n") or len(raw)>8192:
@@ -103,10 +114,12 @@ def main():
     parser.add_argument("--adapter-id",required=True)
     parser.add_argument("--capability-sha256",required=True)
     parser.add_argument("--max-requests",type=int,default=0,help="test only; 0 serves continuously")
+    parser.add_argument("--controller-uid",type=int,required=True,
+                        help="Numeric OS UID allowed to send attestation challenges")
     a=parser.parse_args()
     serve(socket_path=a.socket,private_key_path=a.private_key,
           adapter_id=a.adapter_id,capability_sha256=a.capability_sha256,
-          max_requests=a.max_requests)
+          max_requests=a.max_requests,controller_uid=a.controller_uid)
 
 
 if __name__=="__main__":
