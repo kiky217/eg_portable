@@ -9,8 +9,8 @@ from tools.signed_hitl_approval import canonical
 from tools.high_effect_admission import action_fingerprint as tool_fp
 
 def pub(k): return base64.b64encode(k.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
-def signed(k,task,action,adapter,gate,now):
-    b={"version":1,"task_id":task,"step_key":"01.01","gate_checkpoint_no":gate,
+def signed(k,task,action,adapter,gate,now,step="01.01"):
+    b={"version":1,"task_id":task,"step_key":step,"gate_checkpoint_no":gate,
        "action_fingerprint":tool_fp(action),"adapter_id":adapter,"decision":"APPROVED",
        "issued_at":now-1,"expires_at":now+120,"nonce":"canonical-hitl-nonce-01"}
     return {**b,"signature_b64":base64.b64encode(k.sign(canonical(b))).decode()}
