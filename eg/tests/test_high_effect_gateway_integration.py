@@ -107,9 +107,10 @@ def test_canonical_pre_physical_adapter_receipt_post_chain(monkeypatch,tmp_path,
         assert response.status_code==200,response.text
         return response.json()
     monkeypatch.setattr(dispatcher,"_get",ci_get)
-    executed=dispatcher.dispatch_disposable_ci(
-        task_id=task,step_key="01.01",action=action,data=data,approval=ap,
-        adapter=adapter,eg_url="ci-eg",api_key="ci-api",hitl_public_key_b64=pub(human),
+    executed=dispatcher.dispatch_action(
+        request={"task_id":task,"step_key":"01.01","action":action,"data_b64":base64.b64encode(data).decode()},
+        disposable_adapter=adapter,hitl_approval=ap,
+        eg_url="ci-eg",api_key="ci-api",hitl_public_key_b64=pub(human),
         executor_public_key_b64=pub(H.EXEC_PRIV),ci_only=True)
     assert target.read_bytes()==data and executed["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
     post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01")
@@ -175,9 +176,10 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
         assert response.status_code==200,response.text
         return response.json()
     monkeypatch.setattr(dispatcher,"_get",ci_get)
-    undone=dispatcher.dispatch_disposable_ci(
-        task_id=task,step_key="01.02",action=rollback,data=b"",approval=rap,
-        adapter=adapter,eg_url="ci-eg",api_key="ci-api",hitl_public_key_b64=pub(human),
+    undone=dispatcher.dispatch_action(
+        request={"task_id":task,"step_key":"01.02","action":rollback,"data_b64":""},
+        disposable_adapter=adapter,hitl_approval=rap,
+        eg_url="ci-eg",api_key="ci-api",hitl_public_key_b64=pub(human),
         executor_public_key_b64=pub(H.EXEC_PRIV),operation="compensate",ci_only=True)
     assert not target.exists()
     rpost=raw_eval(task,ch,rpre.json()["checkpoint_no"],step="01.02",

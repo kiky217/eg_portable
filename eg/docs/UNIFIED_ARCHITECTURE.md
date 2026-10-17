@@ -53,3 +53,10 @@ change outside this repository.
   worker attestation/liveness and independently verified trust model exist.
 - Historical accepted task contracts and their hashes remain immutable;
   signed task audit and NO_EFFECT recovery must never be rewritten.
+
+## Unified agent action interface (v3.1.43)
+`tools.governed_agent_dispatcher.dispatch_action` is the fail-closed
+single action-routing contract. E0/E2 route via the privileged worker socket;
+E3/E4/E5 are available **only** through explicit disposable CI adapters in
+this repository. The core never executes physical actions directly and a
+configured high-effect registry cannot grant a production transport.

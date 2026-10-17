@@ -60,3 +60,17 @@ def test_high_effect_ci_dispatch_requires_explicit_isolated_adapter():
         dispatch_disposable_ci(task_id="t",step_key="01.01",action={"effect_class":"E3"},
           data=b"{}",approval={},adapter=None,eg_url="http://invalid",api_key="key",
           hitl_public_key_b64="invalid",executor_public_key_b64="invalid")
+
+
+def test_unified_dispatch_denies_high_effect_without_transport():
+    from tools.governed_agent_dispatcher import dispatch_action
+    request={**REQ,"action":{**A,"effect_class":"E3","action_type":"service_cutover"}}
+    with pytest.raises(DispatchDenied,match="HIGH_EFFECT_PRODUCTION_TRANSPORT_NOT_PROVISIONED"):
+        dispatch_action(request,eg_url="http://invalid",api_key="unused",
+                        executor_public_key_b64="unused")
+
+def test_unified_dispatch_denies_e0_e2_without_worker_socket():
+    from tools.governed_agent_dispatcher import dispatch_action
+    with pytest.raises(DispatchDenied,match="INDEPENDENT_E0_E2_WORKER_SOCKET_REQUIRED"):
+        dispatch_action(REQ,eg_url="http://invalid",api_key="unused",
+                        executor_public_key_b64="unused")

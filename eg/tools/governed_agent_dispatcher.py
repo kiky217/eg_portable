@@ -154,3 +154,42 @@ def dispatch_disposable_ci(*, task_id: str, step_key: str, action: dict,
         raise DispatchDenied("HIGH_EFFECT_RECEIPT_INVALID:"+str(reason))
     return {"status":"RECEIPT_VERIFIED_POST_REQUIRED","execution_receipt":receipt,
             "gate_checkpoint_no":checkpoint}
+
+
+def dispatch_action(request: dict, *, eg_url: str, api_key: str,
+                    executor_public_key_b64: str, worker_socket: str | None = None,
+                    ci_only: bool = False, disposable_adapter=None,
+                    hitl_approval: dict | None = None,
+                    hitl_public_key_b64: str | None = None,
+                    operation: str = "execute") -> dict:
+    """Single fail-closed agent-facing action contract for bounded E0-E5.
+
+    E0/E2 use independently privileged Unix-socket worker. E3/E4/E5 route
+    solely to explicitly supplied CI-only disposable adapter; there is no
+    production high-effect executor transport or shell fallback yet.
+    """
+    import base64
+    if not isinstance(request,dict) or set(request)!={"task_id","step_key","action","data_b64"}:
+        raise DispatchDenied("INVALID_DISPATCH_REQUEST")
+    action=request["action"]
+    if not isinstance(action,dict) or not isinstance(request["data_b64"],str):
+        raise DispatchDenied("INVALID_DISPATCH_ACTION")
+    effect=action.get("effect_class")
+    if effect in ("E3","E4","E5"):
+        if not ci_only or disposable_adapter is None or not hitl_approval or not hitl_public_key_b64:
+            raise DispatchDenied("HIGH_EFFECT_PRODUCTION_TRANSPORT_NOT_PROVISIONED")
+        try:
+            data=base64.b64decode(request["data_b64"],validate=True)
+        except (ValueError,TypeError) as exc:
+            raise DispatchDenied("INVALID_HIGH_EFFECT_BASE64_PAYLOAD") from exc
+        return dispatch_disposable_ci(task_id=request["task_id"],step_key=request["step_key"],
+                 action=action,data=data,approval=hitl_approval,adapter=disposable_adapter,
+                 eg_url=eg_url,api_key=api_key,hitl_public_key_b64=hitl_public_key_b64,
+                 executor_public_key_b64=executor_public_key_b64,operation=operation,ci_only=True)
+    if operation!="execute" or ci_only or disposable_adapter is not None:
+        raise DispatchDenied("UNSUPPORTED_EXECUTION_TRANSPORT")
+    if not worker_socket:
+        raise DispatchDenied("INDEPENDENT_E0_E2_WORKER_SOCKET_REQUIRED")
+    return dispatch(request,eg_url=eg_url,api_key=api_key,
+                    worker_socket=worker_socket,
+                    executor_public_key_b64=executor_public_key_b64)
