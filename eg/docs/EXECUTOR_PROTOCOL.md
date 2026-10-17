@@ -139,3 +139,14 @@ This attests **current key possession only**, not OS isolation, transport
 authorization, physical execution, EG READY or production cutover.
 Production E3–E5 dispatch remains unprovisioned until independent worker
 admission, auditable effect journal and live promotion are separately proven.
+
+## Issue #26: deployable read-only attester (v3.1.49)
+Run `python -m tools.adapter_attestation_worker --socket PRIVATE_SOCKET
+--private-key WORKER_PEM --adapter-id trusted-adapter-ID
+--capability-sha256 PINNED_SHA256` as the **worker OS identity**.
+The containing socket directory must be owned by that UID and mode 0700;
+the private Ed25519 PEM must be owned by that UID and mode 0600.
+Socket RPC permits only `attest`, with signed task/step/gate/action/capability
+challenge. All other operations are denied; no physical actions are exposed.
+A successful challenge proves signing-key possession, NOT independent
+production executor authorization, effect journaling, or EG VERIFIED.
