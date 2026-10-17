@@ -110,6 +110,24 @@ def test_new_logical_high_effect_cannot_get_actionable_pre(monkeypatch):
     approval={**payload,"signature_b64":base64.b64encode(human.sign(canonical(payload))).decode()}
     ref=step_ref(task,"PRE_EXECUTION",0)
     r=raw_eval(task,ch,0,action=action,claims=[claim(ref)],hitl_approval=approval)
-    assert r.status_code==409 and r.json()["detail"]["code"]=="IMMUTABLE_LOGICAL_STEP_FORBIDS_HIGH_EFFECT"
+    assert r.status_code==409 and r.json()["detail"]["code"]=="IMMUTABLE_LOGICAL_STEP_FORBIDS_ACTION"
     assert CLIENT.get(f"/v1/tasks/{task}/state",headers=HEAD).json()["latest_checkpoint"] is None
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
+
+def test_immutable_logical_step_denies_e0_and_e2_concrete_pre():
+    import harness as H
+    for klass in ("E0","E2"):
+        task,ch=H.register()
+        if klass=="E0":
+            action={"action_type":"read","effect_class":"E0",
+                "target":str(H.WORKER_OUTPUT/"logical-read.txt"),"reversible":False,
+                "real_world_effect":False,"proofs":[]}
+        else:
+            action=H.e2_action(task,0)
+        pre_ref=H.step_ref(task,"PRE_EXECUTION",0)
+        result=H.raw_eval(task,ch,0,action=action,claims=[H.claim(pre_ref)])
+        assert result.status_code==409,result.text
+        assert result.json()["detail"]["code"]=="IMMUTABLE_LOGICAL_STEP_FORBIDS_ACTION"
+        state=H.CLIENT.get(f"/v1/tasks/{task}/state",headers=H.HEAD).json()
+        assert state["latest_checkpoint"] is None
+    assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
