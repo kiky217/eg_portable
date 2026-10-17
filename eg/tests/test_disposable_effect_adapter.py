@@ -145,3 +145,46 @@ def test_compensation_failure_is_explicit_and_fail_closed(tmp_path):
         a.compensate(task_id="task-19",step_key="01.02",gate_checkpoint_no=rgate,
             gate_created_at=datetime.fromtimestamp(now,timezone.utc).isoformat(),action=raction,
             approval=rap,hitl_public_key_b64=pub(human),ready_gate=rready,now=now)
+
+@pytest.mark.parametrize("effect",["E3","E4"])
+@pytest.mark.parametrize("crashpoint,expected",[
+    ("after_claim","exists"),("after_unlink","absent"),
+    ("after_fsync","absent"),("after_journal","recovered")])
+def test_compensation_crash_matrix_is_fail_closed_and_durable(tmp_path,effect,crashpoint,expected):
+    from tools.disposable_effect_adapter import COMPENSATION
+    a,worker,human,data,target,action,ready,hitl,now,gate=fixture(tmp_path,effect)
+    timestamp=datetime.fromtimestamp(now,timezone.utc).isoformat()
+    a.execute(task_id="task-19",step_key="01.01",gate_checkpoint_no=gate,
+              gate_created_at=timestamp,action=action,data=data,approval=hitl,
+              hitl_public_key_b64=pub(human),ready_gate=ready,now=now)
+    rollback_action={"action_type":COMPENSATION[effect],"effect_class":effect,"target":str(target),
+                     "payload_sha256":hashlib.sha256(b'{"operation":"delete"}').hexdigest(),
+                     "payload_bytes":22}
+    rfp=action_fingerprint(rollback_action);rgate=gate+1
+    rready={"task_id":"task-19","step_key":"01.02","checkpoint_no":rgate,
+            "verdict":"READY_TO_EXECUTE","action_fingerprint":rfp}
+    rap=approval(human,"task-19","01.02",rgate,rfp,a.adapter_id,now,
+                 nonce=f"compensation-{effect}-{crashpoint}-nonce")
+    kwargs=dict(task_id="task-19",step_key="01.02",gate_checkpoint_no=rgate,
+                gate_created_at=timestamp,action=rollback_action,approval=rap,
+                hitl_public_key_b64=pub(human),ready_gate=rready,now=now)
+    def crash(point):
+        if point==crashpoint: raise RuntimeError("injected-crash")
+    with pytest.raises(RuntimeError,match="injected-crash"):
+        a.compensate(**kwargs,fault_hook=crash)
+    restarted=type(a)(a.root,a.ledger.directory,worker,a.adapter_id,effect)
+    assert target.exists()==(expected=="exists")
+    if expected=="recovered":
+        recovered=restarted.compensate(**kwargs)
+        assert recovered["status"]=="COMPENSATED_POST_NOT_VERIFIED"
+        ok,note=verify_receipt(recovered["receipt"],public_b64=pub(worker),
+           task_id="task-19",step_key="01.02",gate_checkpoint_no=rgate,
+           action_fingerprint=rfp,target=str(target),gate_created_at=timestamp,
+           time_now_ns=int(now*1e9))
+        assert ok,note
+        target.write_bytes(b'{"foreign":true}')
+        with pytest.raises(EffectDenied,match="UNKNOWN_NO_REPLAY"):
+            restarted.compensate(**kwargs)
+    else:
+        with pytest.raises(EffectDenied,match="UNKNOWN_NO_REPLAY"):
+            restarted.compensate(**kwargs)

@@ -103,7 +103,7 @@ class DisposableAdapter:
 
 
     def compensate(self,*,task_id,step_key,gate_checkpoint_no,gate_created_at,
-                   action,approval,hitl_public_key_b64,ready_gate,now=None):
+                   action,approval,hitl_public_key_b64,ready_gate,now=None,fault_hook=None):
         """Separately EG-governed compensation. E5 is intentionally irreversible."""
         if self.effect_class=="E5":
             raise EffectDenied("E5_COMPENSATION_FORBIDDEN_IRREVERSIBLE")
@@ -129,17 +129,25 @@ class DisposableAdapter:
                         adapter_id=self.adapter_id,now=current)
         scope={"task_id":task_id,"step_key":step_key,"gate_checkpoint_no":gate_checkpoint_no,
                "action_fingerprint":fp,"adapter_id":self.adapter_id}
-        if self.ledger.claim_status(approval["nonce"],**scope) is not None:
-            if target.exists(): raise EffectDenied("COMPENSATION_UNKNOWN_NO_REPLAY")
-            observed=b'{"target_absent":true}'
+        claimed=self.ledger.claim_status(approval["nonce"],**scope)
+        if claimed is not None:
+            # A missing target alone cannot prove who removed it. Require
+            # a separately durable completion marker after directory fsync.
+            if not self.ledger.compensation_status(approval["nonce"],**scope) or target.exists():
+                raise EffectDenied("COMPENSATION_UNKNOWN_NO_REPLAY")
         else:
             if not target.exists(): raise EffectDenied("COMPENSATION_TARGET_ABSENT")
             self.ledger.consume(approval,hitl_public_key_b64,now=current,**scope)
+            if fault_hook is not None: fault_hook("after_claim")
             target.unlink()
+            if fault_hook is not None: fault_hook("after_unlink")
             dirfd=os.open(self.root,os.O_DIRECTORY|os.O_RDONLY|os.O_NOFOLLOW)
-            try:os.fsync(dirfd)
-            finally:os.close(dirfd)
-            observed=b'{"target_absent":true}'
+            try: os.fsync(dirfd)
+            finally: os.close(dirfd)
+            if fault_hook is not None: fault_hook("after_fsync")
+            self.ledger.complete_compensation(approval["nonce"],**scope)
+            if fault_hook is not None: fault_hook("after_journal")
+        observed=b'{"target_absent":true}'
         receipt=sign(body(task_id,step_key,gate_checkpoint_no,fp,
                           "trusted-worker-"+self.adapter_id,str(target),observed,
                           approval["nonce"],completed_ns=max(int(current*1e9),int(gate_epoch*1e9))),self.private)

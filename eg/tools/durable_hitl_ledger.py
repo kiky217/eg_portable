@@ -27,6 +27,8 @@ class ApprovalLedger:
             conn.execute("CREATE TABLE IF NOT EXISTS claims (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status='UNKNOWN'))")
             conn.execute("CREATE TABLE IF NOT EXISTS revocations (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
         os.chmod(self.db,0o600)
+        with self._connect() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS compensation_completed (nonce TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_key TEXT NOT NULL, gate_no INTEGER NOT NULL, action_fp TEXT NOT NULL, adapter_id TEXT NOT NULL)")
 
     def _connect(self):
         conn=sqlite3.connect(self.db,timeout=10,isolation_level=None)
@@ -79,3 +81,29 @@ class ApprovalLedger:
                 conn.rollback()
                 raise ApprovalClaimDenied("HITL_ALREADY_CONSUMED_OR_UNKNOWN_NO_REPLAY") from exc
         return {"status":"CLAIM_DURABLE_EFFECT_NOT_AUTHORIZED","nonce":result["nonce"]}
+
+    def compensation_status(self, nonce, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id):
+        scope=(task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id)
+        with self._connect() as conn:
+            row=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id FROM compensation_completed WHERE nonce=?",(nonce,)).fetchone()
+        if row is None:
+            return False
+        if row!=scope:
+            raise ApprovalClaimDenied("COMPENSATION_COMPLETION_SCOPE_MISMATCH")
+        return True
+
+    def complete_compensation(self, nonce, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id):
+        scope=(task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            claim=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id FROM claims WHERE nonce=?",(nonce,)).fetchone()
+            if claim!=scope:
+                conn.rollback()
+                raise ApprovalClaimDenied("COMPENSATION_CLAIM_NOT_DURABLE_OR_SCOPE_MISMATCH")
+            try:
+                conn.execute("INSERT INTO compensation_completed VALUES (?,?,?,?,?,?)",(nonce,*scope))
+                conn.commit()
+            except sqlite3.IntegrityError as exc:
+                conn.rollback()
+                raise ApprovalClaimDenied("COMPENSATION_COMPLETION_ALREADY_DURABLE") from exc
+        return "COMPENSATION_COMPLETION_DURABLE"
