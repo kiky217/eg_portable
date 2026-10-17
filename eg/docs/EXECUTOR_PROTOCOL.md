@@ -217,3 +217,12 @@ execution receipt key. Wrong UID/key/capability or an offline worker keeps
 PRE at REQUIRES_HITL. Tests prove E3/E4/E5 PRE -> live executor -> signed
 effect -> durable restart recovery -> POST/SATISFIED. Production remains
 fail-closed until a separately provisioned real-world adapter is proven.
+
+## Re-verifiable canonical PRE live attestation evidence (v3.1.56)
+For isolated CI E3/E4/E5 admissions, the response/audit now records
+`high_effect_liveness` containing the complete signed challenge-response,
+the challenge digest, action/gate/capability binding and worker-UID pin
+enforcement. Offline/unpinned workers fail closed. The original immutable
+audit stores this evidence; historical gate hashes and previously recorded
+task intakes are not rewritten. The evidence is **key possession at PRE**,
+not proof of a real-world production cutover.
