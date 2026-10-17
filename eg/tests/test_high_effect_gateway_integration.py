@@ -110,7 +110,7 @@ def test_canonical_compensation_has_its_own_pre_receipt_post(monkeypatch,tmp_pat
     apply={"action_type":atype,"target":str(target),"effect_class":effect,"reversible":True,"real_world_effect":True,
            "payload_sha256":hashlib.sha256(data).hexdigest(),"payload_bytes":len(data),"proofs":[]}
     rollback={"action_type":rollback_type,"target":str(target),"effect_class":effect,"reversible":True,"real_world_effect":True,
-              "payload_sha256":hashlib.sha256(b"").hexdigest(),"payload_bytes":0,"proofs":[]}
+              "payload_sha256":hashlib.sha256(b'{"operation":"delete"}').hexdigest(),"payload_bytes":22,"proofs":[]}
     caps=[{"adapter_id":adapter_id,"action_type":x["action_type"],"effect_class":effect,"target_prefix":str(root)+"/",
            "maximum_payload_bytes":524288,"isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64} for x in (apply,rollback)]
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps(caps));monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(human))
