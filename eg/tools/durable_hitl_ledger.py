@@ -52,6 +52,15 @@ class ApprovalLedger:
                 raise ApprovalClaimDenied("HITL_ALREADY_REVOKED")
         return {"status":"REVOCATION_DURABLE_EFFECT_DENIED","nonce":result["nonce"]}
 
+    def claim_status(self, nonce, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id):
+        with self._connect() as conn:
+            row=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id,status FROM claims WHERE nonce=?",(nonce,)).fetchone()
+        if row is None:
+            return None
+        if row[:5]!=(task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id):
+            raise ApprovalClaimDenied("HITL_CLAIM_SCOPE_MISMATCH")
+        return row[5]
+
     def consume(self, approval, key, *, task_id, step_key, gate_checkpoint_no, action_fingerprint, adapter_id, now=None):
         result=verify_approval(approval,key,task_id=task_id,step_key=step_key,
                                gate_checkpoint_no=gate_checkpoint_no,
