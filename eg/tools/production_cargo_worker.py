@@ -29,7 +29,7 @@ class CargoWorker:
       or action.get("effect_class")!="E3" or action.get("real_world_effect") is not True
       or action.get("target")!=str(self.root/"Cargo.toml")):
    raise WorkerDenied("ACTION_SCOPE_DENIED")
-  if not (self.root/"Cargo.toml").is_file():raise WorkerDenied("CARGO_MANIFEST_MISSING")
+  if (self.root/"Cargo.toml").is_symlink() or not (self.root/"Cargo.toml").is_file():raise WorkerDenied("CARGO_MANIFEST_MISSING")
   if not isinstance(task_id,str) or not task_id.startswith("task-knid-solana-"):
    raise WorkerDenied("TASK_SCOPE_DENIED")
   if not isinstance(step_key,str):raise WorkerDenied("STEP_SCOPE_DENIED")

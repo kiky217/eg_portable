@@ -33,6 +33,7 @@ def configure(config):
  return worker
 class Handler(socketserver.StreamRequestHandler):
  def handle(self):
+  self.connection.settimeout(5)
   try:
    raw=self.rfile.readline(16385)
    if not raw or len(raw)>16384:raise RpcDenied("REQUEST_SIZE")
