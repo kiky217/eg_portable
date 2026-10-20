@@ -34,7 +34,7 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     if (not isinstance(request,dict) or
         set(request)!={"task_id","step_key","action","approval","data_b64"}):
         raise ExternalDispatchDenied("INVALID_EXTERNAL_DISPATCH_REQUEST")
-    if operation not in ("execute","compensate","no_effect"):
+    if operation not in ("execute","compensate","no_effect","recover_receipt"):
         raise ExternalDispatchDenied("UNSUPPORTED_EXTERNAL_RECOVERY_OPERATION")
     task=request["task_id"];step=request["step_key"];action=request["action"]
     if (not isinstance(task,str) or not 1<=len(task)<=127 or

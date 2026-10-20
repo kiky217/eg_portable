@@ -175,3 +175,22 @@ class ApprovalLedger:
                          (nonce,*scope,json.dumps(receipt,sort_keys=True,separators=(",",":"))))
             conn.commit()
             return receipt
+
+    def read_sealed_receipt(self, nonce, *, task_id, step_key, gate_checkpoint_no,
+                            action_fingerprint, adapter_id):
+        """Read original signed receipt after lost ACK without effect replay."""
+        scope=(task_id,step_key,gate_checkpoint_no,action_fingerprint,adapter_id)
+        with self._connect() as conn:
+            claim=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id "
+                               "FROM claims WHERE nonce=?",(nonce,)).fetchone()
+            if claim is None:
+                return None
+            if claim!=scope:
+                raise ApprovalClaimDenied("RECOVERY_SCOPE_MISMATCH")
+            row=conn.execute("SELECT task_id,step_key,gate_no,action_fp,adapter_id,receipt_json "
+                             "FROM sealed_receipts WHERE nonce=?",(nonce,)).fetchone()
+        if row is None:
+            return None
+        if row[:5]!=scope:
+            raise ApprovalClaimDenied("RECOVERY_RECEIPT_SCOPE_MISMATCH")
+        return json.loads(row[5])
