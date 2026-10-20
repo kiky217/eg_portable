@@ -112,6 +112,12 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch):
             claims=[claim(step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"]))],
             phase="POST_EXECUTION",action=action,execution_receipt=result["execution_receipt"])
         assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
+        parent_pre,_=H.do_pre(task,ch,post.json()["checkpoint_no"],step="01",
+            criteria=[(0,"parent criterion")],stdout="PARENT=PASS",value="PARENT=PASS")
+        global_ref=H.task_ref(task,parent_pre.json()["gate_checkpoint_no"],criterion="all steps evidenced")
+        final,_=H.do_post(task,ch,parent_pre,step="01",criteria=[(0,"parent criterion")],
+            finalize=True,task_claims=[H.task_claim(global_ref)],stdout="PARENT=PASS",value="PARENT=PASS")
+        assert final.status_code==200 and final.json()["contract_status"]=="SATISFIED",final.text
         _,code=os.waitpid(pid,0);pid=0
         assert os.waitstatus_to_exitcode(code)==0
         monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_MODE","disabled")
