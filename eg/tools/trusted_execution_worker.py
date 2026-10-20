@@ -22,7 +22,7 @@ from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
 from app.execution_receipts import body, sign, verify
-from app.executor_policy import parse_suffixes
+from app.executor_policy import parse_suffixes, parse_subdir_depth, scoped_parts
 from app.no_effect_receipts import sign_no_effect
 
 MAX_PAYLOAD = 1024 * 1024
@@ -55,8 +55,9 @@ def api(url,key,task):
     return request('/state'),request('')
 
 class TrustedWriter:
-    def __init__(self,output_root,journal_root,private_key,eg_url,api_key,executor_id,allowed_suffixes=None):
+    def __init__(self,output_root,journal_root,private_key,eg_url,api_key,executor_id,allowed_suffixes=None,allowed_subdir_depth=0):
         self.allowed_suffixes = parse_suffixes(allowed_suffixes)
+        self.allowed_subdir_depth = parse_subdir_depth(allowed_subdir_depth)
         self.root=Path(output_root).resolve(strict=True)
         self.journal=Path(journal_root).resolve(strict=True)
         for d in (self.root,self.journal):
@@ -68,6 +69,23 @@ class TrustedWriter:
         self.key=api_key
         if not executor_id.startswith('trusted-worker-'):raise WorkerDenied('INVALID_WORKER_ID')
         self.executor_id=executor_id
+
+    def _validate_target(self, target):
+        try:
+            parts = scoped_parts(self.root, target, self.allowed_subdir_depth)
+        except ValueError as exc:
+            raise WorkerDenied("TARGET_OUTSIDE_WORKER_BOUNDS") from exc
+        if target.suffix not in self.allowed_suffixes or target.is_symlink():
+            raise WorkerDenied("TARGET_OUTSIDE_WORKER_BOUNDS")
+        current = self.root
+        for part in parts[:-1]:
+            current = current / part
+            info = current.lstat()
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or
+                stat.S_IMODE(info.st_mode) & 0o077):
+                raise WorkerDenied("UNSAFE_NESTED_WORKSPACE_DIRECTORY")
+        if target.resolve(strict=False) != target:
+            raise WorkerDenied("TARGET_OUTSIDE_WORKER_BOUNDS")
 
     def reconcile(self, request):
         """Only the isolated worker may assert no intent AND no effect."""
@@ -82,10 +100,10 @@ class TrustedWriter:
             if len(task)>127 or len(step)>18 or action.get("action_type")!="write" or action.get("effect_class")!="E2":
                 raise WorkerDenied("NO_EFFECT_PROOF_REQUIRES_BOUNDED_WRITE")
             target=Path(action.get("target",""))
-            resolved=target.resolve(strict=False)
-            if (target.is_symlink() or resolved.parent!=self.root or
-                resolved.suffix not in self.allowed_suffixes):
-                raise WorkerDenied("RECONCILIATION_TARGET_OUTSIDE_BOUNDS")
+            try:
+                self._validate_target(target)
+            except WorkerDenied as exc:
+                raise WorkerDenied("RECONCILIATION_TARGET_OUTSIDE_BOUNDS") from exc
             state,detail=api(self.url,self.key,task)
             gate=state.get("pending_execution_gate")
             if (state.get("status")!="RECOVERY_PENDING"
@@ -160,11 +178,8 @@ class TrustedWriter:
                 raise WorkerDenied('PAYLOAD_NOT_AUTHORIZED_BY_PRE')
         if is_read and data:raise WorkerDenied('READ_MUST_HAVE_EMPTY_INPUT')
         target=Path(action.get('target',''))
-        resolved=target.resolve(strict=False)
-        if (target.is_symlink() or resolved.parent != self.root
-            or resolved.suffix not in self.allowed_suffixes):
-            raise WorkerDenied('TARGET_OUTSIDE_WORKER_BOUNDS')
-        if is_write and resolved.suffix == '.json':
+        self._validate_target(target)
+        if is_write and target.suffix == '.json':
             try:
                 json.loads(data)
             except (ValueError, UnicodeDecodeError) as exc:
@@ -305,7 +320,7 @@ def serve(config):
     worker=TrustedWriter(config['output_root'],config['journal_root'],
                          config['private_key'],config['eg_url'],
                          config['eg_api_key'],config['executor_id'],
-                         config.get('allowed_suffixes'))
+                         config.get('allowed_suffixes'),config.get('allowed_subdir_depth',0))
     sock=Path(config['socket_path'])
     if sock.exists():raise WorkerDenied('SOCKET_ALREADY_EXISTS')
     class Handler(socketserver.StreamRequestHandler):
