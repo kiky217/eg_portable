@@ -58,9 +58,13 @@ HIGH_EFFECT_CAPABILITIES_JSON = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_CAPABI
 # A configured JSON manifest and signed HITL do not prove an independent worker.
 HIGH_EFFECT_CI_FIXTURE_ENABLED = False
 # Test-only: signed liveness of the same separate effect process.
-HIGH_EFFECT_REQUIRE_RPC_LIVENESS = False
-HIGH_EFFECT_RPC_SOCKET = ""
-HIGH_EFFECT_RPC_WORKER_UID = None
+# Production candidates are never enabled by registry presence alone.
+# For separately provisioned adapters, independent peer-UID, signature,
+# scoped approval and pinned signed receipts remain mandatory.
+HIGH_EFFECT_PRODUCTION_ENABLED = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_PRODUCTION_ENABLED") == "true"
+HIGH_EFFECT_REQUIRE_RPC_LIVENESS = HIGH_EFFECT_PRODUCTION_ENABLED
+HIGH_EFFECT_RPC_SOCKET = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_RPC_SOCKET", "") if HIGH_EFFECT_PRODUCTION_ENABLED else ""
+HIGH_EFFECT_RPC_WORKER_UID = env_int("EVALUATION_GATEWAY_HIGH_EFFECT_WORKER_UID", -1, -1, 2**31-1) if HIGH_EFFECT_PRODUCTION_ENABLED else None
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
@@ -1385,7 +1389,7 @@ def protocol():
             "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
                                        {"action_type":"write","effect_class":"E2"}]
                                       if ADMISSION_MODE=="enabled" and EXECUTOR_OUTPUT_ROOT else []),
-            "high_effect_execution_mode": ("CI_DISPOSABLE_ONLY" if HIGH_EFFECT_CI_FIXTURE_ENABLED
+            "high_effect_execution_mode": ("PRODUCTION_GATED" if HIGH_EFFECT_PRODUCTION_ENABLED and HIGH_EFFECT_RPC_SOCKET and HIGH_EFFECT_RPC_WORKER_UID is not None and HIGH_EFFECT_RPC_WORKER_UID >= 0 else "CI_DISPOSABLE_ONLY" if HIGH_EFFECT_CI_FIXTURE_ENABLED
                                            else "UNPROVISIONED_FAIL_CLOSED"),
             "high_effect_capability_catalog": high_effect_catalog(),
             "executor_target_root_provisioned":bool(EXECUTOR_OUTPUT_ROOT),
@@ -1429,7 +1433,7 @@ def configured_high_effect_capabilities() -> list[AdapterCapability]:
         if not isinstance(entries,list) or len(entries)>16:
             return []
         caps=[AdapterCapability(**entry) for entry in entries]
-        for cap in caps: cap.validate()
+        for cap in caps: cap.validate(allow_production=HIGH_EFFECT_PRODUCTION_ENABLED)
         identifiers=[(cap.adapter_id,cap.action_type,cap.effect_class,cap.target_prefix) for cap in caps]
         if len(identifiers)!=len(set(identifiers)):
             return []
@@ -1442,8 +1446,7 @@ def high_effect_catalog() -> list[dict]:
     """Diagnostic metadata only, never advertise an online E3-E5 executor."""
     return [{"adapter_id":cap.adapter_id,"version":cap.version,"ci_only":cap.ci_only,
              "effect_class":cap.effect_class,
-             "action_type":cap.action_type,"availability":"CI_ONLY_NOT_PRODUCTION"
-             if HIGH_EFFECT_CI_FIXTURE_ENABLED else "UNPROVISIONED"}
+             "action_type":cap.action_type,"availability":("PROVISIONED_PENDING_LIVE_ATTESTATION" if HIGH_EFFECT_PRODUCTION_ENABLED and not cap.ci_only else "CI_ONLY_NOT_PRODUCTION" if HIGH_EFFECT_CI_FIXTURE_ENABLED and cap.ci_only else "UNPROVISIONED")}
             for cap in configured_high_effect_capabilities()]
 
 
@@ -1451,10 +1454,15 @@ def high_effect_capability(action: Action) -> AdapterCapability | None:
     # The sole repository adapter is in-process and CI-only. A production
     # provisioned transport must provide independent authenticated liveness
     # before this can be enabled for real external effects (see Issue #26).
-    if not HIGH_EFFECT_CI_FIXTURE_ENABLED or action.effect_class not in ("E3","E4","E5"):
+    if action.effect_class not in ("E3","E4","E5"):
         return None
+    production_ready=(HIGH_EFFECT_PRODUCTION_ENABLED and HIGH_EFFECT_REQUIRE_RPC_LIVENESS
+                      and bool(HIGH_EFFECT_RPC_SOCKET) and isinstance(HIGH_EFFECT_RPC_WORKER_UID,int)
+                      and HIGH_EFFECT_RPC_WORKER_UID>=0)
     matches=[cap for cap in configured_high_effect_capabilities()
-             if cap.action_type==action.action_type and cap.effect_class==action.effect_class
+             if ((cap.ci_only and HIGH_EFFECT_CI_FIXTURE_ENABLED)
+                 or (not cap.ci_only and production_ready))
+             and cap.action_type==action.action_type and cap.effect_class==action.effect_class
              and target_within_scope(action.target,cap.target_prefix)]
     return matches[0] if len(matches)==1 else None
 
@@ -1755,7 +1763,8 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                             "status":"APPROVED","consumed":False,"expires_at":signed.get("expires_at")}
                         admit_high_effect(action=req.action.model_dump(mode="json",exclude_none=True),capability=cap,
                             approval=legacy,signed_approval=signed,hitl_public_key_b64=HITL_PUBLIC_KEY_B64,
-                            task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1)
+                            task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1,
+                            allow_production=HIGH_EFFECT_PRODUCTION_ENABLED and not cap.ci_only)
                         if HIGH_EFFECT_REQUIRE_RPC_LIVENESS:
                             if type(HIGH_EFFECT_RPC_WORKER_UID) is not int or HIGH_EFFECT_RPC_WORKER_UID<0:
                                 raise AdmissionDenied("HIGH_EFFECT_WORKER_UID_NOT_PINNED")
