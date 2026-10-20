@@ -13,7 +13,9 @@ from app.execution_receipts import body,sign
 def pub(key):
     return base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
 
-def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path):
+@pytest.mark.parametrize("age_seconds",[0,900])
+@pytest.mark.parametrize("status",["IN_PROGRESS","RECOVERY_PENDING"])
+def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path,age_seconds,status):
     private=Ed25519PrivateKey.generate();human=Ed25519PrivateKey.generate()
     content=b"bounded process input"
     action={"action_type":"bounded_process_run","effect_class":"E3",
@@ -23,7 +25,7 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path):
     nonce="recovered_approval_nonce_123"
     adapter_id="trusted-adapter-receipt-recovery"
     task,step,cp="task-recovery","01.01",5
-    now=int(time.time())
+    now=int(time.time())-age_seconds
     approval_body={"version":1,"task_id":task,"step_key":step,
         "gate_checkpoint_no":cp,"action_fingerprint":fp,"adapter_id":adapter_id,
         "decision":"APPROVED","issued_at":now-1,"expires_at":now+120,"nonce":nonce}
@@ -33,10 +35,11 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path):
     ledger=ApprovalLedger(directory)
     scope=dict(task_id=task,step_key=step,gate_checkpoint_no=cp,
                action_fingerprint=fp,adapter_id=adapter_id)
-    ledger.consume(approval,pub(human),**scope)
-    created=datetime.now(timezone.utc).isoformat()
+    ledger.consume(approval,pub(human),now=now,**scope)
+    created=datetime.fromtimestamp(now-2,timezone.utc).isoformat()
     receipt=sign(body(task,step,cp,fp,"trusted-worker-"+adapter_id,
-                      action["target"],b"physical output",nonce),private)
+                      action["target"],b"physical output",nonce,
+                      completed_ns=(now+1)*1_000_000_000),private)
     ledger.seal_receipt(nonce,receipt,**scope)
     class Adapter:
         def __init__(self):
@@ -50,7 +53,7 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path):
           "action_fingerprint":fp,
           "high_effect_pin":{"adapter_id":adapter_id,"public_key_b64":pub(private),
                              "action_fingerprint":fp,"approval_nonce":nonce}}
-    state={"status":"IN_PROGRESS","current_step":step,
+    state={"status":status,"current_step":step,
            "pending_execution_gate":gate,
            "latest_checkpoint":{"checkpoint_no":cp,"verdict":"READY_TO_EXECUTE"}}
     detail={"task":{"contract_status":"OPEN"},
@@ -63,6 +66,20 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path):
             eg_key="test",hitl_public_key_b64=pub(human))
     assert result["status"]=="RECOVERED_POST_REQUIRED"
     assert result["receipt"]==receipt
+    if status=="RECOVERY_PENDING":
+        denied_execute={**packet,"operation":"execute",
+            "data_b64":base64.b64encode(content).decode()}
+        with pytest.raises(rpc.TrustedRpcDenied,match="CANONICAL_PRE_NOT_READY"):
+            rpc.dispatch_once(denied_execute,adapter=Adapter(),
+                eg_url="http://127.0.0.1",eg_key="test",
+                hitl_public_key_b64=pub(human))
+    if age_seconds and status=="IN_PROGRESS":
+        expired_execute={**packet,"operation":"execute",
+            "data_b64":base64.b64encode(content).decode()}
+        with pytest.raises(rpc.TrustedRpcDenied,match="PRE_LEASE_INVALID"):
+            rpc.dispatch_once(expired_execute,adapter=Adapter(),
+                eg_url="http://127.0.0.1",eg_key="test",
+                hitl_public_key_b64=pub(human))
     assert ledger.read_sealed_receipt(nonce,**scope)==receipt
     with pytest.raises(ApprovalClaimDenied):
         ledger.read_sealed_receipt(nonce,**{**scope,"step_key":"02.01"})
