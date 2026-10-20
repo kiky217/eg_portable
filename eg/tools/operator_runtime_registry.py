@@ -40,12 +40,18 @@ class OperatorAdapterRegistry:
         approved=verify_operator_binding(binding,operator_public_key_b64=self.operator_key,
                           adapter_id=adapter_id,capability_sha256=capability_sha256)
         with self._connect() as db:
-            row=db.execute("SELECT nonce,status FROM adapters WHERE adapter_id=?",
+            row=db.execute("SELECT cap_sha,nonce,binding_json,status FROM adapters WHERE adapter_id=?",
                            (adapter_id,)).fetchone()
         if row:
-            if row[0]==binding["operator_nonce"] and row[1]=="ACTIVE":
-                return {"status":"ALREADY_ACTIVE","adapter_id":adapter_id,"admission":False}
-            raise RegistryDenied("ADAPTER_ALREADY_BOUND_OR_REVOKED")
+            if row[0]!=capability_sha256 or row[3]!="ACTIVE":
+                raise RegistryDenied("ADAPTER_ALREADY_BOUND_OR_REVOKED")
+            previous=json.loads(row[2])
+            if row[1]==binding["operator_nonce"]:
+                if previous==binding:
+                    return {"status":"ALREADY_ACTIVE","adapter_id":adapter_id,"admission":False}
+                raise RegistryDenied("OPERATOR_NONCE_REUSED_WITH_CHANGED_BINDING")
+            if binding["issued_at"]<=previous["issued_at"]:
+                raise RegistryDenied("STALE_OPERATOR_BINDING")
         probe_unix(approved["socket_path"],adapter_id=adapter_id,
               capability_sha256=capability_sha256,
               public_key_b64=approved["worker_public_key_b64"],
@@ -54,13 +60,22 @@ class OperatorAdapterRegistry:
               expected_worker_uid=approved["worker_uid"])
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            if db.execute("SELECT 1 FROM adapters WHERE adapter_id=?",(adapter_id,)).fetchone():
+            current=db.execute(
+                "SELECT cap_sha,nonce,binding_json,status FROM adapters WHERE adapter_id=?",
+                (adapter_id,)).fetchone()
+            if current!=row:
                 db.rollback();raise RegistryDenied("ACTIVATION_RACE_DENIED")
-            db.execute("INSERT INTO adapters VALUES (?,?,?,?,?)",
-                (adapter_id,capability_sha256,binding["operator_nonce"],
-                 json.dumps(binding,sort_keys=True,separators=(",",":")),"ACTIVE"))
+            encoded=json.dumps(binding,sort_keys=True,separators=(",",":"))
+            if row:
+                db.execute("UPDATE adapters SET nonce=?,binding_json=? WHERE adapter_id=?",
+                           (binding["operator_nonce"],encoded,adapter_id))
+            else:
+                db.execute("INSERT INTO adapters VALUES (?,?,?,?,?)",
+                    (adapter_id,capability_sha256,binding["operator_nonce"],
+                     encoded,"ACTIVE"))
             db.commit()
-        return {"status":"ACTIVE_CONFIG_ONLY","adapter_id":adapter_id,"admission":False,
+        return {"status":"ACTIVE_CONFIG_ROTATED" if row else "ACTIVE_CONFIG_ONLY",
+                "adapter_id":adapter_id,"admission":False,
                 "next_action":"LIVE_PRE_AND_INDEPENDENT_SIGNED_HITL"}
 
     def revoke(self, envelope, *, adapter_id, now=None):
