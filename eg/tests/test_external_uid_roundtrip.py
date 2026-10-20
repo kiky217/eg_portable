@@ -26,7 +26,8 @@ import tools.disposable_rpc_worker as rpc
 pytestmark = pytest.mark.skipif(os.getuid()!=0, reason="Privileged isolated cross-UID CI only")
 
 
-def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch):
+@pytest.mark.parametrize("operation", ["execute", "no_effect"])
+def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation):
     worker_uid=65534
     shared=Path(tempfile.mkdtemp(prefix="eg-uid-",dir="/tmp"))
     shared.chmod(0o755)
@@ -101,23 +102,28 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch):
         assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
         result=dispatch_action(
             request={"task_id":task,"step_key":"01.01","action":action,
-                     "data_b64":base64.b64encode(payload).decode()},
+                     "data_b64":base64.b64encode(payload).decode() if operation=="execute" else ""},
             eg_url=url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
             external_worker_socket=sockpath,external_worker_uid=worker_uid,
             external_adapter_id=adapter_id,external_public_key_b64=pub(workerkey),
-            hitl_public_key_b64=pub(human),hitl_approval=approval)
-        assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
-        assert target.read_bytes()==payload
-        post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
-            claims=[claim(step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"]))],
-            phase="POST_EXECUTION",action=action,execution_receipt=result["execution_receipt"])
-        assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
-        parent_pre,_=H.do_pre(task,ch,post.json()["checkpoint_no"],step="01",
-            criteria=[(0,"parent criterion")],stdout="PARENT=PASS",value="PARENT=PASS")
-        global_ref=H.task_ref(task,parent_pre.json()["gate_checkpoint_no"],criterion="all steps evidenced")
-        final,_=H.do_post(task,ch,parent_pre,step="01",criteria=[(0,"parent criterion")],
-            finalize=True,task_claims=[H.task_claim(global_ref)],stdout="PARENT=PASS",value="PARENT=PASS")
-        assert final.status_code==200 and final.json()["contract_status"]=="SATISFIED",final.text
+            hitl_public_key_b64=pub(human),hitl_approval=approval,operation=operation)
+        if operation=="no_effect":
+            assert result["status"]=="SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED"
+            assert result["no_effect_proof"]["status"]=="NOT_EXECUTED"
+            assert not target.exists()
+        else:
+            assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
+            assert target.read_bytes()==payload
+            post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
+                claims=[claim(step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"]))],
+                phase="POST_EXECUTION",action=action,execution_receipt=result["execution_receipt"])
+            assert post.status_code==200 and post.json()["verdict"]=="VERIFIED_PASS",post.text
+            parent_pre,_=H.do_pre(task,ch,post.json()["checkpoint_no"],step="01",
+                criteria=[(0,"parent criterion")],stdout="PARENT=PASS",value="PARENT=PASS")
+            global_ref=H.task_ref(task,parent_pre.json()["gate_checkpoint_no"],criterion="all steps evidenced")
+            final,_=H.do_post(task,ch,parent_pre,step="01",criteria=[(0,"parent criterion")],
+                finalize=True,task_claims=[H.task_claim(global_ref)],stdout="PARENT=PASS",value="PARENT=PASS")
+            assert final.status_code==200 and final.json()["contract_status"]=="SATISFIED",final.text
         _,code=os.waitpid(pid,0);pid=0
         assert os.waitstatus_to_exitcode(code)==0
         monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_MODE","disabled")

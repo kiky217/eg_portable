@@ -13,6 +13,7 @@ import struct
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from app.execution_receipts import verify as verify_receipt
+from app.no_effect_receipts import verify_no_effect
 from tools.high_effect_admission import action_fingerprint
 from tools.trusted_execution_worker import gate_allows_new_effect
 from tools.signed_hitl_approval import verify_approval
@@ -28,10 +29,13 @@ def _get(base, api_key, task_id, suffix):
 
 
 def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
-             adapter_id, pinned_public_key_b64, hitl_public_key_b64):
+             adapter_id, pinned_public_key_b64, hitl_public_key_b64,
+             operation: str = "execute"):
     if (not isinstance(request,dict) or
         set(request)!={"task_id","step_key","action","approval","data_b64"}):
         raise ExternalDispatchDenied("INVALID_EXTERNAL_DISPATCH_REQUEST")
+    if operation not in ("execute","compensate","no_effect"):
+        raise ExternalDispatchDenied("UNSUPPORTED_EXTERNAL_RECOVERY_OPERATION")
     task=request["task_id"];step=request["step_key"];action=request["action"]
     if (not isinstance(task,str) or not 1<=len(task)<=127 or
         any(x in task for x in "/?#") or
@@ -52,9 +56,13 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
         data=base64.b64decode(request["data_b64"],validate=True)
     except (ValueError,TypeError) as exc:
         raise ExternalDispatchDenied("INVALID_EFFECT_PAYLOAD") from exc
-    if (not data or len(data)>524288 or
-        action.get("payload_sha256")!=hashlib.sha256(data).hexdigest() or
-        action.get("payload_bytes")!=len(data)):
+    if (len(data)>524288 or
+        (operation=="execute" and (not data or
+         action.get("payload_sha256")!=hashlib.sha256(data).hexdigest() or
+         action.get("payload_bytes")!=len(data))) or
+        (operation!="execute" and data) or
+        (operation=="compensate" and (action.get("effect_class")=="E5" or
+         action.get("reversible") is not True))):
         raise ExternalDispatchDenied("EFFECT_PAYLOAD_NOT_BOUND")
     eg_url=eg_url.rstrip("/")
     state=_get(eg_url,api_key,task,"/state")
@@ -85,7 +93,7 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     verify_approval(request["approval"],hitl_public_key_b64,
                     task_id=task,step_key=step,gate_checkpoint_no=cp,
                     action_fingerprint=fp,adapter_id=adapter_id)
-    req={**request,"operation":"execute"}
+    req={**request,"operation":operation}
     packet=json.dumps(req,sort_keys=True,separators=(",",":")).encode()+b"\n"
     if len(packet)>1_000_000:
         raise ExternalDispatchDenied("EFFECT_RPC_OVERSIZE")
@@ -110,6 +118,15 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     if answer.get("status")!="PASS":
         raise ExternalDispatchDenied("WORKER_DENIED:"+str(answer.get("reason","unknown")))
     result=answer.get("result")
+    if operation=="no_effect":
+        proof=result.get("proof") if isinstance(result,dict) else None
+        if (not verify_no_effect(proof,public_b64=pinned_public_key_b64,
+            task_id=task,step_key=step,gate_checkpoint_no=cp,
+            action_fingerprint=fp,target=action["target"],gate_created_at=row["created_at"])
+            or proof.get("executor_id")!="trusted-worker-"+adapter_id):
+            raise ExternalDispatchDenied("INDEPENDENT_NO_EFFECT_PROOF_INVALID")
+        return {"status":"SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED",
+                "no_effect_proof":proof,"gate_checkpoint_no":cp}
     receipt=result.get("receipt") if isinstance(result,dict) else None
     valid,reason=verify_receipt(receipt,public_b64=pinned_public_key_b64,
         task_id=task,step_key=step,gate_checkpoint_no=cp,
