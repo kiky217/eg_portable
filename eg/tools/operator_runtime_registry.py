@@ -36,7 +36,7 @@ class OperatorAdapterRegistry:
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
-    def activate(self, binding, *, adapter_id, capability_sha256, probe=probe_unix):
+    def activate(self, binding, *, adapter_id, capability_sha256):
         approved=verify_operator_binding(binding,operator_public_key_b64=self.operator_key,
                           adapter_id=adapter_id,capability_sha256=capability_sha256)
         with self._connect() as db:
@@ -46,7 +46,7 @@ class OperatorAdapterRegistry:
             if row[0]==binding["operator_nonce"] and row[1]=="ACTIVE":
                 return {"status":"ALREADY_ACTIVE","adapter_id":adapter_id,"admission":False}
             raise RegistryDenied("ADAPTER_ALREADY_BOUND_OR_REVOKED")
-        probe(approved["socket_path"],adapter_id=adapter_id,
+        probe_unix(approved["socket_path"],adapter_id=adapter_id,
               capability_sha256=capability_sha256,
               public_key_b64=approved["worker_public_key_b64"],
               task_id="operator-onboarding",step_key="00.01",
