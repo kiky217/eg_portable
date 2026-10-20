@@ -67,7 +67,7 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
         not isinstance(gate,dict) or not isinstance(latest,dict) or
         gate.get("action_fingerprint")!=fp or
         not gate.get("hitl_approved") or
-        latest.get("checkpoint_no")!=gate.get("pre_checkpoint_no") or
+        latest.get("checkpoint_no")!=gate.get("checkpoint_no") or
         latest.get("verdict")!="READY_TO_EXECUTE" or
         not isinstance(pin,dict) or
         pin.get("adapter_id")!=adapter_id or
@@ -75,7 +75,7 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
         pin.get("action_fingerprint")!=fp or
         pin.get("approval_nonce")!=request["approval"].get("nonce")):
         raise ExternalDispatchDenied("CANONICAL_HIGH_EFFECT_PRE_NOT_ADMITTED")
-    cp=gate["pre_checkpoint_no"]
+    cp=gate["checkpoint_no"]
     row=next((c for c in detail.get("checkpoints",[]) if c.get("checkpoint_no")==cp),None)
     if not row or row.get("verdict")!="READY_TO_EXECUTE":
         raise ExternalDispatchDenied("ORIGINAL_PRE_GATE_INVALID")
