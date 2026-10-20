@@ -165,7 +165,8 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
                     external_worker_socket: str | None = None,
                     external_worker_uid: int | None = None,
                     external_adapter_id: str | None = None,
-                    external_public_key_b64: str | None = None) -> dict:
+                    external_public_key_b64: str | None = None,
+                    operator_registry=None) -> dict:
     """Single fail-closed agent-facing action contract for bounded E0-E5.
 
     E0/E2 use the independently privileged bounded worker. E3-E5 use either
@@ -180,6 +181,20 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
         raise DispatchDenied("INVALID_DISPATCH_ACTION")
     effect=action.get("effect_class")
     if effect in ("E3","E4","E5"):
+        if operator_registry is not None:
+            from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
+            if (type(operator_registry) is not OperatorAdapterRegistry or
+                not isinstance(external_adapter_id,str) or
+                external_worker_socket is not None or external_worker_uid is not None or
+                external_public_key_b64 is not None):
+                raise DispatchDenied("INVALID_OPERATOR_ROUTE_REQUEST")
+            try:
+                route=operator_registry.resolve(external_adapter_id)
+            except RegistryDenied as exc:
+                raise DispatchDenied("OPERATOR_ADAPTER_NOT_ACTIVE") from exc
+            external_worker_socket=route["socket_path"]
+            external_worker_uid=route["worker_uid"]
+            external_public_key_b64=route["worker_public_key_b64"]
         if external_worker_socket is not None:
             if (ci_only or disposable_adapter is not None or
                 operation not in ("execute","compensate","no_effect","recover_receipt") or
