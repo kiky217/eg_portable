@@ -47,6 +47,10 @@ def _invalid_constant(x):
     raise TypedPayloadDenied("NONFINITE_JSON_NUMBER")
 
 def validate_document(schema,payload,*,expected_schema_sha256,max_bytes):
+    if isinstance(schema,dict) and schema.get('schema_version')==2:
+        from tools.nested_json_schema import validate_document_v2
+        return validate_document_v2(schema,payload,
+            expected_schema_sha256=expected_schema_sha256,max_bytes=max_bytes)
     digest=validate_schema(schema)
     if (not isinstance(expected_schema_sha256,str)
         or expected_schema_sha256!=digest or type(max_bytes) is not int
