@@ -161,12 +161,16 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
                     ci_only: bool = False, disposable_adapter=None,
                     hitl_approval: dict | None = None,
                     hitl_public_key_b64: str | None = None,
-                    operation: str = "execute") -> dict:
+                    operation: str = "execute",
+                    external_worker_socket: str | None = None,
+                    external_worker_uid: int | None = None,
+                    external_adapter_id: str | None = None,
+                    external_public_key_b64: str | None = None) -> dict:
     """Single fail-closed agent-facing action contract for bounded E0-E5.
 
-    E0/E2 use independently privileged Unix-socket worker. E3/E4/E5 route
-    solely to explicitly supplied CI-only disposable adapter; there is no
-    production high-effect executor transport or shell fallback yet.
+    E0/E2 use the independently privileged bounded worker. E3-E5 use either
+    the isolated CI fixture or an explicitly provisioned, identity-pinned,
+    signed external RPC worker; no shell fallback or self-admission.
     """
     import base64
     if not isinstance(request,dict) or set(request)!={"task_id","step_key","action","data_b64"}:
@@ -176,6 +180,21 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
         raise DispatchDenied("INVALID_DISPATCH_ACTION")
     effect=action.get("effect_class")
     if effect in ("E3","E4","E5"):
+        if external_worker_socket is not None:
+            if (ci_only or disposable_adapter is not None or operation!="execute" or
+                not hitl_approval or not hitl_public_key_b64 or
+                not external_adapter_id or not external_public_key_b64 or
+                external_worker_uid is None):
+                raise DispatchDenied("INVALID_EXTERNAL_EXECUTOR_CONFIGURATION")
+            from tools.external_adapter_dispatcher import dispatch as external_dispatch
+            return external_dispatch(
+                request={**request, "approval":hitl_approval},
+                eg_url=eg_url, api_key=api_key,
+                worker_socket=external_worker_socket,
+                expected_worker_uid=external_worker_uid,
+                adapter_id=external_adapter_id,
+                pinned_public_key_b64=external_public_key_b64,
+                hitl_public_key_b64=hitl_public_key_b64)
         if not ci_only or disposable_adapter is None or not hitl_approval or not hitl_public_key_b64:
             raise DispatchDenied("HIGH_EFFECT_PRODUCTION_TRANSPORT_NOT_PROVISIONED")
         try:
