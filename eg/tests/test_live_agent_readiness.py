@@ -32,3 +32,18 @@ def test_untrusted_discovery_url_denied(monkeypatch,url):
     monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:pytest.fail("network"))
     with pytest.raises(ValueError,match="UNTRUSTED_EG_DISCOVERY_URL"):
         readiness.diagnose_live("E3","scan",url=url,api_key="hidden")
+
+
+@pytest.mark.parametrize("catalog_valid,admission_mode,capabilities,reason",[
+    (False,"enabled",[{"effect_class":"E3","action_type":"scan"}],"INVALID_LIVE_CAPABILITY_CATALOG"),
+    (True,"disabled",[{"effect_class":"E3","action_type":"scan"}],"ADMISSION_DISABLED"),
+    (True,"enabled",[],"CAPABILITY_NOT_DISCOVERED"),
+])
+def test_live_discovery_unavailable_is_not_admitted(monkeypatch,catalog_valid,admission_mode,capabilities,reason):
+    monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
+        "admission_mode":admission_mode,"catalog_valid":catalog_valid,
+        "capabilities":capabilities}))
+    report=readiness.diagnose_live("E3","scan",url="https://eg.example",api_key="fixture")
+    assert report["preflight"]=="NOT_ADMITTED"
+    assert reason in report["reasons"]
+    assert report["live_verified"] is False

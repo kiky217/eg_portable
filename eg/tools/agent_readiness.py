@@ -70,7 +70,13 @@ def diagnose_live(effect: str, action: str, *, url: str, api_key: str) -> dict:
         raise ValueError("INVALID_EG_DISCOVERY_RESPONSE")
     matches = [row for row in payload["capabilities"] if isinstance(row,dict)
                and row.get("effect_class") == effect and row.get("action_type") == action]
-    return {"effect":effect, "action":action, "preflight":"REQUIRES_LIVE_PRE",
+    valid_catalog = payload.get("catalog_valid") is True
+    mode = payload.get("admission_mode")
+    available = valid_catalog and mode == "enabled" and bool(matches)
+    return {"effect":effect, "action":action,
+            "preflight":"REQUIRES_LIVE_PRE" if available else "NOT_ADMITTED",
+            "reasons":[] if available else (["INVALID_LIVE_CAPABILITY_CATALOG"] if not valid_catalog else
+                ["ADMISSION_DISABLED"] if mode != "enabled" else ["CAPABILITY_NOT_DISCOVERED"]),
             "candidates":matches, "registered_count":len(matches),
             "admission_mode":payload.get("admission_mode"),
             "catalog_valid":payload.get("catalog_valid") is True,
