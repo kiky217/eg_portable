@@ -1,0 +1,17 @@
+# Opt-in ONLY: combine with base compose using:
+# docker compose -f docker-compose.yml -f docker-compose.external-adapter.yml up -d
+# The adapter runs in a separate security domain. This file mounts only the
+# Unix socket directory, not credentials/private keys or Docker's control socket.
+services:
+  evaluation-gateway-local:
+    environment:
+      EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE: enabled
+      EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET: /run/eg-external/effect.sock
+      EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID: ${EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID:?set independently administered worker UID}
+      EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON: ${EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON:?set signed typed adapter registry}
+      EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64: ${EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64:?set distinct Ed25519 HITL public key}
+    volumes:
+      - type: bind
+        source: ${EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET_DIR:?set dedicated socket directory}
+        target: /run/eg-external
+        read_only: true
