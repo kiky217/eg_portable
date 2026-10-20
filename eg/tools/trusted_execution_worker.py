@@ -80,7 +80,10 @@ class TrustedWriter:
         current = self.root
         for part in parts[:-1]:
             current = current / part
-            info = current.lstat()
+            try:
+                info = current.lstat()
+            except OSError as exc:
+                raise WorkerDenied("NESTED_WORKSPACE_NOT_PREPROVISIONED") from exc
             if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or
                 stat.S_IMODE(info.st_mode) & 0o077):
                 raise WorkerDenied("UNSAFE_NESTED_WORKSPACE_DIRECTORY")
