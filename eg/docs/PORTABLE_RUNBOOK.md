@@ -169,6 +169,17 @@ TASK_INTAKE, evidence bytes, audit entries, and external anchors stay unchanged.
 Root rotation is a governed sensitive operation; test signed PRE/POST evidence
 and audit integrity on a fresh isolated instance before deployment.
 
+## Operator-controlled bounded source creation
+
+A protected E2 worker can create (but never overwrite) small source files in its isolated, private, single-level output root. EG defaults to `.txt,.json` for backward compatibility. For a project that legitimately creates other source types, the operator must set the following matching policy before starting new physical tasks:
+
+```sh
+# Gateway process environment, configured by the operator
+EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES=.txt,.json,.py,.rs,.toml
+```
+
+In the independently privileged worker's private JSON configuration, set `"allowed_suffixes":[".txt",".json",".py",".rs",".toml"]`. The worker still enforces the approved root, exact precommitted payload digest and length, exclusive no-follow creation, durable journal, signed receipt, and independent readback. Do **not** treat a suffix opt-in as approval to run a script, compile, overwrite, control a service, or push to GitHub; those require independently provisioned and authorized execution adapters. A mismatch between EG and worker policies must fail closed at the worker, never fall back to an ungoverned shell. Invalid suffix entries are rejected at startup.
+
 ## Governed agent entrypoint (currently E0/E2)
 
 `tools/governed_agent_dispatcher.py` is a **library interface for a separately
