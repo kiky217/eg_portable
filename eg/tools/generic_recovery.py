@@ -18,13 +18,16 @@ def classify_recovery(*, gate:dict, journal:str, receipt_valid:bool,
         or type(gate["gate_checkpoint_no"]) is not int or gate["gate_checkpoint_no"]<1
         or not isinstance(gate["action_fingerprint"],str) or len(gate["action_fingerprint"])!=64
         or any(c not in "0123456789abcdef" for c in gate["action_fingerprint"])
-        or journal not in ("ABSENT","CLAIMED_UNKNOWN","SEALED_RECEIPT","RETIRED_NO_EFFECT")
+        or journal not in ("ABSENT","CLAIMED_UNKNOWN","SEALED_RECEIPT",
+                           "RETIRED_NO_EFFECT","COMPENSATED","MANUAL_REVIEW")
         or any(type(x) is not bool for x in (receipt_valid,effect_independently_verified,post_verified))):
         raise RecoveryDenied("INVALID_RECOVERY_OBSERVATION")
     if post_verified:
-        if not (journal=="SEALED_RECEIPT" and receipt_valid and effect_independently_verified):
+        if not (journal in ("SEALED_RECEIPT","COMPENSATED") and receipt_valid and effect_independently_verified):
             raise RecoveryDenied("UNSUPPORTED_VERIFIED_POST")
         status,next_action="POST_VERIFIED","NONE"
+    elif journal=="MANUAL_REVIEW":
+        status,next_action="MANUAL_REVIEW","INDEPENDENT_OPERATOR_RECONCILIATION"
     elif journal=="ABSENT":
         if receipt_valid or effect_independently_verified:
             raise RecoveryDenied("UNCLAIMED_EFFECT_INCONSISTENT")
@@ -35,6 +38,8 @@ def classify_recovery(*, gate:dict, journal:str, receipt_valid:bool,
         status,next_action="SIGNED_NO_EFFECT","RECONCILE_ORIGINAL_GATE"
     elif journal=="SEALED_RECEIPT" and receipt_valid and effect_independently_verified:
         status,next_action="VERIFIED_EFFECT","SUBMIT_CANONICAL_POST"
+    elif journal=="COMPENSATED" and receipt_valid and effect_independently_verified:
+        status,next_action="COMPENSATED","SUBMIT_COMPENSATION_POST"
     else:
         status,next_action="CLAIMED_UNKNOWN","INDEPENDENT_OPERATOR_RECONCILIATION"
     return {"status":status,"next_action":next_action,
