@@ -192,9 +192,8 @@ verifies the receipt's independent executor signature.
 
 The dispatcher returns `RECEIPT_VERIFIED_POST_REQUIRED`, **never**
 `VERIFIED`. The agent must submit that exact signed receipt and fresh result
-evidence via EG POST before advancing the task. When PRE is absent, the action
-changes, execution is paused or recovery is unknown, or E3–E5 is requested,
-the dispatcher refuses the call. HITL alone cannot add executor capability.
+evidence via EG POST before advancing the task. When PRE is absent, the action changes, execution is paused or recovery is unknown, or no independently
+provisioned external adapter matches E3–E5, the dispatcher refuses the call. HITL alone cannot add executor capability.
 
 Provision the dispatcher itself under a protected identity with access to
 the worker socket and narrow EG API credentials. Do **not** give an untrusted
@@ -210,8 +209,20 @@ before claiming mandatory end-to-end enforcement. Staging, remediation, and
 recovery remain subject to the same registered PRE/POST rules.
 
 ## Portable high-effect boundary
-The built-in executable production worker remains E0/E2-only. The E3–E5
-registry diagnostic catalog is not proof of worker liveness; the CI-only
-disposable fixture never becomes production-ready via environment settings.
-External independent executor provisioning, authenticated liveness and signed
-per-adapter receipts require separate verified transport (issue #26).
+The bundled execution worker remains E0/E2-only. EG now exposes a generic,
+**operator-opt-in** E3–E5 adapter admission/dispatch contract without embedding
+Cargo, Git, Rust, Python or arbitrary shell permissions. For external work,
+provision independent worker UID/socket/key, typed effect capability and
+separate signed HITL authority; pin every original PRE, signed live
+challenge, action fingerprint, scope, immutable receipt and POST. Use the
+unified `dispatch_action` explicit external-worker arguments. No built-in
+production high-effect worker is shipped: the CI-only disposable fixture is
+not eligible for production promotion. Authentication, worker isolation,
+durable journals, real effects, recovery and independent readback remain
+operator-adapter obligations.
+
+Authenticated `GET /v1/agent/capabilities` now includes the scoped E3–E5
+registry's diagnostic availability. An external entry marked
+`EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED` indicates **only** potential
+capability: it is not an authorization, liveness proof or worker launch.
+The exact PRE and worker attestation determine eligibility for execution.
