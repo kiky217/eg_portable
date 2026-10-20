@@ -105,7 +105,7 @@ def test_operator_can_renew_active_binding_but_not_replay_or_resurrect(tmp_path,
                      capability_sha256=first["capability_sha256"])
     wrong_cap=signed_replacement(operator,second,
         operator_nonce="operator_binding_nonce_rotated_789",
-        capability_sha256="b"*64,issued_at=second["issued_at"]+1)
+        capability_sha256="b"*64,issued_at=second["issued_at"])
     with pytest.raises(RegistryDenied,match="ALREADY_BOUND_OR_REVOKED"):
         reg.activate(wrong_cap,adapter_id=first["adapter_id"],
                      capability_sha256="b"*64)
