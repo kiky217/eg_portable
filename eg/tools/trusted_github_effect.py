@@ -32,7 +32,7 @@ class TrustedGitHubEffect:
         self.write=write
 
     def execute(self,*,task_id,step_key,action,approval,gate,gate_created_at,
-                operation,content,commit_message):
+                operation,content,commit_message,wire_bytes=None):
         op=validate_operation(operation,self.policy)
         if (not isinstance(content,bytes) or not content or len(content)>512*1024
             or not isinstance(action,dict) or action.get("effect_class")!="E4"
@@ -44,7 +44,10 @@ class TrustedGitHubEffect:
         canonical=json.dumps({"operation":op,"commit_message":commit_message,
                               "content_sha256":hashlib.sha256(content).hexdigest()},
                               sort_keys=True,separators=(",",":")).encode()
-        if action.get("payload_sha256")!=hashlib.sha256(canonical).hexdigest() or action.get("payload_bytes")!=len(canonical):
+        effective_wire=canonical if wire_bytes is None else wire_bytes
+        if (not isinstance(effective_wire,bytes) or not effective_wire or len(effective_wire)>524288
+            or action.get("payload_sha256")!=hashlib.sha256(effective_wire).hexdigest()
+            or action.get("payload_bytes")!=len(effective_wire)):
             raise GitHubWorkerDenied("GITHUB_EFFECT_PAYLOAD_NOT_BOUND")
         fp=action_fingerprint(action)
         if (not isinstance(gate,dict) or gate.get("task_id")!=task_id
