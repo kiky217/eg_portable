@@ -4,7 +4,7 @@ No shell, dynamic API endpoint, agent-selected credential, or self-authorization
 Exact canonical wire bytes are included in the original signed EG PRE action.
 """
 from __future__ import annotations
-import base64,json
+import base64,binascii,json
 from tools.trusted_github_effect import TrustedGitHubEffect,GitHubWorkerDenied
 
 class GithubRpcWireDenied(ValueError):pass
@@ -50,7 +50,7 @@ class GitHubRpcAdapter:
             if stdin!=wire_bytes(operation=packet["operation"],content=content,
                                   commit_message=packet["commit_message"]):
                 raise ValueError("noncanonical")
-        except (ValueError,TypeError,UnicodeError) as exc:
+        except (ValueError,TypeError,UnicodeError,binascii.Error) as exc:
             raise GithubRpcWireDenied("UNTRUSTED_GITHUB_RPC_WIRE") from exc
         return self.worker.execute(task_id=task_id,step_key=step_key,action=action,
              approval=approval,gate=gate,gate_created_at=gate_created_at,
