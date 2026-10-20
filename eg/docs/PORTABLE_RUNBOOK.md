@@ -208,6 +208,29 @@ unconnected scheduler; such systems need their own isolation and EG adaptor
 before claiming mandatory end-to-end enforcement. Staging, remediation, and
 recovery remain subject to the same registered PRE/POST rules.
 
+## Compose deployment for an independently administered adapter
+
+Default `docker-compose.yml` deliberately does not enable external E3–E5 adapters.
+For a separately deployed worker that meets the independent-identity and
+signed-HITL requirements, an operator can opt in using:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.external-adapter.yml config
+docker compose -f docker-compose.yml -f docker-compose.external-adapter.yml up -d
+```
+
+The override requires `EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID`,
+`EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON`,
+`EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64`, and
+`EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET_DIR`. The latter must be a
+dedicated, operator-controlled directory containing `effect.sock`, accessible
+to the EG container UID only with the necessary permissions. The worker and
+its signing key must run outside the gateway container and outside the
+untrusted agent's privilege domain. This override does **not** start a worker,
+create HITL signatures, guarantee availability or grant any PRE. If the worker
+or keys are absent, keep E3–E5 unavailable; never mount the Docker daemon
+socket or share a private signing key.
+
 ## Portable high-effect boundary
 The bundled execution worker remains E0/E2-only. EG now exposes a generic,
 **operator-opt-in** E3–E5 adapter admission/dispatch contract without embedding
