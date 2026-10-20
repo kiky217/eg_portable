@@ -34,3 +34,21 @@ def test_preexisting_socket_refused(tmp_path):
  cfg=config(tmp_path);Path(cfg["socket"]).touch()
  with patch("tools.production_cargo_rpc.configure",return_value=object()):
   with pytest.raises(RpcDenied,match="SOCKET_PREEXISTS"):Server(cfg)
+def test_rpc_returns_worker_receipt_only_for_schema_valid_request(tmp_path):
+ cfg=config(tmp_path)
+ class Mock:
+  def execute(self,**kw):
+   assert set(kw)=={"task_id","step_key","action","approval"}
+   assert kw["task_id"]=="task-knid-solana-demo"
+   return {"signature_b64":"test-only-signature"}
+ with patch("tools.production_cargo_rpc.configure",return_value=Mock()):
+  with Server(cfg) as server:
+   thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+   try:
+    request={"task_id":"task-knid-solana-demo","step_key":"02.01","action":{},"approval":{}}
+    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+     client.settimeout(3);client.connect(cfg["socket"])
+     client.sendall(json.dumps(request).encode()+b"\n")
+     reply=json.loads(client.recv(4096))
+     assert reply=={"status":"EXECUTED_POST_REQUIRED","receipt":{"signature_b64":"test-only-signature"}}
+   finally:server.shutdown();thread.join(timeout=3)
