@@ -71,7 +71,7 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     latest=state.get("latest_checkpoint")
     fp=action_fingerprint(action)
     pin=gate.get("high_effect_pin") if isinstance(gate,dict) else None
-    if (state.get("status")!="IN_PROGRESS" or
+    if (state.get("status") not in (("IN_PROGRESS","RECOVERY_PENDING") if operation=="recover_receipt" else ("IN_PROGRESS",)) or
         state.get("current_step")!=step or
         detail.get("task",{}).get("contract_status")!="OPEN" or
         not isinstance(gate,dict) or not isinstance(latest,dict) or
