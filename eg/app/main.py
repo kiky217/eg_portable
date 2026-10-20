@@ -507,7 +507,7 @@ def require_config() -> None:
             not Path(EXTERNAL_ADAPTER_SOCKET).is_absolute() or
             Path(EXTERNAL_ADAPTER_SOCKET).is_symlink()):
             raise RuntimeError("UNSAFE_EXTERNAL_EXECUTOR_BOUNDARY")
-        entries = configured_high_effect_capabilities(allow_external=True)
+        entries = configured_high_effect_capabilities(allow_external=True, strict=True)
         if not entries or any(cap.ci_only for cap in entries):
             raise RuntimeError("EXTERNAL_EXECUTOR_CAPABILITY_MISSING_OR_CI_ONLY")
         if not HITL_PUBLIC_KEY_B64:
@@ -1486,21 +1486,24 @@ def _require_registered_protocol(
         raise HTTPException(428, {"code": "IMMUTABLE_TASK_PROTOCOL_MISMATCH"})
 
 
-def configured_high_effect_capabilities(*, allow_external: bool = False) -> list[AdapterCapability]:
-    """One typed registry; never equate configured records with live admission."""
+def configured_high_effect_capabilities(*, allow_external: bool = False,
+                                        strict: bool = False) -> list[AdapterCapability]:
+    """Typed adapter registry. Strict startup rejects malformed operator config."""
     if not HIGH_EFFECT_CAPABILITIES_JSON:
         return []
     try:
         entries=json.loads(HIGH_EFFECT_CAPABILITIES_JSON)
         if not isinstance(entries,list) or len(entries)>16:
-            return []
+            raise ValueError("INVALID_HIGH_EFFECT_REGISTRY_SCHEMA")
         caps=[AdapterCapability(**entry) for entry in entries]
         for cap in caps: cap.validate(allow_external=allow_external)
         identifiers=[(cap.adapter_id,cap.action_type,cap.effect_class,cap.target_prefix) for cap in caps]
         if len(identifiers)!=len(set(identifiers)):
-            return []
+            raise ValueError("DUPLICATE_HIGH_EFFECT_ADAPTER")
         return caps
-    except Exception:
+    except Exception as exc:
+        if strict:
+            raise RuntimeError("INVALID_HIGH_EFFECT_CAPABILITIES_CONFIGURATION") from exc
         return []
 
 
