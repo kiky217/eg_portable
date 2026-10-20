@@ -72,11 +72,17 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
     cp=gate["checkpoint_no"]
     record=next((r for r in detail.get("checkpoints",[])
                  if r.get("checkpoint_no")==cp),None)
-    if not record or not gate_allows_new_effect(record.get("created_at","")):
+    if (not record or record.get("verdict")!="READY_TO_EXECUTE" or
+        (request["operation"]=="execute" and
+         not gate_allows_new_effect(record.get("created_at","")))):
         raise TrustedRpcDenied("PRE_LEASE_INVALID")
+    # Recovery is read-only: verify the original signed approval's time window,
+    # not the current time, then require the original durable sealed receipt.
+    approval_time=(approval.get("issued_at") if request["operation"]=="recover_receipt"
+                   else None)
     verify_approval(approval,hitl_public_key_b64,task_id=task,step_key=step,
                     gate_checkpoint_no=cp,action_fingerprint=fp,
-                    adapter_id=adapter.adapter_id)
+                    adapter_id=adapter.adapter_id,now=approval_time)
     if request["operation"]=="recover_receipt":
         journal=getattr(adapter,"ledger",None)
         if journal is None or not hasattr(journal,"read_sealed_receipt"):
@@ -89,7 +95,8 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
         valid,reason=verify_receipt(receipt,public_b64=public,task_id=task,
             step_key=step,gate_checkpoint_no=cp,action_fingerprint=fp,
             target=action["target"],gate_created_at=record["created_at"])
-        if not valid or receipt.get("executor_id")!="trusted-worker-"+adapter.adapter_id:
+        if (not valid or receipt.get("nonce")!=approval["nonce"] or
+            receipt.get("executor_id")!="trusted-worker-"+adapter.adapter_id):
             raise TrustedRpcDenied("RECOVERED_RECEIPT_INVALID:"+reason)
         return {"status":"RECOVERED_POST_REQUIRED","receipt":receipt}
     response=adapter.execute(task_id=task,step_key=step,action=action,
