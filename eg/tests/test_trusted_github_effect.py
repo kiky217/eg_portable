@@ -69,3 +69,24 @@ def test_mismatched_pre_denies_without_journal_claim(tmp_path):
                   content=b"x",commit_message="x")
     except GitHubWorkerDenied:pass
     else:raise AssertionError("missing PRE allowed")
+
+def test_direct_worker_rejects_invalid_message_and_approval_before_effect(tmp_path):
+    import pytest
+    key=Ed25519PrivateKey.generate()
+    journal=tmp_path/"journal";journal.mkdir(mode=0o700)
+    calls=[]
+    w=TrustedGitHubEffect(journal_dir=journal,private_key=key,
+        adapter_id="trusted-adapter-test",hitl_public_key_b64=pub(key),
+        policy={"repository":"a/b","branch_prefix":"agent/","path_prefix":"src",
+                "actions":["create_file"]},github_token="fixture",
+        write=lambda *a,**kw:calls.append("write"))
+    op={"repository":"a/b","operation":"create_file","branch":"agent/demo",
+        "path":"src/test","expected_blob_sha":""}
+    kwargs=dict(task_id="task",step_key="01",action={},approval={},
+        gate={},gate_created_at="",operation=op,content=b"x")
+    for bad in ("","line\nbreak",42,None,"x"*181):
+        with pytest.raises(GitHubWorkerDenied,match="INVALID_GITHUB_COMMIT_MESSAGE_NO_EFFECT"):
+            w.execute(**{**kwargs,"commit_message":bad})
+    with pytest.raises(GitHubWorkerDenied,match="SIGNED_HITL_APPROVAL_REQUIRED_NO_EFFECT"):
+        w.execute(**{**kwargs,"approval":None,"commit_message":"safe"})
+    assert calls==[]
