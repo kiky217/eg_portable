@@ -25,7 +25,7 @@ def validate_operation(request: dict, policy: dict) -> dict:
         policy["path_prefix"].startswith("/") or
         any(p in (".","..","") for p in policy["path_prefix"].split("/")) or
         not isinstance(policy["actions"],list) or not policy["actions"] or
-        any(x not in _ACTIONS for x in policy["actions"])):
+        any(not isinstance(x,str) or x not in _ACTIONS for x in policy["actions"])):
         raise GitHubScopeDenied("INVALID_GITHUB_SCOPE_POLICY")
     action=request.get("operation")
     expected={"repository","operation","branch","path","expected_blob_sha"}
