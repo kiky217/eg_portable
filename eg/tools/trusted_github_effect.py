@@ -80,8 +80,10 @@ class TrustedGitHubEffect:
         ack=self.write(op,self.policy,content,token=self.token,commit_message=commit_message)
         proof=self.readback(op,self.policy,commit_sha=ack["commit_sha"],
                             expected_bytes=content,token=self.token)
-        if proof.get("status")!="CONTENT_VERIFIED_NOT_EXECUTION_PROOF":
-            raise GitHubWorkerDenied("IMMUTABLE_READBACK_REQUIRED")
+        if (proof.get("status")!="CONTENT_VERIFIED_NOT_EXECUTION_PROOF"
+            or proof.get("commit_sha")!=ack["commit_sha"]
+            or proof.get("blob_sha256")!=hashlib.sha256(content).hexdigest()):
+            raise GitHubWorkerDenied("IMMUTABLE_READBACK_CONTENT_OR_COMMIT_MISMATCH")
         output=json.dumps({"commit_sha":ack["commit_sha"],"blob_sha":ack["blob_sha"],
                            "content_sha256":proof["blob_sha256"]},
                            sort_keys=True,separators=(",",":")).encode()
