@@ -35,7 +35,7 @@ def test_unprovisioned_source_and_shell_and_github():
     for effect, action in [("E2", "edit_rust"), ("E2", "cargo_build"),
                            ("E3", "service_control"), ("E5", "git_push")]:
         report = diagnose(effect, action, env)
-        assert "PRODUCTION_ADAPTER_NOT_IMPLEMENTED_FOR_EFFECT_ACTION" in report["reasons"]
+        assert "CAPABILITY_NOT_DISCOVERED" in report["reasons"]
         assert report["preflight"] == "NOT_ADMITTED"
 
 
