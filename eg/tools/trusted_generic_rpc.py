@@ -14,6 +14,7 @@ from tools.high_effect_admission import action_fingerprint
 from tools.signed_hitl_approval import verify_approval
 from tools.trusted_execution_worker import gate_allows_new_effect
 from tools.adapter_liveness import attest,canon
+from app.execution_receipts import verify as verify_receipt
 
 class TrustedRpcDenied(RuntimeError):pass
 
@@ -32,15 +33,17 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
         raise TrustedRpcDenied("INVALID_RPC_SCHEMA")
     task,step=request["task_id"],request["step_key"]
     action,approval=request["action"],request["approval"]
-    if (request["operation"]!="execute" or not isinstance(action,dict)
+    if (request["operation"] not in ("execute","recover_receipt") or not isinstance(action,dict)
         or not isinstance(approval,dict) or not isinstance(step,str)
         or not 1<=len(step)<=18 or not isinstance(request["data_b64"],str)
         or action.get("effect_class") not in ("E3","E4","E5")):
         raise TrustedRpcDenied("INVALID_EFFECT_REQUEST")
     try:data=base64.b64decode(request["data_b64"],validate=True)
     except Exception as exc:raise TrustedRpcDenied("INVALID_EFFECT_BYTES") from exc
-    if (not data or len(data)>524288 or action.get("payload_bytes")!=len(data)
-        or action.get("payload_sha256")!=hashlib.sha256(data).hexdigest()):
+    if ((request["operation"]=="execute" and
+         (not data or len(data)>524288 or action.get("payload_bytes")!=len(data) or
+          action.get("payload_sha256")!=hashlib.sha256(data).hexdigest()))
+        or (request["operation"]=="recover_receipt" and data)):
         raise TrustedRpcDenied("EFFECT_PAYLOAD_NOT_BOUND")
     state=_get(eg_url,eg_key,task,"/state")
     detail=_get(eg_url,eg_key,task,"")
@@ -74,6 +77,21 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
     verify_approval(approval,hitl_public_key_b64,task_id=task,step_key=step,
                     gate_checkpoint_no=cp,action_fingerprint=fp,
                     adapter_id=adapter.adapter_id)
+    if request["operation"]=="recover_receipt":
+        journal=getattr(adapter,"ledger",None)
+        if journal is None or not hasattr(journal,"read_sealed_receipt"):
+            raise TrustedRpcDenied("RECOVERY_JOURNAL_UNAVAILABLE")
+        receipt=journal.read_sealed_receipt(approval["nonce"],task_id=task,
+            step_key=step,gate_checkpoint_no=cp,action_fingerprint=fp,
+            adapter_id=adapter.adapter_id)
+        if receipt is None:
+            raise TrustedRpcDenied("UNPROVEN_UNKNOWN_EFFECT_NO_REPLAY")
+        valid,reason=verify_receipt(receipt,public_b64=public,task_id=task,
+            step_key=step,gate_checkpoint_no=cp,action_fingerprint=fp,
+            target=action["target"],gate_created_at=record["created_at"])
+        if not valid or receipt.get("executor_id")!="trusted-worker-"+adapter.adapter_id:
+            raise TrustedRpcDenied("RECOVERED_RECEIPT_INVALID:"+reason)
+        return {"status":"RECOVERED_POST_REQUIRED","receipt":receipt}
     response=adapter.execute(task_id=task,step_key=step,action=action,
                     approval=approval,gate=gate,gate_created_at=record["created_at"],
                     stdin=data)
