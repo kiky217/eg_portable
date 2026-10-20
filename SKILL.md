@@ -11,6 +11,9 @@ Apply to **every** task governed by Evaluation Gateway. Read this file before at
 2. Use authenticated read-only API discovery and query health, audit validity, task detail, current step, current checkpoint, pending gate, lease and worker availability. Consult the **live endpoint's actual protocol** for request names; do not invent endpoint paths.
 3. Record whether service is live, admission is enabled, independently protected signing root is provisioned, required adapter exists, and action is presently PRE-authorized. Those are **separate** facts. A running production service does not imply unrestricted execution.
 
+## Live capability discovery (current runtime)
+Call authenticated `GET /v1/agent/capabilities` on the **actual** EG instance before planning physical actions. It distinguishes installed bundled transport from untrusted capability declarations. `CONFIGURED_NEEDS_LIVE_PRE` is not worker attestation; `UNVERIFIED_NOT_AUTHORIZED` must never be dispatched. `EVALUATION_GATEWAY_AGENT_CATALOG_JSON` is a bounded optional JSON catalog (schema_version 1, capabilities with id/effect_class/action_type/adapter_id). It is diagnostic-only and does not affect immutable task contract or PRE admission. If missing or invalid, use the bundled worker or independently provision an approved adapter, not a shell bypass.
+
 ## Select capability before claiming a step
 - Distinguish logical evaluation from an actual physical effect; never relabel the immutable task contract.
 - Current built-in production worker only handles narrow E0 reads and E2 **creation** of .txt/valid .json within protected output_root (<= 512 KiB).
