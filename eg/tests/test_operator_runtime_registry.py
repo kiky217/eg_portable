@@ -65,3 +65,74 @@ def test_wrong_signer_cannot_revoke(tmp_path,monkeypatch):
     with pytest.raises(RegistryDenied,match="UNTRUSTED_OPERATOR_REVOCATION"):
         reg.revoke(revoke(other,record),adapter_id=record["adapter_id"])
     assert reg.resolve(record["adapter_id"])["status"]=="CONFIGURED_LIVENESS_RECHECK_REQUIRED"
+
+def signed_replacement(operator, original, **changes):
+    doc={k:v for k,v in original.items() if k!="signature_b64"}
+    doc.update(changes)
+    return {**doc,"signature_b64":base64.b64encode(operator.sign(canonical(doc))).decode()}
+
+
+def test_operator_can_renew_active_binding_but_not_replay_or_resurrect(tmp_path,monkeypatch):
+    folder=tmp_path/"operator";folder.mkdir(mode=0o700)
+    operator=Ed25519PrivateKey.generate()
+    worker1,worker2=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
+    first=binding(operator,worker1)
+    probes=[]
+    monkeypatch.setattr("tools.operator_runtime_registry.probe_unix",
+                        lambda *a,**kw: probes.append(kw["public_key_b64"]))
+    reg=OperatorAdapterRegistry(folder,pub(operator))
+    assert reg.activate(first,adapter_id=first["adapter_id"],
+                        capability_sha256=first["capability_sha256"])["status"]=="ACTIVE_CONFIG_ONLY"
+    # Simulates the old operator binding's expiry, without manipulating wall-clock.
+    with pytest.raises(RegistryDenied,match="EXPIRED"):
+        reg.resolve(first["adapter_id"],now=first["expires_at"]+1)
+    second=signed_replacement(operator,first,
+        operator_nonce="operator_binding_nonce_rotated_456",
+        issued_at=first["issued_at"]+1,worker_public_key_b64=pub(worker2))
+    result=reg.activate(second,adapter_id=second["adapter_id"],
+                        capability_sha256=second["capability_sha256"])
+    assert result["status"]=="ACTIVE_CONFIG_ROTATED" and result["admission"] is False
+    assert reg.resolve(first["adapter_id"])["worker_public_key_b64"]==pub(worker2)
+    assert probes==[pub(worker1),pub(worker2)]
+    assert reg.activate(second,adapter_id=second["adapter_id"],
+                        capability_sha256=second["capability_sha256"])["status"]=="ALREADY_ACTIVE"
+    with pytest.raises(RegistryDenied,match="STALE_OPERATOR_BINDING"):
+        reg.activate(first,adapter_id=first["adapter_id"],
+                     capability_sha256=first["capability_sha256"])
+    same_nonce=signed_replacement(operator,second,worker_uid=65532)
+    with pytest.raises(RegistryDenied,match="OPERATOR_NONCE_REUSED"):
+        reg.activate(same_nonce,adapter_id=first["adapter_id"],
+                     capability_sha256=first["capability_sha256"])
+    wrong_cap=signed_replacement(operator,second,
+        operator_nonce="operator_binding_nonce_rotated_789",
+        capability_sha256="b"*64,issued_at=second["issued_at"])
+    with pytest.raises(RegistryDenied,match="ALREADY_BOUND_OR_REVOKED"):
+        reg.activate(wrong_cap,adapter_id=first["adapter_id"],
+                     capability_sha256="b"*64)
+    reg.revoke(revoke(operator,second),adapter_id=second["adapter_id"])
+    with pytest.raises(RegistryDenied,match="ALREADY_BOUND_OR_REVOKED"):
+        reg.activate(second,adapter_id=second["adapter_id"],
+                     capability_sha256=second["capability_sha256"])
+    with pytest.raises(RegistryDenied,match="NOT_ACTIVE"):
+        reg.resolve(second["adapter_id"])
+
+
+def test_failed_renewal_probe_preserves_current_route(tmp_path,monkeypatch):
+    folder=tmp_path/"operator";folder.mkdir(mode=0o700)
+    operator=Ed25519PrivateKey.generate()
+    worker=Ed25519PrivateKey.generate()
+    first=binding(operator,worker)
+    monkeypatch.setattr("tools.operator_runtime_registry.probe_unix",lambda *a,**kw: True)
+    reg=OperatorAdapterRegistry(folder,pub(operator))
+    reg.activate(first,adapter_id=first["adapter_id"],
+                 capability_sha256=first["capability_sha256"])
+    newer=signed_replacement(operator,first,
+        operator_nonce="operator_binding_nonce_newworker_777",
+        issued_at=first["issued_at"]+1)
+    def unavailable(*args,**kwargs):
+        raise RuntimeError("WORKER_OFFLINE")
+    monkeypatch.setattr("tools.operator_runtime_registry.probe_unix",unavailable)
+    with pytest.raises(RuntimeError,match="WORKER_OFFLINE"):
+        reg.activate(newer,adapter_id=newer["adapter_id"],
+                     capability_sha256=newer["capability_sha256"])
+    assert reg.resolve(first["adapter_id"])["worker_public_key_b64"]==pub(worker)
