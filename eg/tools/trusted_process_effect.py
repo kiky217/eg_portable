@@ -12,12 +12,15 @@ from tools.durable_hitl_ledger import ApprovalLedger
 from tools.high_effect_admission import action_fingerprint
 from tools.signed_hitl_approval import verify_approval
 from app.execution_receipts import body, sign
+from tools.typed_payload_contract import validate_document,TypedPayloadDenied
 
 class ProcessDenied(RuntimeError): pass
 
 class TrustedProcessEffect:
     def __init__(self, *, journal_dir, private_key, adapter_id, hitl_key_b64,
-                 executable, fixed_args, target, timeout=20, max_stdout=262144):
+                 executable, fixed_args, target, timeout=20, max_stdout=262144,
+                 input_schema=None, input_schema_sha256=None,
+                 output_schema=None, output_schema_sha256=None):
         if (not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")
             or not isinstance(executable,str) or not Path(executable).is_absolute()
             or not isinstance(fixed_args,tuple) or not all(isinstance(a,str) for a in fixed_args)
@@ -29,6 +32,13 @@ class TrustedProcessEffect:
             raise ProcessDenied("UNSAFE_EXECUTABLE")
         if not 0<timeout<=30 or not 0<max_stdout<=524288:
             raise ProcessDenied("UNBOUNDED_EXECUTION")
+        if ((input_schema is None)!=(input_schema_sha256 is None)
+            or (output_schema is None)!=(output_schema_sha256 is None)):
+            raise ProcessDenied("UNPINNED_OPERATOR_SCHEMA")
+        self.input_schema=input_schema
+        self.input_schema_sha256=input_schema_sha256
+        self.output_schema=output_schema
+        self.output_schema_sha256=output_schema_sha256
         self.ledger=ApprovalLedger(journal_dir)
         self.private=private_key
         self.adapter_id=adapter_id
@@ -47,6 +57,12 @@ class TrustedProcessEffect:
             or action.get("payload_bytes")!=len(stdin)
             or action.get("payload_sha256")!=hashlib.sha256(stdin).hexdigest()):
             raise ProcessDenied("PROCESS_ACTION_NOT_BOUND")
+        if self.input_schema is not None:
+            try:
+                validate_document(self.input_schema,stdin,
+                    expected_schema_sha256=self.input_schema_sha256,max_bytes=524288)
+            except TypedPayloadDenied as exc:
+                raise ProcessDenied("INPUT_SCHEMA_DENIED_NO_EFFECT") from exc
         fp=action_fingerprint(action)
         pin=gate.get("high_effect_pin") if isinstance(gate,dict) else None
         key=base64.b64encode(self.private.public_key().public_bytes(
@@ -84,6 +100,15 @@ class TrustedProcessEffect:
             raise ProcessDenied("EXECUTION_UNKNOWN_NO_REPLAY") from exc
         if child.returncode!=0 or not 0<len(child.stdout)<=self.max_stdout:
             raise ProcessDenied("EXECUTION_FAILED_OR_OVERSIZE_NO_REPLAY")
+        if self.output_schema is not None:
+            try:
+                validate_document(self.output_schema,child.stdout,
+                    expected_schema_sha256=self.output_schema_sha256,
+                    max_bytes=self.max_stdout)
+            except TypedPayloadDenied as exc:
+                # Subprocess already ran: never retry this nonce. Do not sign
+                # or submit a receipt for malformed or untrusted output.
+                raise ProcessDenied("OUTPUT_SCHEMA_DENIED_UNKNOWN_NO_REPLAY") from exc
         receipt=sign(body(task_id,step_key,cp,fp,"trusted-worker-"+self.adapter_id,
                           self.target,child.stdout,nonce,
                           completed_ns=max(time.time_ns(),int(epoch*1e9))),self.private)
