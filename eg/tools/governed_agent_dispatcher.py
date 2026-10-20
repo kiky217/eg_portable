@@ -181,7 +181,8 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
     effect=action.get("effect_class")
     if effect in ("E3","E4","E5"):
         if external_worker_socket is not None:
-            if (ci_only or disposable_adapter is not None or operation!="execute" or
+            if (ci_only or disposable_adapter is not None or
+                operation not in ("execute","compensate","no_effect") or
                 not hitl_approval or not hitl_public_key_b64 or
                 not external_adapter_id or not external_public_key_b64 or
                 external_worker_uid is None):
@@ -194,7 +195,8 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
                 expected_worker_uid=external_worker_uid,
                 adapter_id=external_adapter_id,
                 pinned_public_key_b64=external_public_key_b64,
-                hitl_public_key_b64=hitl_public_key_b64)
+                hitl_public_key_b64=hitl_public_key_b64,
+                operation=operation)
         if not ci_only or disposable_adapter is None or not hitl_approval or not hitl_public_key_b64:
             raise DispatchDenied("HIGH_EFFECT_PRODUCTION_TRANSPORT_NOT_PROVISIONED")
         try:
