@@ -22,8 +22,8 @@ def validate_typed_descriptor(value:dict)->dict:
     if any(not isinstance(value.get(f),str) or not _NAME.fullmatch(value[f])
            for f in ("id","adapter_id","action_type")):
         raise TypedCapabilityDenied("INVALID_CAPABILITY_IDENTITY")
-    if (value["effect_class"] not in _ALLOWED_EFFECT or
-        value["transport"] not in _TRANSPORTS or
+    if (not isinstance(value["effect_class"],str) or value["effect_class"] not in _ALLOWED_EFFECT or
+        not isinstance(value["transport"],str) or value["transport"] not in _TRANSPORTS or
         any(not isinstance(value.get(f),str) or not _SCHEMA_ID.fullmatch(value[f])
             for f in ("input_schema_id","output_schema_id")) or
         not isinstance(value["target_prefix"],str) or not value["target_prefix"].startswith("/")
