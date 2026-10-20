@@ -98,6 +98,9 @@ def test_noncanonical_or_duplicate_github_payload_denied(tmp_path):
     adapter=GitHubRpcAdapter(worker)
     for invalid in [b'{"version":1,"version":1}',
                     b'{"version":1,"operation":{},"content_b64":"","commit_message":"x"}',
+                    b'{"version":1,"operation":{},"content_b64":"eA==","commit_message":""}',
+                    b'{"version":1,"operation":{},"content_b64":"eA==","commit_message":42}',
+                    b'{"version":1,"operation":{},"content_b64":"eA==","commit_message":"line\\nnewline"}',
                     b'{"version":1,"operation":{},"content_b64":"%%%","commit_message":"x"}']:
         with pytest.raises(GithubRpcWireDenied):
             adapter.execute(task_id="task",step_key="01.01",action={},
