@@ -23,6 +23,15 @@ Call authenticated `GET /v1/agent/capabilities` on the **actual** EG instance be
 ## Portable capability model
 EG must not hardcode Rust, Git, Docker or any programming toolchain as universal requirements. Discover **registered runtime capabilities** from the target deployment. Match typed action, effect class, scope, constraints, attested executor identity and evidence/receipt contract. Prefer an already-authorized native tool or adapter; agents may propose or install a new adapter only through the operator-approved onboarding and trust process. A self-declared capability is never automatically admitted. The bundled E0/E2 worker is a baseline, **not an upper bound of EG's extensible architecture**. The local readiness script reports only bundled-worker compatibility, not what an external deployment may provide.
 
+## Nested E2 workspace (explicit opt-in only)
+The default is **depth 0**: only files directly below the protected worker output root.
+For source modules in subdirectories, the operator may set
+`EVALUATION_GATEWAY_EXECUTOR_MAX_SUBDIR_DEPTH=1` (maximum 4) on EG and
+`"allowed_subdir_depth":1` in the independently administered worker config.
+Each nested parent must be pre-provisioned, owned by the worker UID,
+mode 0700, and cannot be a symlink. The worker does not create directories
+implicitly, execute code, or authorize overwrites. A mismatch must fail closed.
+
 ## Governed source-file creation (operator opt-in)
 The built-in independently signed E2 worker **can** create source files through exact PRE/POST when configured by the operator. EG allows suffixes from `EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES` (comma-separated, default `.txt,.json`), and the separate worker must have the corresponding private-config `allowed_suffixes` list. Example: `.txt,.json,.py,.rs,.toml`. Both remain restricted to single-level private worker `output_root`, a signed payload commitment and exclusive creation with no overwrite. Neither setting grants command execution, dynamic privilege, Git push, nor E3–E5 support. For a language-independent workflow use the project-selected extension only if the operator's live policy permits it; do not change deployment admission mode to force a match.
 
