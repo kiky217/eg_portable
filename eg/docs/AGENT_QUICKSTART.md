@@ -22,7 +22,7 @@ python eg/tools/agent_readiness.py --effect E2 --action write
 python eg/tools/agent_readiness.py --effect E3 --action service_control --json
 ```
 
-This command **does not perform network calls, mutate state, print secrets, or authorize effects**. It examines local environment presence and static built-in dispatcher support only. For the live decision, inspect the target system's authenticated task, health, evidence and worker status. Never copy configuration from a different instance.
+Without `--url`, this command **does not perform network calls, mutate state, print secrets, or authorize effects**. Use `--url https://YOUR-EG` with operator-provided `EVALUATION_GATEWAY_API_KEY` to perform authenticated **read-only** runtime discovery. The live result is `REQUIRES_LIVE_PRE`, never an action grant; it cannot verify executor identity or a specific PRE by itself. For the live decision, inspect the target system's authenticated task, health, evidence and worker status. Never copy configuration from a different instance.
 
 ## How to approach real development tasks
 
