@@ -8,11 +8,23 @@ from app.execution_receipts import verify
 from tools.high_effect_admission import action_fingerprint
 from tools.production_cargo_worker import CargoWorker,WorkerDenied
 from tools.signed_hitl_approval import canonical
-ROOT=Path("/content/eg-portable-staging/adapter-dev/solana-staging")
+def cargo_fixture(directory):
+ root=directory/"rust-project"
+ root.mkdir(mode=0o700)
+ (root/"src").mkdir()
+ (root/"Cargo.toml").write_text('[package]\nname = "eg-cargo-fixture"\nversion = "0.1.0"\nedition = "2021"\n')
+ (root/"src"/"lib.rs").write_text("pub fn ping() -> bool {\n    true\n}\n")
+ return root
+def toolchain_env(build):
+ home=Path.home()
+ return {"CARGO_ADAPTER_RUSTUP_HOME":str(Path(os.getenv("RUSTUP_HOME",home/".rustup"))),
+         "CARGO_ADAPTER_CARGO_HOME":str(Path(os.getenv("CARGO_HOME",home/".cargo"))),
+         "CARGO_ADAPTER_TARGET_DIR":str(build)}
 def pub(k):return base64.b64encode(k.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
 class CargoWorkerSandboxIntegration(unittest.TestCase):
  def test_authorized_sandbox_fmt_and_replay_without_repeat(self):
   with tempfile.TemporaryDirectory() as temp:
+   ROOT=cargo_fixture(Path(temp))
    journal=Path(temp)/"journal";journal.mkdir(mode=0o700)
    output=Path(temp)/"target";output.mkdir(mode=0o700)
    now=time.time();created=datetime.now(timezone.utc).isoformat()
@@ -33,7 +45,7 @@ class CargoWorkerSandboxIntegration(unittest.TestCase):
                       adapter_id=adapter,hitl_public_key=pub(owner),
                       fetch_state=lambda t:{"current_step":step,"pending_execution_gate":gate},
                       fetch_detail=lambda t:{"task":{"contract_status":"OPEN"}})
-   with patch.dict(os.environ,{"CARGO_ADAPTER_RUSTUP_HOME":"/root/.rustup", "CARGO_ADAPTER_CARGO_HOME":"/root/.cargo","CARGO_ADAPTER_TARGET_DIR":str(output)}):
+   with patch.dict(os.environ,toolchain_env(output)):
     receipt=worker.execute(task_id=task,step_key=step,action=action,approval=approval)
     again=worker.execute(task_id=task,step_key=step,action=action,approval=approval)
    valid,reason=verify(receipt,public_b64=pub(worker_key),task_id=task,step_key=step,
@@ -45,7 +57,7 @@ class CargoWorkerSandboxIntegration(unittest.TestCase):
    saved_file=next(journal.glob("*.receipt.json"))
    tampered=json.loads(saved_file.read_text());tampered["output_sha256"]="0"*64
    saved_file.write_text(json.dumps(tampered))
-   with patch.dict(os.environ,{"CARGO_ADAPTER_RUSTUP_HOME":"/root/.rustup", "CARGO_ADAPTER_CARGO_HOME":"/root/.cargo","CARGO_ADAPTER_TARGET_DIR":str(output)}):
+   with patch.dict(os.environ,toolchain_env(output)):
     with self.assertRaisesRegex(WorkerDenied,"REPLAY_RECEIPT_SIGNATURE_INVALID"):
      worker.execute(task_id=task,step_key=step,action=action,approval=approval)
 if __name__=="__main__":unittest.main()

@@ -12,7 +12,18 @@ from tools.signed_hitl_approval import canonical
 from tools.production_cargo_worker import CargoWorker
 from test_high_effect_gateway_integration import high_pre_ref,high_pre_claim,HIGH_PRE
 from app import main as gw
-ROOT=Path("/content/eg-portable-staging/adapter-dev/solana-staging")
+def cargo_fixture(directory):
+ root=directory/"rust-project"
+ root.mkdir(mode=0o700)
+ (root/"src").mkdir()
+ (root/"Cargo.toml").write_text('[package]\nname = "eg-cargo-fixture"\nversion = "0.1.0"\nedition = "2021"\n')
+ (root/"src"/"lib.rs").write_text("pub fn ping() -> bool {\n    true\n}\n")
+ return root
+def toolchain_env(build):
+ home=Path.home()
+ return {"CARGO_ADAPTER_RUSTUP_HOME":str(Path(os.getenv("RUSTUP_HOME",home/".rustup"))),
+         "CARGO_ADAPTER_CARGO_HOME":str(Path(os.getenv("CARGO_HOME",home/".cargo"))),
+         "CARGO_ADAPTER_TARGET_DIR":str(build)}
 def pub(k):return base64.b64encode(k.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
 def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
  task="task-knid-solana-"+H.eid("production-cargo-e2e")
@@ -27,7 +38,8 @@ def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
  assert registered.status_code==200,registered.text
  ch=registered.json()["contract_hash"];owner=Ed25519PrivateKey.generate();worker_key=Ed25519PrivateKey.generate()
  with tempfile.TemporaryDirectory() as tmp:
-  directory=Path(tmp);journal=directory/"ledger";journal.mkdir(mode=0o700)
+  directory=Path(tmp);ROOT=cargo_fixture(directory)
+  journal=directory/"ledger";journal.mkdir(mode=0o700)
   build=directory/"build";build.mkdir(mode=0o700)
   key=directory/"worker.pem";sock=directory/"worker.sock";cfg=directory/"worker.json"
   key.write_bytes(worker_key.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()));key.chmod(0o600)
@@ -72,7 +84,7 @@ def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
    worker=CargoWorker(root=ROOT,journal=journal,private=worker_key,adapter_id=adapter,
      hitl_public_key=pub(owner),fetch_state=lambda t:get_task(t,"/state"),
      fetch_detail=lambda t:get_task(t,""))
-   with patch.dict(os.environ,{"CARGO_ADAPTER_RUSTUP_HOME":"/root/.rustup","CARGO_ADAPTER_CARGO_HOME":"/root/.cargo","CARGO_ADAPTER_TARGET_DIR":str(build)}):
+   with patch.dict(os.environ,toolchain_env(build)):
     receipt=worker.execute(task_id=task,step_key="01.01",action=action,approval=approval)
    post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01")
    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
