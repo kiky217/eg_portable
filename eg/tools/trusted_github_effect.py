@@ -43,6 +43,11 @@ class TrustedGitHubEffect:
 
     def execute(self,*,task_id,step_key,action,approval,gate,gate_created_at,
                 operation,content,commit_message,wire_bytes=None):
+        if (not isinstance(commit_message,str) or not 1<=len(commit_message)<=180
+            or "\r" in commit_message or "\n" in commit_message):
+            raise GitHubWorkerDenied("INVALID_GITHUB_COMMIT_MESSAGE_NO_EFFECT")
+        if not isinstance(approval,dict):
+            raise GitHubWorkerDenied("SIGNED_HITL_APPROVAL_REQUIRED_NO_EFFECT")
         op=validate_operation(operation,self.policy)
         if (not isinstance(content,bytes) or not content or len(content)>512*1024
             or not isinstance(action,dict) or action.get("effect_class")!="E4"
