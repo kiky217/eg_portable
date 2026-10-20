@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.executor_policy import parse_suffixes
 import base64, hashlib, hmac, json, logging, math, os, re, sqlite3, stat, threading, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -491,6 +492,7 @@ def legacy_notary_keys() -> list[tuple[str,float]]:
 def require_config() -> None:
     if ADMISSION_MODE not in ("enabled", "disabled"):
         raise RuntimeError("invalid EG admission mode")
+    parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))
     if not os.getenv("EVALUATION_GATEWAY_DB_PATH") or not os.getenv("EVALUATION_GATEWAY_EVIDENCE_ROOT"):
         raise RuntimeError("external canonical DB/evidence configuration required")
     validate_secret("API key", API_KEY)
@@ -1389,7 +1391,7 @@ def protocol():
                                            else "UNPROVISIONED_FAIL_CLOSED"),
             "high_effect_capability_catalog": high_effect_catalog(),
             "executor_target_root_provisioned":bool(EXECUTOR_OUTPUT_ROOT),
-            "executor_target_suffixes":[".txt",".json"],
+            "executor_target_suffixes":list(parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))),
             "document": PROTOCOL_PATH.read_text(encoding="utf-8")}
 
 
@@ -1531,7 +1533,7 @@ def worker_capability(action: Action) -> tuple[bool,str]:
     target=Path(action.target)
     if (not root.is_absolute() or not target.is_absolute()
             or root.is_symlink()
-            or target.suffix not in (".txt",".json")
+            or target.suffix not in parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))
             or os.path.normpath(str(target.parent))!=os.path.normpath(str(root))):
         return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
     return True,"TRUSTED_WORKER_CAPABILITY_ADMITTED"
