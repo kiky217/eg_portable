@@ -82,7 +82,7 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
     return {"status":response.get("status"),"receipt":response["receipt"]}
 
 def serve(*,socket_path,adapter,capability_sha256,eg_url,eg_key,
-          hitl_public_key_b64,controller_uid,max_requests=0):
+          hitl_public_key_b64,controller_uid,max_requests=0,controller_group_gid=None):
     """Called ONLY by separately provisioned, non-root operator worker."""
     loc=urlsplit(eg_url)
     if (os.getuid()<=0 or type(controller_uid) is not int or controller_uid<0
@@ -98,15 +98,25 @@ def serve(*,socket_path,adapter,capability_sha256,eg_url,eg_key,
     if not path.is_absolute() or not path.parent.is_dir() or path.exists() or path.is_symlink():
         raise TrustedRpcDenied("SOCKET_PATH_NOT_PRIVATE_OR_OCCUPIED")
     parent=path.parent.stat()
-    if parent.st_uid!=os.getuid() or stat.S_IMODE(parent.st_mode)&0o077:
+    if parent.st_uid!=os.getuid():
         raise TrustedRpcDenied("UNSAFE_WORKER_SOCKET_DIRECTORY")
+    if controller_group_gid is None:
+        if stat.S_IMODE(parent.st_mode)&0o077:
+            raise TrustedRpcDenied("UNSAFE_WORKER_SOCKET_DIRECTORY")
+    elif (type(controller_group_gid) is not int or controller_group_gid<=0
+          or parent.st_gid!=controller_group_gid
+          or not parent.st_mode & stat.S_ISGID
+          or stat.S_IMODE(parent.st_mode)&0o067):
+        # Group may traverse, never write. A pinned controller UID and SO_PEERCRED
+        # still check every connection before any sensitive request is processed.
+        raise TrustedRpcDenied("UNSAFE_SHARED_SOCKET_DIRECTORY")
     if not getattr(adapter,"adapter_id","").startswith("trusted-adapter-"):
         raise TrustedRpcDenied("INVALID_ADAPTER")
     old=os.umask(0o077)
     try:
         with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as server:
             server.bind(str(path))
-            os.chmod(path,0o600)
+            os.chmod(path,0o660 if controller_group_gid is not None else 0o600)
             inode=path.stat().st_ino
             try:
                 server.listen(8)
