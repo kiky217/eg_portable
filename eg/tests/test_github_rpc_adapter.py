@@ -10,6 +10,8 @@ from tools.high_effect_admission import action_fingerprint
 from tools.signed_hitl_approval import canonical
 from tools import trusted_generic_rpc as rpc
 from app.execution_receipts import verify as verify_receipt
+from test_nested_json_schema import SCHEMA as INPUT_SCHEMA
+from tools.nested_json_schema import validate_schema_v2
 
 def pub(k):
     return base64.b64encode(k.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
@@ -31,10 +33,18 @@ def test_github_rpc_wire_original_pre_to_signed_effect_no_replay(tmp_path,monkey
         return {"status":"CONTENT_VERIFIED_NOT_EXECUTION_PROOF",
                 "commit_sha":"a"*40,"blob_sha256":hashlib.sha256(content).hexdigest()}
     journal=tmp_path/"journal";journal.mkdir(mode=0o700)
+    output_schema={"schema_version":2,"schema_id":"github/receipt-v1",
+        "document":{"type":"object","additional_properties":False,
+        "required":["commit_sha","blob_sha","content_sha256"],
+        "properties":{name:{"type":"string","minimum":40 if name!="content_sha256" else 64,
+                             "maximum":40 if name!="content_sha256" else 64}
+                      for name in ("commit_sha","blob_sha","content_sha256")}}}
     underlying=TrustedGitHubEffect(journal_dir=journal,private_key=executor,
             adapter_id="trusted-adapter-github-e4-acceptance",
             hitl_public_key_b64=pub(human),policy=policy,github_token="fixture",
-            readback=readback,write=write)
+            readback=readback,write=write,
+            input_schema=INPUT_SCHEMA,input_schema_sha256=validate_schema_v2(INPUT_SCHEMA),
+            output_schema=output_schema,output_schema_sha256=validate_schema_v2(output_schema))
     adapter=GitHubRpcAdapter(underlying)
     task,step,cp="task-github-e4-test","01.01",8
     action={"action_type":"github_contents_write","effect_class":"E4",
