@@ -22,6 +22,7 @@ from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
 from app.execution_receipts import body, sign, verify
+from app.executor_policy import parse_suffixes
 from app.no_effect_receipts import sign_no_effect
 
 MAX_PAYLOAD = 1024 * 1024
@@ -54,7 +55,8 @@ def api(url,key,task):
     return request('/state'),request('')
 
 class TrustedWriter:
-    def __init__(self,output_root,journal_root,private_key,eg_url,api_key,executor_id):
+    def __init__(self,output_root,journal_root,private_key,eg_url,api_key,executor_id,allowed_suffixes=None):
+        self.allowed_suffixes = parse_suffixes(allowed_suffixes)
         self.root=Path(output_root).resolve(strict=True)
         self.journal=Path(journal_root).resolve(strict=True)
         for d in (self.root,self.journal):
@@ -82,7 +84,7 @@ class TrustedWriter:
             target=Path(action.get("target",""))
             resolved=target.resolve(strict=False)
             if (target.is_symlink() or resolved.parent!=self.root or
-                resolved.suffix not in (".txt",".json")):
+                resolved.suffix not in self.allowed_suffixes):
                 raise WorkerDenied("RECONCILIATION_TARGET_OUTSIDE_BOUNDS")
             state,detail=api(self.url,self.key,task)
             gate=state.get("pending_execution_gate")
@@ -160,7 +162,7 @@ class TrustedWriter:
         target=Path(action.get('target',''))
         resolved=target.resolve(strict=False)
         if (target.is_symlink() or resolved.parent != self.root
-            or resolved.suffix not in ('.txt', '.json')):
+            or resolved.suffix not in self.allowed_suffixes):
             raise WorkerDenied('TARGET_OUTSIDE_WORKER_BOUNDS')
         if is_write and resolved.suffix == '.json':
             try:
@@ -302,7 +304,8 @@ def serve(config):
         raise WorkerDenied('TRUSTED_WORKER_MUST_NOT_RUN_AS_ROOT')
     worker=TrustedWriter(config['output_root'],config['journal_root'],
                          config['private_key'],config['eg_url'],
-                         config['eg_api_key'],config['executor_id'])
+                         config['eg_api_key'],config['executor_id'],
+                         config.get('allowed_suffixes'))
     sock=Path(config['socket_path'])
     if sock.exists():raise WorkerDenied('SOCKET_ALREADY_EXISTS')
     class Handler(socketserver.StreamRequestHandler):
