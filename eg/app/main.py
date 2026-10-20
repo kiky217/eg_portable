@@ -1393,6 +1393,34 @@ def protocol():
             "document": PROTOCOL_PATH.read_text(encoding="utf-8")}
 
 
+@app.get("/v1/agent/capabilities", dependencies=[Depends(require_key)])
+def agent_capabilities():
+    """Read-only agent discovery. A configured catalog is never execution authorization."""
+    from tools.capability_catalog import CatalogError, parse_catalog
+
+    catalog_raw = os.getenv("EVALUATION_GATEWAY_AGENT_CATALOG_JSON", "")
+    configured = ()
+    invalid = False
+    if catalog_raw:
+        try:
+            configured = parse_catalog(catalog_raw)
+        except (CatalogError, UnicodeError):
+            invalid = True
+    bundled = bool(ADMISSION_MODE == "enabled" and EXECUTOR_PUBLIC_KEY_B64 and EXECUTOR_OUTPUT_ROOT)
+    entries = [{"id": "builtin.read", "effect_class": "E0", "action_type": "read",
+                "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"},
+               {"id": "builtin.write", "effect_class": "E2", "action_type": "write",
+                "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"}]
+    entries.extend({"id": row["id"], "effect_class": row["effect_class"],
+                    "action_type": row["action_type"], "adapter_id": row["adapter_id"],
+                    "status": "UNVERIFIED_NOT_AUTHORIZED"} for row in configured)
+    return {"admission_mode": ADMISSION_MODE, "admission_is_execution": False,
+            "catalog_valid": not invalid, "capabilities": entries,
+            "next_action": "PROVISION_TRUSTED_EXECUTOR" if ADMISSION_MODE == "disabled"
+                           else "CHECK_ADAPTER_IDENTITY_AND_EXACT_PRE",
+            "note": "Configured capabilities are not live independently verified worker grants."}
+
+
 def _registered_protocol_hash(c: sqlite3.Connection, task_id: str) -> str | None:
     """Only the original authenticated registration can authorize an old hash."""
     row = c.execute(
