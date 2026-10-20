@@ -9,13 +9,19 @@ from harness import CLIENT, HEAD, register, do_pre, do_post, e2_action
 from tools import trusted_execution_worker as worker
 
 
-def test_source_creation_scanner_e2e(tmp_path, monkeypatch):
+@pytest.mark.parametrize("nested",[False,True])
+def test_source_creation_scanner_e2e(tmp_path, monkeypatch,nested):
     output = tmp_path / "outputs"; output.mkdir(mode=0o700)
     journal = tmp_path / "journal"; journal.mkdir(mode=0o700)
     monkeypatch.setattr(H.gw, "EXECUTOR_OUTPUT_ROOT", str(output))
     monkeypatch.setenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES", ".txt,.json,.py")
     task, contract = register(physical=True)
-    source = output / "scanner.py"
+    if nested:
+        sub=output / "project"; sub.mkdir(mode=0o700)
+        package=sub / "src"; package.mkdir(mode=0o700)
+        source=package / "scanner.py"
+    else:
+        source = output / "scanner.py"
     payload = b"def scan_contract(value):\n    return value.upper()\n"
     action = e2_action(task, 0, target=str(source), payload=payload)
     key = tmp_path / "signer.pem"
