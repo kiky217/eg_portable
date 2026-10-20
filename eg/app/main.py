@@ -1580,9 +1580,16 @@ def worker_capability(action: Action) -> tuple[bool,str]:
     target=Path(action.target)
     if (not root.is_absolute() or not target.is_absolute()
             or root.is_symlink()
-            or target.suffix not in parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))
-            or os.path.normpath(str(target.parent))!=os.path.normpath(str(root))):
+            or target.suffix not in parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))):
         return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
+    try:
+        relative=target.relative_to(root)
+        if not relative.parts or ".." in relative.parts or "." in relative.parts:
+            raise ValueError("non-canonical target")
+    except ValueError:
+        return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
+    # This is only a lexical PRE preflight. The independently privileged
+    # worker validates EVERY directory component and owns the physical effect.
     return True,"TRUSTED_WORKER_CAPABILITY_ADMITTED"
 
 
