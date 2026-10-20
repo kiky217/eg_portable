@@ -50,7 +50,7 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
     gate=state.get("pending_execution_gate")
     latest=state.get("latest_checkpoint")
     fp=action_fingerprint(action)
-    if (state.get("status")!="IN_PROGRESS" or state.get("current_step")!=step
+    if (state.get("status") not in (("IN_PROGRESS","RECOVERY_PENDING") if request["operation"]=="recover_receipt" else ("IN_PROGRESS",)) or state.get("current_step")!=step
         or detail.get("task",{}).get("contract_status")!="OPEN"
         or not isinstance(gate,dict) or not isinstance(latest,dict)
         or gate.get("task_id")!=task or gate.get("step_key")!=step
