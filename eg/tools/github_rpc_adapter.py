@@ -46,6 +46,10 @@ class GitHubRpcAdapter:
                 raise ValueError("version")
             if not isinstance(packet["content_b64"],str):
                 raise ValueError("content")
+            message=packet["commit_message"]
+            if (not isinstance(message,str) or not 1<=len(message)<=180
+                or "\r" in message or "\n" in message):
+                raise ValueError("invalid commit message")
             content=base64.b64decode(packet["content_b64"],validate=True)
             if stdin!=wire_bytes(operation=packet["operation"],content=content,
                                   commit_message=packet["commit_message"]):
