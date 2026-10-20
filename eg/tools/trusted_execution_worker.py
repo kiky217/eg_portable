@@ -69,6 +69,28 @@ class TrustedWriter:
         if not executor_id.startswith('trusted-worker-'):raise WorkerDenied('INVALID_WORKER_ID')
         self.executor_id=executor_id
 
+    def bounded_target(self, raw_target):
+        """Only worker-owned private pre-provisioned directories; no symlink hop."""
+        target=Path(raw_target)
+        try:
+            relative=target.relative_to(self.root)
+            if (not target.is_absolute() or not relative.parts or
+                ".." in relative.parts or "." in relative.parts or
+                target.suffix not in self.allowed_suffixes):
+                raise ValueError("bad target")
+            parent=self.root
+            for component in relative.parts[:-1]:
+                parent=parent/component
+                info=parent.lstat()
+                if (not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.getuid()
+                    or stat.S_IMODE(info.st_mode)&0o077):
+                    raise ValueError("unsafe private directory")
+            if target.is_symlink() or target.resolve(strict=False).parent!=parent:
+                raise ValueError("symlink or target escape")
+        except (ValueError, OSError) as exc:
+            raise WorkerDenied("TARGET_OUTSIDE_WORKER_BOUNDS") from exc
+        return target
+
     def reconcile(self, request):
         """Only the isolated worker may assert no intent AND no effect."""
         with self.lock:
@@ -81,11 +103,10 @@ class TrustedWriter:
                 raise WorkerDenied("INVALID_RECONCILIATION_FIELDS")
             if len(task)>127 or len(step)>18 or action.get("action_type")!="write" or action.get("effect_class")!="E2":
                 raise WorkerDenied("NO_EFFECT_PROOF_REQUIRES_BOUNDED_WRITE")
-            target=Path(action.get("target",""))
-            resolved=target.resolve(strict=False)
-            if (target.is_symlink() or resolved.parent!=self.root or
-                resolved.suffix not in self.allowed_suffixes):
-                raise WorkerDenied("RECONCILIATION_TARGET_OUTSIDE_BOUNDS")
+            try:
+                target=self.bounded_target(action.get("target",""))
+            except WorkerDenied as exc:
+                raise WorkerDenied("RECONCILIATION_TARGET_OUTSIDE_BOUNDS") from exc
             state,detail=api(self.url,self.key,task)
             gate=state.get("pending_execution_gate")
             if (state.get("status")!="RECOVERY_PENDING"
@@ -159,12 +180,8 @@ class TrustedWriter:
                     or action['payload_bytes']!=len(data)):
                 raise WorkerDenied('PAYLOAD_NOT_AUTHORIZED_BY_PRE')
         if is_read and data:raise WorkerDenied('READ_MUST_HAVE_EMPTY_INPUT')
-        target=Path(action.get('target',''))
-        resolved=target.resolve(strict=False)
-        if (target.is_symlink() or resolved.parent != self.root
-            or resolved.suffix not in self.allowed_suffixes):
-            raise WorkerDenied('TARGET_OUTSIDE_WORKER_BOUNDS')
-        if is_write and resolved.suffix == '.json':
+        target=self.bounded_target(action.get('target',''))
+        if is_write and target.suffix == '.json':
             try:
                 json.loads(data)
             except (ValueError, UnicodeDecodeError) as exc:
