@@ -52,11 +52,12 @@ class AdapterCapability:
         if (type(self.version) is not int or self.version!=1
             or type(self.ci_only) is not bool
             or (self.ci_only is False and not allow_external) or
-            not self.adapter_id.startswith("trusted-adapter-") or
+            not isinstance(self.adapter_id,str) or not self.adapter_id.startswith("trusted-adapter-") or
             self.effect_class not in ("E3","E4","E5") or
-            not self.action_type or not self.target_prefix.startswith("/") or
-            not 0 < self.maximum_payload_bytes <= 512*1024 or
-            not self.isolated or not self.public_key_b64):
+            not isinstance(self.action_type,str) or not self.action_type or
+            not isinstance(self.target_prefix,str) or not self.target_prefix.startswith("/") or
+            type(self.maximum_payload_bytes) is not int or not 0 < self.maximum_payload_bytes <= 512*1024 or
+            self.isolated is not True or not isinstance(self.public_key_b64,str) or not self.public_key_b64):
             raise AdmissionDenied("HIGH_EFFECT_ADAPTER_NOT_PROVISIONED")
         try:
             raw=base64.b64decode(self.public_key_b64,validate=True)
