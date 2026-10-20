@@ -33,3 +33,29 @@ def test_invalid_catalog_fails_closed(monkeypatch):
     data = CLIENT.get("/v1/agent/capabilities", headers=HEAD).json()
     assert data["catalog_valid"] is False
     assert len(data["capabilities"]) == 2
+
+
+def test_registered_external_adapter_discovered_but_not_self_admitted(monkeypatch):
+    import base64
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    private=Ed25519PrivateKey.generate()
+    public=base64.b64encode(private.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
+    cap={"adapter_id":"trusted-adapter-independent-test","action_type":"scan_contract",
+         "effect_class":"E3","target_prefix":"/isolated/contracts/",
+         "maximum_payload_bytes":4096,"isolated":True,
+         "public_key_b64":public,"version":1,"ci_only":False}
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",False)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([cap]))
+    monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
+    monkeypatch.setattr(gw,"ADMISSION_MODE","enabled")
+    data=CLIENT.get("/v1/agent/capabilities",headers=HEAD).json()
+    found=[r for r in data["capabilities"] if r["adapter_id"]==cap["adapter_id"]]
+    assert len(found)==1
+    assert found[0]["action_type"]=="scan_contract"
+    assert found[0]["effect_class"]=="E3"
+    assert found[0]["status"]=="EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"
+    assert not data["admission_is_execution"]
+    monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","disabled")
+    inactive=CLIENT.get("/v1/agent/capabilities",headers=HEAD).json()
+    assert not [r for r in inactive["capabilities"] if r["adapter_id"]==cap["adapter_id"]]
