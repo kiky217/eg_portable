@@ -14,7 +14,8 @@ def pub(key):
     return base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
 
 @pytest.mark.parametrize("age_seconds",[0,900])
-def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path,age_seconds):
+@pytest.mark.parametrize("status",["IN_PROGRESS","RECOVERY_PENDING"])
+def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path,age_seconds,status):
     private=Ed25519PrivateKey.generate();human=Ed25519PrivateKey.generate()
     content=b"bounded process input"
     action={"action_type":"bounded_process_run","effect_class":"E3",
@@ -52,7 +53,7 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path,age_seconds):
           "action_fingerprint":fp,
           "high_effect_pin":{"adapter_id":adapter_id,"public_key_b64":pub(private),
                              "action_fingerprint":fp,"approval_nonce":nonce}}
-    state={"status":"IN_PROGRESS","current_step":step,
+    state={"status":status,"current_step":step,
            "pending_execution_gate":gate,
            "latest_checkpoint":{"checkpoint_no":cp,"verdict":"READY_TO_EXECUTE"}}
     detail={"task":{"contract_status":"OPEN"},
@@ -65,7 +66,14 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path,age_seconds):
             eg_key="test",hitl_public_key_b64=pub(human))
     assert result["status"]=="RECOVERED_POST_REQUIRED"
     assert result["receipt"]==receipt
-    if age_seconds:
+    if status=="RECOVERY_PENDING":
+        denied_execute={**packet,"operation":"execute",
+            "data_b64":base64.b64encode(content).decode()}
+        with pytest.raises(rpc.TrustedRpcDenied,match="CANONICAL_PRE_NOT_READY"):
+            rpc.dispatch_once(denied_execute,adapter=Adapter(),
+                eg_url="http://127.0.0.1",eg_key="test",
+                hitl_public_key_b64=pub(human))
+    if age_seconds and status=="IN_PROGRESS":
         expired_execute={**packet,"operation":"execute",
             "data_b64":base64.b64encode(content).decode()}
         with pytest.raises(rpc.TrustedRpcDenied,match="PRE_LEASE_INVALID"):
