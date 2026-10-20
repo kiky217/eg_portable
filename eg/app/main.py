@@ -1459,6 +1459,46 @@ def agent_capabilities():
             "note": "Configured capabilities are not live independently verified worker grants."}
 
 
+@app.get("/v1/agent/capability-match", dependencies=[Depends(require_key)])
+def agent_capability_match(effect_class: str, action_type: str, target: str):
+    """Read-only typed/scope matching. Never grants capability or PRE."""
+    if (effect_class not in ("E0","E1","E2","E3","E4","E5")
+        or not action_type or len(action_type)>128
+        or not target.startswith("/") or len(target)>1024):
+        raise HTTPException(422, {"code":"INVALID_CAPABILITY_QUERY"})
+    if ADMISSION_MODE != "enabled":
+        return {"status":"ADMISSION_DISABLED","admission":False,"candidates":[]}
+    matches=[]
+    for cap in configured_high_effect_capabilities(
+        allow_external=EXTERNAL_ADAPTER_MODE=="enabled"):
+        if (cap.effect_class==effect_class and cap.action_type==action_type
+            and target_within_scope(target,cap.target_prefix)):
+            matches.append({"adapter_id":cap.adapter_id,"version":cap.version,
+                "status":("LIVE_PRE_ATTESTATION_REQUIRED" if
+                    EXTERNAL_ADAPTER_MODE=="enabled" and not cap.ci_only
+                    else "CI_ONLY_NOT_PRODUCTION" if cap.ci_only
+                    else "UNPROVISIONED"),"maximum_payload_bytes":cap.maximum_payload_bytes})
+    if effect_class in ("E0","E2"):
+        try:
+            candidate=Action(action_type=action_type,target=target,effect_class=effect_class,
+                             reversible=(effect_class=="E2"),real_world_effect=False,
+                             payload_sha256=("0"*64 if effect_class=="E2" else None),
+                             payload_bytes=(1 if effect_class=="E2" else None))
+            supported,_=worker_capability(candidate)
+            if supported:
+                matches.append({"adapter_id":"builtin.worker","version":1,
+                                "status":"LIVE_PRE_REQUIRED"})
+        except (ValueError,TypeError):
+            pass
+    status=("MATCHED_PRE_REQUIRED" if any(
+        row["status"] in ("LIVE_PRE_ATTESTATION_REQUIRED","LIVE_PRE_REQUIRED") for row in matches)
+        else "CAPABILITY_UNPROVISIONED")
+    return {"status":status,"admission":False,"candidates":matches,
+            "next_action":("OBTAIN_CANONICAL_PRE" if status=="MATCHED_PRE_REQUIRED"
+                           else "ONBOARD_INDEPENDENT_TRUSTED_ADAPTER"),
+            "note":"Matching is not execution authorization."}
+
+
 def _registered_protocol_hash(c: sqlite3.Connection, task_id: str) -> str | None:
     """Only the original authenticated registration can authorize an old hash."""
     row = c.execute(
