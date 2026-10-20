@@ -39,9 +39,10 @@ def test_sealed_recovery_never_reexecutes(monkeypatch,tmp_path):
                       action["target"],b"physical output",nonce),private)
     ledger.seal_receipt(nonce,receipt,**scope)
     class Adapter:
-        private=private
-        adapter_id=adapter_id
-        ledger=ledger
+        def __init__(self):
+            self.private=private
+            self.adapter_id=adapter_id
+            self.ledger=ledger
         def execute(self,**kwargs):
             raise AssertionError("recovery invoked physical effect again")
     gate={"task_id":task,"step_key":step,"checkpoint_no":cp,
