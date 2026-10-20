@@ -109,7 +109,7 @@ PRE can advertise executable readiness.
     validate the receipt/proof against that **original** PRE signer, never
     a rotated mutable registry or the global E0/E2 worker key.
 39. E3-E5 disposable sandbox adapters and `dispatch_disposable_ci` are
-    **repository CI-only**. No production high-effect transport is currently
+    **repository CI-only**. No bundled production high-effect worker is
     provisioned by this portable distribution. A JSON registry, boolean
     `isolated=true` and signed HITL alone MUST NOT advertise online/live
     execution or grant real-world READY. Admission remains fail-closed pending
@@ -137,7 +137,7 @@ verifies a domain-separated Ed25519 response against the configured key.
 Wrong key, stale response, different nonce/scope and offline process fail closed.
 This attests **current key possession only**, not OS isolation, transport
 authorization, physical execution, EG READY or production cutover.
-Production E3–E5 dispatch remains unprovisioned until independent worker
+Production E3–E5 dispatch is opt-in and requires independently provisioned worker
 admission, auditable effect journal and live promotion are separately proven.
 
 ## Issue #26: deployable read-only attester (v3.1.49)
