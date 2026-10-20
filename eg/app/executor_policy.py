@@ -45,10 +45,12 @@ def parse_subdir_depth(value=None) -> int:
 def scoped_parts(root, target, max_depth: int) -> tuple[str, ...]:
     """Lexical policy, never authority to traverse a filesystem symlink."""
     from pathlib import Path
+    raw = str(target)
+    if any(part in ("", ".", "..") for part in raw.split("/")[1:]):
+        raise ValueError("TARGET_OUTSIDE_PROVISIONED_BOUNDS")
     root = Path(root)
     target = Path(target)
-    if (not root.is_absolute() or not target.is_absolute() or
-        any(part in ("", ".", "..") for part in str(target).split("/")[1:])):
+    if (not root.is_absolute() or not target.is_absolute()):
         raise ValueError("TARGET_OUTSIDE_PROVISIONED_BOUNDS")
     try:
         parts = target.relative_to(root).parts
