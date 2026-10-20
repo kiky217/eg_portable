@@ -25,3 +25,35 @@ def parse_suffixes(value=None) -> tuple[str, ...]:
     ) or len(set(seq)) != len(seq):
         raise ValueError("INVALID_EXECUTOR_SUFFIX_POLICY")
     return tuple(seq)
+
+
+def parse_subdir_depth(value=None) -> int:
+    """Operator opt-in: number of existing private directories below output_root."""
+    if value is None or value == "":
+        return 0
+    if type(value) is int:
+        depth = value
+    elif isinstance(value, str) and value.isascii() and value.isdecimal():
+        depth = int(value)
+    else:
+        raise ValueError("INVALID_EXECUTOR_SUBDIR_DEPTH")
+    if not 0 <= depth <= 4:
+        raise ValueError("INVALID_EXECUTOR_SUBDIR_DEPTH")
+    return depth
+
+
+def scoped_parts(root, target, max_depth: int) -> tuple[str, ...]:
+    """Lexical policy, never authority to traverse a filesystem symlink."""
+    from pathlib import Path
+    root = Path(root)
+    target = Path(target)
+    if (not root.is_absolute() or not target.is_absolute() or
+        any(part in ("", ".", "..") for part in str(target).split("/")[1:])):
+        raise ValueError("TARGET_OUTSIDE_PROVISIONED_BOUNDS")
+    try:
+        parts = target.relative_to(root).parts
+    except ValueError as exc:
+        raise ValueError("TARGET_OUTSIDE_PROVISIONED_BOUNDS") from exc
+    if not parts or len(parts) - 1 > max_depth:
+        raise ValueError("TARGET_OUTSIDE_PROVISIONED_BOUNDS")
+    return parts
