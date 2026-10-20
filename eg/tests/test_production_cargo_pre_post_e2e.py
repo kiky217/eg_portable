@@ -1,5 +1,5 @@
 """Sandbox E3 canonical roundtrip: actual Cargo fmt, independent signed receipt, EG POST."""
-import base64,hashlib,json,os,subprocess,sys,tempfile,time
+import base64,hashlib,json,os,subprocess,sys,tempfile,time,threading
 from pathlib import Path
 from dataclasses import asdict
 from unittest.mock import patch
@@ -10,6 +10,8 @@ from harness import raw_eval,claim,step_ref
 from tools.high_effect_admission import AdapterCapability,action_fingerprint
 from tools.signed_hitl_approval import canonical
 from tools.production_cargo_worker import CargoWorker
+from tools.production_cargo_rpc import Server
+from tools.production_cargo_dispatch import dispatch
 from test_high_effect_gateway_integration import high_pre_ref,high_pre_claim,HIGH_PRE
 from app import main as gw
 def cargo_fixture(directory):
@@ -84,8 +86,23 @@ def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
    worker=CargoWorker(root=ROOT,journal=journal,private=worker_key,adapter_id=adapter,
      hitl_public_key=pub(owner),fetch_state=lambda t:get_task(t,"/state"),
      fetch_detail=lambda t:get_task(t,""))
-   with patch.dict(os.environ,toolchain_env(build)):
-    receipt=worker.execute(task_id=task,step_key="01.01",action=action,approval=approval)
+   effect_sock=directory/"effect.sock"
+   config={"socket":str(effect_sock)}
+   with patch("tools.production_cargo_rpc.configure",return_value=worker):
+    with Server(config) as effect_server:
+     effect_thread=threading.Thread(target=effect_server.serve_forever,daemon=True)
+     effect_thread.start()
+     try:
+      ready=get_task(task,"/state")["pending_execution_gate"]
+      with patch.dict(os.environ,toolchain_env(build)):
+       result=dispatch(socket_path=str(effect_sock),task_id=task,step_key="01.01",
+           action=action,approval=approval,ready_gate=ready,
+           executor_public_key_b64=pub(worker_key))
+      assert result["status"]=="SIGNED_RECEIPT_VERIFIED_POST_REQUIRED"
+      receipt=result["receipt"]
+     finally:
+      effect_server.shutdown()
+      effect_thread.join(timeout=3)
    post_ref=step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"],step="01.01")
    post=raw_eval(task,ch,pre.json()["checkpoint_no"],step="01.01",
         claims=[claim(post_ref)],phase="POST_EXECUTION",action=action,execution_receipt=receipt)
