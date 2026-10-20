@@ -35,3 +35,9 @@ def test_mismatch_denied(different):
 def test_bad_metadata_fail_closed(bad):
     with pytest.raises(TypedCapabilityDenied):
         validate_typed_descriptor({**CAP,**bad})
+
+@pytest.mark.parametrize("field",["effect_class","transport"])
+@pytest.mark.parametrize("value",[[],{},None,42])
+def test_unhashable_or_non_string_descriptor_denied(field,value):
+    with pytest.raises(TypedCapabilityDenied,match="INVALID_CAPABILITY_CONSTRAINTS"):
+        validate_typed_descriptor({**CAP,field:value})
