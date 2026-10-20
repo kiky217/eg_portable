@@ -49,7 +49,7 @@ change outside this repository.
   root, action fingerprint and signed approval nonce for POST/reconciliation.
 - `GET /v1/protocol` distinguishes executable E0/E2 capabilities from a
   high-effect *diagnostic* catalog marked UNPROVISIONED (or CI_ONLY in tests).
-- No production E3–E5 dispatch until a separately protected RPC transport,
+- Production E3–E5 dispatch requires an explicitly provisioned and separately protected RPC transport,
   worker attestation/liveness and independently verified trust model exist.
 - Historical accepted task contracts and their hashes remain immutable;
   signed task audit and NO_EFFECT recovery must never be rewritten.
