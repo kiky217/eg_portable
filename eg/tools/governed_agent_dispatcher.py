@@ -182,7 +182,7 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
     if effect in ("E3","E4","E5"):
         if external_worker_socket is not None:
             if (ci_only or disposable_adapter is not None or
-                operation not in ("execute","compensate","no_effect") or
+                operation not in ("execute","compensate","no_effect","recover_receipt") or
                 not hitl_approval or not hitl_public_key_b64 or
                 not external_adapter_id or not external_public_key_b64 or
                 external_worker_uid is None):
