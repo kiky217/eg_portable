@@ -37,3 +37,15 @@ def test_malformed_and_ci_only_fail_closed():
     assert inspect_onboarding({"adapter_id":"oops"},**base)["status"]=="INVALID_ADAPTER_DESCRIPTOR"
     result=inspect_onboarding({**record(k[3]),"ci_only":True},**base)
     assert "CI_FIXTURE_NOT_PRODUCTION" in result["missing"]
+
+def test_malformed_descriptor_types_fail_closed_without_crash():
+    k=[key() for _ in range(4)]
+    opts=dict(gateway_uid=10001,worker_uid=10002,notary_key=k[0],
+              executor_key=k[1],hitl_key=k[2])
+    for field,bad in (("adapter_id",None),("action_type",42),
+                      ("target_prefix",None),("maximum_payload_bytes","1024"),
+                      ("maximum_payload_bytes",True),("isolated","true"),
+                      ("public_key_b64",42)):
+        result=inspect_onboarding({**record(k[3]),field:bad},**opts)
+        assert result["status"]=="INVALID_ADAPTER_DESCRIPTOR",field
+        assert result["admission"] is False
