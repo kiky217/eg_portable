@@ -17,6 +17,9 @@ Apply to **every** task governed by Evaluation Gateway. Read this file before at
 - Editing Rust/source files, running cargo/tests or arbitrary shell commands, controlling services, Git commit/push and E3–E5 effects are NOT implemented by that production dispatcher. CI-only sandbox adapters are not deployable production capabilities.
 - Before claiming, match exact desired action, effect class, target, adapter identity and testable result to a live, independently trusted adapter. If missing, report `CAPABILITY_UNAVAILABLE` and specify required adapter contract. Do not use direct shell, CI fixture, a dummy key, fabricated receipt, or HITL as a substitute.
 
+## Portable capability model
+EG must not hardcode Rust, Git, Docker or any programming toolchain as universal requirements. Discover **registered runtime capabilities** from the target deployment. Match typed action, effect class, scope, constraints, attested executor identity and evidence/receipt contract. Prefer an already-authorized native tool or adapter; agents may propose or install a new adapter only through the operator-approved onboarding and trust process. A self-declared capability is never automatically admitted. The bundled E0/E2 worker is a baseline, **not an upper bound of EG's extensible architecture**. The local readiness script reports only bundled-worker compatibility, not what an external deployment may provide.
+
 ## PRE → execute once → POST
 1. Confirm immutable task criteria, dependencies, resource lease, and actual latest checkpoint.
 2. Obtain actionable, unexpired READY PRE for the exact action fingerprint/payload, after satisfying admission and independent worker prerequisites.

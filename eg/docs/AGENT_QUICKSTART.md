@@ -28,6 +28,9 @@ This command **does not perform network calls, mutate state, print secrets, or a
 
 Break a real goal into registered steps only if each physical operation has an independently approved transport. Running `cargo build`, Rust source modifications, Git push, shell and service control are **not** a generic E2 write via the built-in worker. Implement and independently audit typed adapters with bounded permissions, action fingerprints, pre-execution scope, journal/idempotency, signed receipts and POST verification. Until provisioned, surface a precise missing-adapter diagnostic. Do not silently downgrade to a logical step, escape to host-root shell, or use disposable CI adapters in production.
 
+## Portable execution architecture
+EG is a portable governance/evidence engine; execution capabilities belong to independently governed adapters supplied by the target environment. The agent discovers available typed operations, matches action requirements and effect class, and chooses a trusted transport. Rust, Git, build systems and service APIs are examples, **not** capability names that EG should hardcode. Built-in E0/E2 behavior is a packaged baseline, not a universal ceiling. Missing operations require approved capability onboarding with scoped permissions, attestation, durable receipts, readback, and rollback as appropriate; no untrusted self-registration grants permission. The local static preflight evaluates only this package's bundled worker and cannot conclude that all external adapters are unavailable.
+
 ## Agent lifecycle
 
 Read latest task and checkpoint → classify effect and capability → confirm live admission and independent worker → PRE → execute once → read back + signed receipt → POST → VERIFIED → next step.
