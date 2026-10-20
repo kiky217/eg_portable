@@ -88,11 +88,15 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     cp=gate["checkpoint_no"]
     row=next((c for c in detail.get("checkpoints",[]) if c.get("checkpoint_no")==cp),None)
     if (not row or row.get("verdict")!="READY_TO_EXECUTE" or
-        not gate_allows_new_effect(row.get("created_at",""))):
+        (operation!="recover_receipt" and
+         not gate_allows_new_effect(row.get("created_at","")))):
         raise ExternalDispatchDenied("ORIGINAL_PRE_GATE_INVALID")
+    # A sealed receipt is historical evidence, not authority for a new effect.
+    approval_time=(request["approval"].get("issued_at")
+                   if operation=="recover_receipt" else None)
     verify_approval(request["approval"],hitl_public_key_b64,
                     task_id=task,step_key=step,gate_checkpoint_no=cp,
-                    action_fingerprint=fp,adapter_id=adapter_id)
+                    action_fingerprint=fp,adapter_id=adapter_id,now=approval_time)
     req={**request,"operation":operation}
     packet=json.dumps(req,sort_keys=True,separators=(",",":")).encode()+b"\n"
     if len(packet)>1_000_000:
@@ -131,7 +135,8 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     valid,reason=verify_receipt(receipt,public_b64=pinned_public_key_b64,
         task_id=task,step_key=step,gate_checkpoint_no=cp,
         action_fingerprint=fp,target=action["target"],gate_created_at=row["created_at"])
-    if not valid or receipt.get("executor_id")!="trusted-worker-"+adapter_id:
+    if (not valid or receipt.get("nonce")!=request["approval"]["nonce"] or
+        receipt.get("executor_id")!="trusted-worker-"+adapter_id):
         raise ExternalDispatchDenied("INDEPENDENT_RECEIPT_INVALID:"+reason)
     return {"status":"RECEIPT_VERIFIED_POST_REQUIRED",
             "execution_receipt":receipt,"gate_checkpoint_no":cp}
