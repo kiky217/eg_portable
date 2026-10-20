@@ -46,6 +46,10 @@ EG also cannot prevent commands issued entirely outside its trusted execution bo
 
 See [architecture and security boundaries](eg/docs/UNIFIED_ARCHITECTURE.md) and [production readiness](eg/docs/PRODUCTION_PROMOTION.md).
 
+## Agent onboarding and local readiness
+
+Agents should start with [SKILL.md](SKILL.md), then the [operational quickstart](eg/docs/AGENT_QUICKSTART.md). Before claiming any physical step, run the read-only [agent readiness preflight](eg/tools/agent_readiness.py) and separately verify the live instance's authenticated state and executor. This prevents treating a production release, healthy API, or a configured public key as proof of authorized real-world execution. The preflight does not enable admission or create unsupported adapters.
+
 ## Getting started
 
 The source lives in [`eg/`](eg/). For installation, dependencies, credentials, and safe deployment, follow the [portable runbook](eg/docs/PORTABLE_RUNBOOK.md).
