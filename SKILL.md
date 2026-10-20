@@ -17,7 +17,7 @@ Call authenticated `GET /v1/agent/capabilities` on the **actual** EG instance be
 ## Select capability before claiming a step
 - Distinguish logical evaluation from an actual physical effect; never relabel the immutable task contract.
 - Current built-in production worker only handles narrow E0 reads and E2 **creation** of .txt/valid .json within protected output_root (<= 512 KiB).
-- Editing Rust/source files, running cargo/tests or arbitrary shell commands, controlling services, Git commit/push and E3–E5 effects are NOT implemented by that production dispatcher. CI-only sandbox adapters are not deployable production capabilities.
+- The bundled worker cannot execute cargo/tests, shell, service control, Git push or E3–E5. These operations require independently provisioned typed external adapters and per-action PRE/HITL/POST. CI-only sandbox adapters are not deployable production capabilities.
 - Before claiming, match exact desired action, effect class, target, adapter identity and testable result to a live, independently trusted adapter. If missing, report `CAPABILITY_UNAVAILABLE` and specify required adapter contract. Do not use direct shell, CI fixture, a dummy key, fabricated receipt, or HITL as a substitute.
 
 ## Portable capability model
