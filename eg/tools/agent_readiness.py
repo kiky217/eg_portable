@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 
-from tools.capability_catalog import parse_catalog, lookup, CatalogError
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from capability_catalog import parse_catalog, lookup, CatalogError
 
 BUILTIN = {"E0": {"read"}, "E2": {"write"}}
 ENV_MODE = "EVALUATION_GATEWAY_ADMISSION_MODE"
