@@ -14,14 +14,24 @@ from tools.durable_hitl_ledger import ApprovalLedger
 from tools.high_effect_admission import action_fingerprint
 from tools.signed_hitl_approval import verify_approval
 from app.execution_receipts import body,sign
+from tools.typed_payload_contract import validate_document,TypedPayloadDenied
 
 class GitHubWorkerDenied(RuntimeError):pass
 
 class TrustedGitHubEffect:
     def __init__(self,*,journal_dir,private_key,adapter_id,hitl_public_key_b64,
-                 policy,github_token,readback=verify_commit_content,write=contents_put):
+                 policy,github_token,readback=verify_commit_content,write=contents_put,
+                 input_schema=None,input_schema_sha256=None,
+                 output_schema=None,output_schema_sha256=None):
         if not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-"):
             raise GitHubWorkerDenied("INVALID_ADAPTER_ID")
+        if ((input_schema is None)!=(input_schema_sha256 is None)
+            or (output_schema is None)!=(output_schema_sha256 is None)):
+            raise GitHubWorkerDenied("UNPINNED_OPERATOR_SCHEMA")
+        self.input_schema=input_schema
+        self.input_schema_sha256=input_schema_sha256
+        self.output_schema=output_schema
+        self.output_schema_sha256=output_schema_sha256
         self.ledger=ApprovalLedger(journal_dir)
         self.private=private_key
         self.adapter_id=adapter_id
@@ -49,6 +59,12 @@ class TrustedGitHubEffect:
             or action.get("payload_sha256")!=hashlib.sha256(effective_wire).hexdigest()
             or action.get("payload_bytes")!=len(effective_wire)):
             raise GitHubWorkerDenied("GITHUB_EFFECT_PAYLOAD_NOT_BOUND")
+        if self.input_schema is not None:
+            try:
+                validate_document(self.input_schema,effective_wire,
+                    expected_schema_sha256=self.input_schema_sha256,max_bytes=524288)
+            except (TypedPayloadDenied,ValueError) as exc:
+                raise GitHubWorkerDenied("INPUT_SCHEMA_DENIED_NO_EFFECT") from exc
         fp=action_fingerprint(action)
         if (not isinstance(gate,dict) or gate.get("task_id")!=task_id
             or gate.get("step_key")!=step_key or gate.get("verdict")!="READY_TO_EXECUTE"
@@ -90,6 +106,14 @@ class TrustedGitHubEffect:
         output=json.dumps({"commit_sha":ack["commit_sha"],"blob_sha":ack["blob_sha"],
                            "content_sha256":proof["blob_sha256"]},
                            sort_keys=True,separators=(",",":")).encode()
+        if self.output_schema is not None:
+            try:
+                validate_document(self.output_schema,output,
+                    expected_schema_sha256=self.output_schema_sha256,max_bytes=524288)
+            except (TypedPayloadDenied,ValueError) as exc:
+                # Remote effect may already have committed. Never sign an invalid
+                # result or replay the original once-only HITL grant.
+                raise GitHubWorkerDenied("OUTPUT_SCHEMA_DENIED_UNKNOWN_NO_REPLAY") from exc
         receipt=sign(body(task_id,step_key,cp,fp,"trusted-worker-"+self.adapter_id,
                           action["target"],output,nonce,
                           completed_ns=max(time.time_ns(),int(epoch*1e9))),self.private)
