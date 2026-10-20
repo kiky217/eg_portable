@@ -16,14 +16,13 @@ def test_unexpected_recovery_operation_denied_without_network(monkeypatch):
             adapter_id="trusted-adapter-test",pinned_public_key_b64="pub",
             hitl_public_key_b64="pub",operation="arbitrary")
 
-def test_e5_cannot_compensate():
-    # Production irreversible E5 cannot be relabeled as compensable.
-    import inspect
-    from tools.governed_agent_dispatcher import dispatch_action, DispatchDenied
-    with pytest.raises(DispatchDenied,match="INVALID_EXTERNAL_EXECUTOR_CONFIGURATION"):
-        dispatch_action({"task_id":"x","step_key":"01.01","action":{"effect_class":"E5"},
-                          "data_b64":""},eg_url="https://eg.invalid",api_key="s",
-            executor_public_key_b64="s",external_worker_socket="/tmp/s",
-            external_worker_uid=12,external_adapter_id="trusted-adapter-x",
-            external_public_key_b64="x",hitl_public_key_b64="pub",
-            hitl_approval={},operation="compensate")
+def test_e5_cannot_compensate(monkeypatch):
+    monkeypatch.setattr(ext,"_get",lambda *_:pytest.fail("network attempted"))
+    with pytest.raises(ext.ExternalDispatchDenied,match="EFFECT_PAYLOAD_NOT_BOUND"):
+        ext.dispatch(request={"task_id":"t","step_key":"01.01",
+            "action":{"effect_class":"E5","reversible":False,"target":"/private/lock"},
+            "approval":{"nonce":"n"},"data_b64":""},
+            eg_url="https://eg.invalid",api_key="secret",worker_socket="/tmp/s",
+            expected_worker_uid=os.getuid()+1,adapter_id="trusted-adapter-test",
+            pinned_public_key_b64="pub",hitl_public_key_b64="pub",
+            operation="compensate")
