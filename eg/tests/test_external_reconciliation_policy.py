@@ -11,7 +11,7 @@ from app.no_effect_receipts import sign_no_effect
 def test_unexpected_recovery_operation_denied_without_network(monkeypatch):
     monkeypatch.setattr(ext,"_get",lambda *_:pytest.fail("network attempted"))
     with pytest.raises(ext.ExternalDispatchDenied,match="UNSUPPORTED_EXTERNAL_RECOVERY_OPERATION"):
-        ext.dispatch(request={},eg_url="https://eg.invalid",api_key="secret",
+        ext.dispatch(request={"task_id":"t","step_key":"01.01","action":{"effect_class":"E3"},"approval":{},"data_b64":""},eg_url="https://eg.invalid",api_key="secret",
             worker_socket="/tmp/x",expected_worker_uid=12345,
             adapter_id="trusted-adapter-test",pinned_public_key_b64="pub",
             hitl_public_key_b64="pub",operation="arbitrary")
