@@ -26,7 +26,8 @@ import tools.disposable_rpc_worker as rpc
 pytestmark = pytest.mark.skipif(os.getuid()!=0, reason="Privileged isolated cross-UID CI only")
 
 
-@pytest.mark.parametrize("operation", ["execute", "no_effect"])\ndef test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation):
+@pytest.mark.parametrize("operation", ["execute", "no_effect"])
+def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation):
     worker_uid=65534
     shared=Path(tempfile.mkdtemp(prefix="eg-uid-",dir="/tmp"))
     shared.chmod(0o755)
