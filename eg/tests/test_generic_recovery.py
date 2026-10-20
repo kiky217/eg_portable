@@ -11,6 +11,9 @@ GATE={"task_id":"task-1","step_key":"01.01","gate_checkpoint_no":4,
     ("SEALED_RECEIPT",True,False,"CLAIMED_UNKNOWN"),
     ("SEALED_RECEIPT",True,True,"VERIFIED_EFFECT"),
     ("RETIRED_NO_EFFECT",False,False,"SIGNED_NO_EFFECT"),
+    ("COMPENSATED",True,True,"COMPENSATED"),
+    ("COMPENSATED",False,False,"CLAIMED_UNKNOWN"),
+    ("MANUAL_REVIEW",False,False,"MANUAL_REVIEW"),
 ])
 def test_recovery_classification_never_grants_replay(journal,receipt,effect,expected):
     report=classify_recovery(gate=GATE,journal=journal,receipt_valid=receipt,
