@@ -97,7 +97,7 @@ def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
       with patch.dict(os.environ,toolchain_env(build)):
        result=dispatch(socket_path=str(effect_sock),task_id=task,step_key="01.01",
            action=action,approval=approval,ready_gate=ready,
-           executor_public_key_b64=pub(worker_key))
+           executor_public_key_b64=pub(worker_key),expected_worker_uid=os.getuid())
       assert result["status"]=="SIGNED_RECEIPT_VERIFIED_POST_REQUIRED"
       receipt=result["receipt"]
      finally:
