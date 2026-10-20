@@ -19,6 +19,8 @@ from test_high_effect_gateway_integration import pub, signed, register_high_effe
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from tools.adapter_liveness import canon, attest
 from tools.high_effect_admission import AdapterCapability
+from tools.operator_runtime_registry import OperatorAdapterRegistry
+from tools.operator_adapter_binding import canonical as operator_canonical
 from tools.disposable_effect_adapter import DisposableAdapter
 from tools.governed_agent_dispatcher import dispatch_action
 import tools.disposable_rpc_worker as rpc
@@ -38,6 +40,7 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation,effect
     journal=shared/"journal";journal.mkdir(mode=0o700)
     os.chown(root,worker_uid,worker_uid);os.chown(journal,worker_uid,worker_uid)
     workerkey=Ed25519PrivateKey.generate();human=Ed25519PrivateKey.generate()
+    operator=Ed25519PrivateKey.generate()
     task,ch=register_high_effect()
     adapter_id=f"trusted-adapter-external-uid-{effect.lower()}-test"
     payload=b'{"scanner":"pass"}'
@@ -70,7 +73,7 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation,effect
             adapter=DisposableAdapter(root,journal,workerkey,adapter_id,effect)
             with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as listener:
                 listener.bind(sockpath);listener.listen(5)
-                for _ in range(2):
+                for _ in range(3):
                     with listener.accept()[0] as peer:
                         with peer.makefile("rb") as inp:
                             request=json.loads(inp.readline())
@@ -94,8 +97,26 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation,effect
         assert Path(sockpath).exists()
         monkeypatch.setattr(H.gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",False)
         monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_MODE","enabled")
-        monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_UID",worker_uid)
-        monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_SOCKET",sockpath)
+        registry_dir=shared/"operator";registry_dir.mkdir(mode=0o700)
+        now=int(time.time())
+        signed_binding={"version":1,"adapter_id":adapter_id,"capability_sha256":capsha,
+                        "worker_uid":worker_uid,"socket_path":sockpath,
+                        "worker_public_key_b64":pub(workerkey),
+                        "issued_at":now-1,"expires_at":now+120,
+                        "environment":"crossuid-ci",
+                        "operator_nonce":"signed-operator-"+adapter_id}
+        signed_binding["signature_b64"]=base64.b64encode(
+            operator.sign(operator_canonical(signed_binding))).decode()
+        registry=OperatorAdapterRegistry(registry_dir,pub(operator))
+        activation=registry.activate(signed_binding,adapter_id=adapter_id,
+                                     capability_sha256=capsha)
+        assert activation["status"]=="ACTIVE_CONFIG_ONLY"
+        monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_UID",-1)
+        monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_SOCKET","")
+        monkeypatch.setattr(H.gw,"EXTERNAL_REGISTRY_DIR",str(registry_dir))
+        monkeypatch.setattr(H.gw,"EXTERNAL_REGISTRY_KEY",pub(operator))
+        monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(registry_dir))
+        monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",pub(operator))
         monkeypatch.setattr(H.gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([asdict(cap)]))
         monkeypatch.setattr(H.gw,"HITL_PUBLIC_KEY_B64",pub(human))
         monkeypatch.setattr(H.gw,"ADMISSION_MODE","enabled")
@@ -107,8 +128,7 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation,effect
             request={"task_id":task,"step_key":"01.01","action":action,
                      "data_b64":base64.b64encode(payload).decode() if operation=="execute" else ""},
             eg_url=url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
-            external_worker_socket=sockpath,external_worker_uid=worker_uid,
-            external_adapter_id=adapter_id,external_public_key_b64=pub(workerkey),
+            external_adapter_id=adapter_id,
             hitl_public_key_b64=pub(human),hitl_approval=approval,operation=operation)
         if operation=="no_effect":
             assert result["status"]=="SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED"
