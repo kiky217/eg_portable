@@ -9,7 +9,7 @@ import re
 _REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 _REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 _SHA = re.compile(r"^[a-f0-9]{40}$")
-_ACTIONS = frozenset({"update_file","create_file","create_pull_request"})
+_ACTIONS = frozenset({"update_file","create_file"})
 
 class GitHubScopeDenied(ValueError):
     pass
