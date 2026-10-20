@@ -23,3 +23,8 @@ def test_new_files_must_not_claim_prior_hash():
     assert validate_operation(create,POL)["operation"]=="create_file"
     with pytest.raises(GitHubScopeDenied):
         validate_operation({**create,"expected_blob_sha":"a"*40},POL)
+
+@pytest.mark.parametrize("bad",[[["create_file"]],[42],["create_file",{}],["create_file",None]])
+def test_malformed_allowlist_denies_with_typed_scope_error(bad):
+    with pytest.raises(GitHubScopeDenied,match="INVALID_GITHUB_SCOPE_POLICY"):
+        validate_operation(REQ,{**POL,"actions":bad})
