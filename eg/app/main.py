@@ -1,5 +1,5 @@
 from __future__ import annotations
-from app.executor_policy import parse_suffixes
+from app.executor_policy import parse_suffixes, parse_subdir_depth, scoped_parts
 import base64, hashlib, hmac, json, logging, math, os, re, sqlite3, stat, threading, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -497,6 +497,7 @@ def require_config() -> None:
     if ADMISSION_MODE not in ("enabled", "disabled"):
         raise RuntimeError("invalid EG admission mode")
     parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))
+    parse_subdir_depth(os.getenv("EVALUATION_GATEWAY_EXECUTOR_MAX_SUBDIR_DEPTH"))
     if EXTERNAL_ADAPTER_MODE not in ("disabled", "enabled"):
         raise RuntimeError("invalid external executor mode")
     if EXTERNAL_ADAPTER_MODE == "enabled":
@@ -1578,10 +1579,13 @@ def worker_capability(action: Action) -> tuple[bool,str]:
         return False,"EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
     root=Path(EXECUTOR_OUTPUT_ROOT)
     target=Path(action.target)
-    if (not root.is_absolute() or not target.is_absolute()
-            or root.is_symlink()
-            or target.suffix not in parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))
-            or os.path.normpath(str(target.parent))!=os.path.normpath(str(root))):
+    try:
+        scoped_parts(root, target, parse_subdir_depth(
+            os.getenv("EVALUATION_GATEWAY_EXECUTOR_MAX_SUBDIR_DEPTH")))
+    except ValueError:
+        return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
+    if (root.is_symlink() or
+        target.suffix not in parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))):
         return False,"EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
     return True,"TRUSTED_WORKER_CAPABILITY_ADMITTED"
 
