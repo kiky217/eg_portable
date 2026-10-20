@@ -62,6 +62,10 @@ HIGH_EFFECT_CI_FIXTURE_ENABLED = False
 HIGH_EFFECT_REQUIRE_RPC_LIVENESS = False
 HIGH_EFFECT_RPC_SOCKET = ""
 HIGH_EFFECT_RPC_WORKER_UID = None
+# Optional external E3-E5 executor. CI-only adapter remains unreachable through env.
+EXTERNAL_ADAPTER_MODE = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE", "disabled")
+EXTERNAL_ADAPTER_SOCKET = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET", "")
+EXTERNAL_ADAPTER_UID = env_int("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID", -1, 0, 2**31-1)
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
@@ -493,6 +497,32 @@ def require_config() -> None:
     if ADMISSION_MODE not in ("enabled", "disabled"):
         raise RuntimeError("invalid EG admission mode")
     parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))
+    if EXTERNAL_ADAPTER_MODE not in ("disabled", "enabled"):
+        raise RuntimeError("invalid external executor mode")
+    if EXTERNAL_ADAPTER_MODE == "enabled":
+        if (ADMISSION_MODE != "enabled" or HIGH_EFFECT_CI_FIXTURE_ENABLED
+            or os.geteuid() == 0 or EXTERNAL_ADAPTER_UID <= 0
+            or EXTERNAL_ADAPTER_UID in (os.geteuid(), TRUSTED_UID) or
+            not EXTERNAL_ADAPTER_SOCKET or
+            not Path(EXTERNAL_ADAPTER_SOCKET).is_absolute() or
+            Path(EXTERNAL_ADAPTER_SOCKET).is_symlink()):
+            raise RuntimeError("UNSAFE_EXTERNAL_EXECUTOR_BOUNDARY")
+        entries = configured_high_effect_capabilities(allow_external=True)
+        if not entries or any(cap.ci_only for cap in entries):
+            raise RuntimeError("EXTERNAL_EXECUTOR_CAPABILITY_MISSING_OR_CI_ONLY")
+        if not HITL_PUBLIC_KEY_B64:
+            raise RuntimeError("EXTERNAL_EXECUTOR_HITL_SIGNER_MISSING")
+        try:
+            hitl_raw=base64.b64decode(HITL_PUBLIC_KEY_B64,validate=True)
+            if len(hitl_raw)!=32:
+                raise ValueError("invalid HITL public key")
+            Ed25519PublicKey.from_public_bytes(hitl_raw)
+        except (ValueError,TypeError) as exc:
+            raise RuntimeError("INVALID_EXTERNAL_EXECUTOR_HITL_TRUST") from exc
+        if (HITL_PUBLIC_KEY_B64 in (NOTARY_PUBLIC_KEY_B64, EXECUTOR_PUBLIC_KEY_B64)
+            or any(cap.public_key_b64 in (NOTARY_PUBLIC_KEY_B64,
+                    EXECUTOR_PUBLIC_KEY_B64,HITL_PUBLIC_KEY_B64) for cap in entries)):
+            raise RuntimeError("EXTERNAL_EXECUTOR_SIGNING_ROOTS_NOT_INDEPENDENT")
     if not os.getenv("EVALUATION_GATEWAY_DB_PATH") or not os.getenv("EVALUATION_GATEWAY_EVIDENCE_ROOT"):
         raise RuntimeError("external canonical DB/evidence configuration required")
     validate_secret("API key", API_KEY)
@@ -1450,7 +1480,7 @@ def _require_registered_protocol(
         raise HTTPException(428, {"code": "IMMUTABLE_TASK_PROTOCOL_MISMATCH"})
 
 
-def configured_high_effect_capabilities() -> list[AdapterCapability]:
+def configured_high_effect_capabilities(*, allow_external: bool = False) -> list[AdapterCapability]:
     """One typed registry; never equate configured records with live admission."""
     if not HIGH_EFFECT_CAPABILITIES_JSON:
         return []
@@ -1459,7 +1489,7 @@ def configured_high_effect_capabilities() -> list[AdapterCapability]:
         if not isinstance(entries,list) or len(entries)>16:
             return []
         caps=[AdapterCapability(**entry) for entry in entries]
-        for cap in caps: cap.validate()
+        for cap in caps: cap.validate(allow_external=allow_external)
         identifiers=[(cap.adapter_id,cap.action_type,cap.effect_class,cap.target_prefix) for cap in caps]
         if len(identifiers)!=len(set(identifiers)):
             return []
@@ -1472,19 +1502,27 @@ def high_effect_catalog() -> list[dict]:
     """Diagnostic metadata only, never advertise an online E3-E5 executor."""
     return [{"adapter_id":cap.adapter_id,"version":cap.version,"ci_only":cap.ci_only,
              "effect_class":cap.effect_class,
-             "action_type":cap.action_type,"availability":"CI_ONLY_NOT_PRODUCTION"
-             if HIGH_EFFECT_CI_FIXTURE_ENABLED else "UNPROVISIONED"}
-            for cap in configured_high_effect_capabilities()]
+             "action_type":cap.action_type,"availability":(
+                 "CI_ONLY_NOT_PRODUCTION" if cap.ci_only and HIGH_EFFECT_CI_FIXTURE_ENABLED
+                 else "EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED" if not cap.ci_only
+                     and EXTERNAL_ADAPTER_MODE=="enabled" else "UNPROVISIONED")}
+            for cap in configured_high_effect_capabilities(
+                allow_external=EXTERNAL_ADAPTER_MODE=="enabled")]
 
 
 def high_effect_capability(action: Action) -> AdapterCapability | None:
     # The sole repository adapter is in-process and CI-only. A production
     # provisioned transport must provide independent authenticated liveness
     # before this can be enabled for real external effects (see Issue #26).
-    if not HIGH_EFFECT_CI_FIXTURE_ENABLED or action.effect_class not in ("E3","E4","E5"):
+    if action.effect_class not in ("E3","E4","E5"):
         return None
-    matches=[cap for cap in configured_high_effect_capabilities()
-             if cap.action_type==action.action_type and cap.effect_class==action.effect_class
+    external = (not HIGH_EFFECT_CI_FIXTURE_ENABLED and
+                EXTERNAL_ADAPTER_MODE=="enabled" and ADMISSION_MODE=="enabled")
+    if not HIGH_EFFECT_CI_FIXTURE_ENABLED and not external:
+        return None
+    matches=[cap for cap in configured_high_effect_capabilities(allow_external=external)
+             if (cap.ci_only is not external)
+             and cap.action_type==action.action_type and cap.effect_class==action.effect_class
              and target_within_scope(action.target,cap.target_prefix)]
     return matches[0] if len(matches)==1 else None
 
@@ -1785,20 +1823,25 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                             "status":"APPROVED","consumed":False,"expires_at":signed.get("expires_at")}
                         admit_high_effect(action=req.action.model_dump(mode="json",exclude_none=True),capability=cap,
                             approval=legacy,signed_approval=signed,hitl_public_key_b64=HITL_PUBLIC_KEY_B64,
-                            task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1)
-                        if HIGH_EFFECT_REQUIRE_RPC_LIVENESS:
-                            if type(HIGH_EFFECT_RPC_WORKER_UID) is not int or HIGH_EFFECT_RPC_WORKER_UID<0:
+                            task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1,
+                            allow_external=cap.ci_only is False)
+                        if HIGH_EFFECT_REQUIRE_RPC_LIVENESS or cap.ci_only is False:
+                            worker_uid=(EXTERNAL_ADAPTER_UID if cap.ci_only is False
+                                        else HIGH_EFFECT_RPC_WORKER_UID)
+                            worker_socket=(EXTERNAL_ADAPTER_SOCKET if cap.ci_only is False
+                                           else HIGH_EFFECT_RPC_SOCKET)
+                            if type(worker_uid) is not int or worker_uid<0:
                                 raise AdmissionDenied("HIGH_EFFECT_WORKER_UID_NOT_PINNED")
                             fingerprint=hashlib.sha256(json.dumps(asdict(cap),
                                 sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
                             try:
-                                high_effect_liveness=probe_unix(HIGH_EFFECT_RPC_SOCKET,adapter_id=cap.adapter_id,
+                                high_effect_liveness=probe_unix(worker_socket,adapter_id=cap.adapter_id,
                                            capability_sha256=fingerprint,
                                            public_key_b64=cap.public_key_b64,
                                            task_id=req.task_id,step_key=expected,
                                            gate_checkpoint_no=int(t["checkpoint_no"])+1,
                                            action_fingerprint=action_fingerprint(req.action),
-                                           expected_worker_uid=HIGH_EFFECT_RPC_WORKER_UID)
+                                           expected_worker_uid=worker_uid)
                             except ProbeDenied as exc:
                                 raise AdmissionDenied("HIGH_EFFECT_LIVE_EXECUTOR_UNAVAILABLE") from exc
                     except AdmissionDenied as exc:
