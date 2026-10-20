@@ -73,3 +73,43 @@ def test_operator_registry_reuses_signed_route_and_revocation_denies(tmp_path,mo
     with pytest.raises(DispatchDenied,match='OPERATOR_ADAPTER_NOT_ACTIVE'):
         dispatch_action(REQ,**options)
     assert len(calls)==1
+
+def test_dispatch_automatically_reuses_operator_registry_from_environment(tmp_path,monkeypatch):
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from tools.operator_runtime_registry import OperatorAdapterRegistry
+    from test_operator_runtime_registry import binding,pub,revoke
+    operator,worker=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
+    record=binding(operator,worker)
+    directory=tmp_path/"private";directory.mkdir(mode=0o700)
+    monkeypatch.setattr("tools.operator_runtime_registry.probe_unix",lambda *a,**k: True)
+    reg=OperatorAdapterRegistry(directory,pub(operator))
+    reg.activate(record,adapter_id=record["adapter_id"],
+                 capability_sha256=record["capability_sha256"])
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(directory))
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",pub(operator))
+    calls=[]
+    monkeypatch.setattr(external,"dispatch",lambda **kwargs:
+                        calls.append(kwargs) or {"status":"RECEIPT_VERIFIED_POST_REQUIRED"})
+    params=dict(eg_url="https://eg.example",api_key="test",
+                executor_public_key_b64="separate-root",
+                external_adapter_id=record["adapter_id"],
+                hitl_public_key_b64="separate-hitl",
+                hitl_approval={"nonce":"signed"})
+    assert dispatch_action(REQ,**params)["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
+    assert calls[0]["worker_socket"]==record["socket_path"]
+    assert calls[0]["expected_worker_uid"]==record["worker_uid"]
+    with pytest.raises(DispatchDenied,match="INVALID_OPERATOR_ROUTE_REQUEST"):
+        dispatch_action(REQ,**{**params,"external_worker_uid":12345})
+    reg.revoke(revoke(operator,record),adapter_id=record["adapter_id"])
+    with pytest.raises(DispatchDenied,match="OPERATOR_ADAPTER_NOT_ACTIVE"):
+        dispatch_action(REQ,**params)
+    assert len(calls)==1
+
+
+def test_partial_auto_registry_is_fail_closed(monkeypatch):
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR","/tmp/incomplete")
+    monkeypatch.delenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",raising=False)
+    with pytest.raises(DispatchDenied,match="INCOMPLETE_SIGNED_OPERATOR_REGISTRY"):
+        dispatch_action(REQ,eg_url="https://eg.example",api_key="secret",
+                        executor_public_key_b64="separate-root",
+                        external_adapter_id="trusted-adapter-one")

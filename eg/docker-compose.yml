@@ -1,7 +1,7 @@
 services:
   evaluation-gateway-local:
     build: .
-    image: evaluation-gateway-local:3.1.77
+    image: evaluation-gateway-local:3.1.78
     user: "${EVALUATION_GATEWAY_UID:-10001}:${EVALUATION_GATEWAY_GID:-10001}"
     read_only: true
     restart: unless-stopped

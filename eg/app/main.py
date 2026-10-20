@@ -67,6 +67,8 @@ EXTERNAL_ADAPTER_MODE = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE", "d
 EXTERNAL_ADAPTER_SOCKET = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET", "")
 EXTERNAL_ADAPTER_UID = env_int("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID", -1, 0, 2**31-1)
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
+EXTERNAL_REGISTRY_DIR = os.getenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR", "")
+EXTERNAL_REGISTRY_KEY = os.getenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
 EVIDENCE_MAX_AGE_SECONDS = env_int("EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS", 300, 1, 86400)
 CLOCK_SKEW_SECONDS = env_int("EVALUATION_GATEWAY_CLOCK_SKEW_SECONDS", 30, 0, 300)
@@ -500,13 +502,24 @@ def require_config() -> None:
     if EXTERNAL_ADAPTER_MODE not in ("disabled", "enabled"):
         raise RuntimeError("invalid external executor mode")
     if EXTERNAL_ADAPTER_MODE == "enabled":
+        signed_registry=bool(EXTERNAL_REGISTRY_DIR and EXTERNAL_REGISTRY_KEY)
         if (ADMISSION_MODE != "enabled" or HIGH_EFFECT_CI_FIXTURE_ENABLED
-            or os.geteuid() == 0 or EXTERNAL_ADAPTER_UID <= 0
-            or EXTERNAL_ADAPTER_UID in (os.geteuid(), TRUSTED_UID) or
-            not EXTERNAL_ADAPTER_SOCKET or
-            not Path(EXTERNAL_ADAPTER_SOCKET).is_absolute() or
-            Path(EXTERNAL_ADAPTER_SOCKET).is_symlink()):
+            or os.geteuid() == 0 or
+            bool(EXTERNAL_REGISTRY_DIR)!=bool(EXTERNAL_REGISTRY_KEY)
+            or (signed_registry and (EXTERNAL_ADAPTER_SOCKET or EXTERNAL_ADAPTER_UID>=0))
+            or (not signed_registry and
+                (EXTERNAL_ADAPTER_UID<=0 or
+                 EXTERNAL_ADAPTER_UID in (os.geteuid(), TRUSTED_UID) or
+                 not EXTERNAL_ADAPTER_SOCKET or
+                 not Path(EXTERNAL_ADAPTER_SOCKET).is_absolute() or
+                 Path(EXTERNAL_ADAPTER_SOCKET).is_symlink()))):
             raise RuntimeError("UNSAFE_EXTERNAL_EXECUTOR_BOUNDARY")
+        if signed_registry:
+            from tools.operator_runtime_registry import OperatorAdapterRegistry
+            try:
+                OperatorAdapterRegistry(EXTERNAL_REGISTRY_DIR,EXTERNAL_REGISTRY_KEY)
+            except Exception as exc:
+                raise RuntimeError("INVALID_SIGNED_OPERATOR_REGISTRY") from exc
         entries = configured_high_effect_capabilities(allow_external=True, strict=True)
         if not entries or any(cap.ci_only for cap in entries):
             raise RuntimeError("EXTERNAL_EXECUTOR_CAPABILITY_MISSING_OR_CI_ONLY")
@@ -1601,6 +1614,25 @@ def pinned_high_effect_gate(c: sqlite3.Connection, task_id: str,
     raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_MISSING"})
 
 
+def external_route(cap: AdapterCapability) -> tuple[int,str]:
+    """Resolve a pinned adapter's independently signed, live worker identity."""
+    if not EXTERNAL_REGISTRY_DIR:
+        return EXTERNAL_ADAPTER_UID, EXTERNAL_ADAPTER_SOCKET
+    from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
+    try:
+        route=OperatorAdapterRegistry(EXTERNAL_REGISTRY_DIR,EXTERNAL_REGISTRY_KEY).resolve(cap.adapter_id)
+        digest=sha(canon(asdict(cap)))
+        uid=route["worker_uid"]
+        if (route["capability_sha256"]!=digest or
+            route["worker_public_key_b64"]!=cap.public_key_b64 or
+            uid in (os.geteuid(),TRUSTED_UID) or
+            not Path(route["socket_path"]).is_absolute()):
+            raise RegistryDenied("CAPABILITY_AND_SIGNED_OPERATOR_BINDING_MISMATCH")
+        return uid,route["socket_path"]
+    except RegistryDenied as exc:
+        raise AdmissionDenied("EXTERNAL_OPERATOR_BINDING_INVALID_OR_EXPIRED") from exc
+
+
 def worker_capability(action: Action) -> tuple[bool,str]:
     """Bounded capabilities of independently provisioned workers/adapters."""
     if action.effect_class in ("E3","E4","E5"):
@@ -1882,10 +1914,8 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                             task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1,
                             allow_external=cap.ci_only is False)
                         if HIGH_EFFECT_REQUIRE_RPC_LIVENESS or cap.ci_only is False:
-                            worker_uid=(EXTERNAL_ADAPTER_UID if cap.ci_only is False
-                                        else HIGH_EFFECT_RPC_WORKER_UID)
-                            worker_socket=(EXTERNAL_ADAPTER_SOCKET if cap.ci_only is False
-                                           else HIGH_EFFECT_RPC_SOCKET)
+                            worker_uid,worker_socket=(external_route(cap) if cap.ci_only is False
+                                else (HIGH_EFFECT_RPC_WORKER_UID,HIGH_EFFECT_RPC_SOCKET))
                             if type(worker_uid) is not int or worker_uid<0:
                                 raise AdmissionDenied("HIGH_EFFECT_WORKER_UID_NOT_PINNED")
                             fingerprint=hashlib.sha256(json.dumps(asdict(cap),

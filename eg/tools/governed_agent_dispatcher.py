@@ -181,6 +181,18 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
         raise DispatchDenied("INVALID_DISPATCH_ACTION")
     effect=action.get("effect_class")
     if effect in ("E3","E4","E5"):
+        if operator_registry is None:
+            import os
+            directory=os.getenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR","")
+            operator_key=os.getenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64","")
+            if directory or operator_key:
+                if not directory or not operator_key:
+                    raise DispatchDenied("INCOMPLETE_SIGNED_OPERATOR_REGISTRY")
+                from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
+                try:
+                    operator_registry=OperatorAdapterRegistry(directory,operator_key)
+                except (RegistryDenied,OSError) as exc:
+                    raise DispatchDenied("INVALID_SIGNED_OPERATOR_REGISTRY") from exc
         if operator_registry is not None:
             from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
             if (type(operator_registry) is not OperatorAdapterRegistry or
