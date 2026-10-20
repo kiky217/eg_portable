@@ -7,12 +7,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import socket
 import struct
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from app.execution_receipts import verify as verify_receipt
 from tools.high_effect_admission import action_fingerprint
+from tools.trusted_execution_worker import gate_allows_new_effect
 from tools.signed_hitl_approval import verify_approval
 
 class ExternalDispatchDenied(RuntimeError):
@@ -42,7 +44,7 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     if (url.scheme!="https" and not (url.scheme=="http" and
         url.hostname in ("127.0.0.1","localhost"))) or url.username or url.password:
         raise ExternalDispatchDenied("UNTRUSTED_GATEWAY_URL")
-    if (not isinstance(expected_worker_uid,int) or expected_worker_uid<0 or
+    if (not isinstance(expected_worker_uid,int) or expected_worker_uid<=0 or expected_worker_uid==os.getuid() or
         not isinstance(worker_socket,str) or not worker_socket.startswith("/") or
         not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")):
         raise ExternalDispatchDenied("INDEPENDENT_WORKER_NOT_CONFIGURED")
@@ -77,7 +79,8 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
         raise ExternalDispatchDenied("CANONICAL_HIGH_EFFECT_PRE_NOT_ADMITTED")
     cp=gate["checkpoint_no"]
     row=next((c for c in detail.get("checkpoints",[]) if c.get("checkpoint_no")==cp),None)
-    if not row or row.get("verdict")!="READY_TO_EXECUTE":
+    if (not row or row.get("verdict")!="READY_TO_EXECUTE" or
+        not gate_allows_new_effect(row.get("created_at",""))):
         raise ExternalDispatchDenied("ORIGINAL_PRE_GATE_INVALID")
     verify_approval(request["approval"],hitl_public_key_b64,
                     task_id=task,step_key=step,gate_checkpoint_no=cp,
