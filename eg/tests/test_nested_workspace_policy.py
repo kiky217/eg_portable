@@ -26,7 +26,7 @@ def test_default_depth_prevents_nested_targets(monkeypatch, tmp_path):
 def test_lexical_bounds_reject_traversal(tmp_path):
     root=tmp_path/"root"
     for target in [root/"src"/".."/"outside.py",tmp_path/"other"/"source.py",
-                   root/"src"/"pkg"/"too-deep.py",root/"src"/"./source.py"]:
+                   root/"src"/"pkg"/"too-deep.py"]:
         # pathlib normalizes ./ automatically, so raw literal dot is separately checked.
         with pytest.raises(ValueError):
             scoped_parts(root,target,1)
