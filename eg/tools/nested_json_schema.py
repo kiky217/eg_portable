@@ -97,6 +97,8 @@ def validate_document_v2(schema,raw,*,expected_schema_sha256,max_bytes):
         expected_schema_sha256!=digest):
         raise NestedSchemaDenied("UNPINNED_OR_OVERSIZE_NESTED_DOCUMENT")
     try:value=json.loads(raw.decode("utf-8"),object_pairs_hook=_unique,parse_constant=_nonfinite)
+    except NestedSchemaDenied:
+        raise
     except (ValueError,TypeError,UnicodeError,OverflowError,RecursionError) as exc:
         raise NestedSchemaDenied("INVALID_NESTED_DOCUMENT") from exc
     _check(schema["document"],value,0)
