@@ -39,7 +39,7 @@ def test_trusted_github_write_bound_pre_and_no_replay(tmp_path):
     def readback(*a,**kw):
         calls.append("readback")
         return {"status":"CONTENT_VERIFIED_NOT_EXECUTION_PROOF",
-                "blob_sha256":hashlib.sha256(content).hexdigest()}
+                "commit_sha":"a"*40,"blob_sha256":hashlib.sha256(content).hexdigest()}
     journal=tmp_path/"journal";journal.mkdir(mode=0o700)
     w=TrustedGitHubEffect(journal_dir=journal,private_key=worker,
          adapter_id="trusted-adapter-github-demo",hitl_public_key_b64=pub(human),
