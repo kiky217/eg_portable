@@ -48,9 +48,10 @@ class AdapterCapability:
     version: int = 1
     ci_only: bool = True
 
-    def validate(self) -> None:
+    def validate(self, *, allow_external: bool = False) -> None:
         if (type(self.version) is not int or self.version!=1
-            or self.ci_only is not True or
+            or type(self.ci_only) is not bool
+            or (self.ci_only is False and not allow_external) or
             not self.adapter_id.startswith("trusted-adapter-") or
             self.effect_class not in ("E3","E4","E5") or
             not self.action_type or not self.target_prefix.startswith("/") or
@@ -68,13 +69,14 @@ def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
                       approval: dict | None, task_id: str, step_key: str,
                       gate_checkpoint_no: int, now: float | None = None,
                       signed_approval: dict | None = None,
-                      hitl_public_key_b64: str | None = None) -> dict:
+                      hitl_public_key_b64: str | None = None,
+                      allow_external: bool = False) -> dict:
     """Fail-closed admission policy, not authorization to execute from an agent."""
     if not isinstance(action,dict) or action.get("effect_class") not in ("E3","E4","E5"):
         raise AdmissionDenied("NOT_A_HIGH_EFFECT_ACTION")
     if capability is None:
         raise AdmissionDenied("HIGH_EFFECT_ADAPTER_UNAVAILABLE")
-    capability.validate()
+    capability.validate(allow_external=allow_external)
     if (action.get("action_type") != capability.action_type or
         action.get("effect_class") != capability.effect_class or
         not isinstance(action.get("target"),str) or
