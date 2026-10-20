@@ -4,7 +4,8 @@ This module cannot self-provision trust. The caller must supply an independently
 protected signing key, operator policy, private journal and verified live EG PRE.
 """
 from __future__ import annotations
-import hashlib,json,time
+import hashlib,json,time,base64
+from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 from datetime import datetime
 from tools.github_effect_scope import validate_operation
 from tools.github_bounded_transport import contents_put
@@ -49,7 +50,11 @@ class TrustedGitHubEffect:
         if (not isinstance(gate,dict) or gate.get("task_id")!=task_id
             or gate.get("step_key")!=step_key or gate.get("verdict")!="READY_TO_EXECUTE"
             or not gate.get("hitl_approved") or gate.get("action_fingerprint")!=fp
-            or gate.get("high_effect_pin",{}).get("adapter_id")!=self.adapter_id):
+            or not isinstance(gate.get("high_effect_pin"),dict)
+            or gate["high_effect_pin"].get("adapter_id")!=self.adapter_id
+            or gate["high_effect_pin"].get("public_key_b64")!=base64.b64encode(
+                self.private.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
+            or gate["high_effect_pin"].get("approval_nonce")!=approval.get("nonce")):
             raise GitHubWorkerDenied("ORIGINAL_CANONICAL_PRE_REQUIRED")
         cp=gate.get("checkpoint_no")
         if type(cp) is not int or cp<=0:
