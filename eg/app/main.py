@@ -1493,7 +1493,7 @@ def configured_high_effect_capabilities(*, allow_external: bool = False,
         return []
     try:
         entries=json.loads(HIGH_EFFECT_CAPABILITIES_JSON)
-        if not isinstance(entries,list) or len(entries)>16:
+        if not isinstance(entries,list) or (strict and not entries) or len(entries)>16:
             raise ValueError("INVALID_HIGH_EFFECT_REGISTRY_SCHEMA")
         caps=[AdapterCapability(**entry) for entry in entries]
         for cap in caps: cap.validate(allow_external=allow_external)
