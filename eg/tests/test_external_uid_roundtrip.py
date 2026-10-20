@@ -27,8 +27,11 @@ pytestmark = pytest.mark.skipif(os.getuid()!=0, reason="Privileged isolated cros
 
 
 @pytest.mark.parametrize("operation", ["execute", "no_effect"])
-def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation):
-    worker_uid=65534
+@pytest.mark.parametrize("effect,atype,worker_uid", [
+    ("E3","sandbox_cutover",65534),
+    ("E4","sandbox_critical_update",65533),
+])
+def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation,effect,atype,worker_uid):
     shared=Path(tempfile.mkdtemp(prefix="eg-uid-",dir="/tmp"))
     shared.chmod(0o755)
     root=shared/"effects";root.mkdir(mode=0o700)
@@ -36,13 +39,13 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation):
     os.chown(root,worker_uid,worker_uid);os.chown(journal,worker_uid,worker_uid)
     workerkey=Ed25519PrivateKey.generate();human=Ed25519PrivateKey.generate()
     task,ch=register_high_effect()
-    adapter_id="trusted-adapter-external-uid-test"
+    adapter_id=f"trusted-adapter-external-uid-{effect.lower()}-test"
     payload=b'{"scanner":"pass"}'
     target=root/"project.json"
-    action={"action_type":"sandbox_cutover","target":str(target),"effect_class":"E3",
+    action={"action_type":atype,"target":str(target),"effect_class":effect,
             "reversible":True,"real_world_effect":True,"payload_sha256":hashlib.sha256(payload).hexdigest(),
             "payload_bytes":len(payload),"proofs":[]}
-    cap=AdapterCapability(adapter_id=adapter_id,action_type="sandbox_cutover",effect_class="E3",
+    cap=AdapterCapability(adapter_id=adapter_id,action_type=atype,effect_class=effect,
             target_prefix=str(root)+"/",maximum_payload_bytes=524288,isolated=True,
             public_key_b64=pub(workerkey),ci_only=False)
     sockpath=str(root/"worker.sock")
@@ -64,7 +67,7 @@ def test_distinct_uid_external_rpc_pre_receipt_post(monkeypatch,operation):
         try:
             os.setgroups([])
             os.setgid(worker_uid);os.setuid(worker_uid)
-            adapter=DisposableAdapter(root,journal,workerkey,adapter_id,"E3")
+            adapter=DisposableAdapter(root,journal,workerkey,adapter_id,effect)
             with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as listener:
                 listener.bind(sockpath);listener.listen(5)
                 for _ in range(2):
