@@ -33,10 +33,10 @@ def test_ready_pre_requires_real_signed_liveness_and_scoped_hitl(monkeypatch):
     if child.poll() is not None:raise AssertionError(child.stderr.read().decode())
     time.sleep(.02)
    assert sock.exists()
-   monkeypatch.setattr(gw,"HIGH_EFFECT_PRODUCTION_ENABLED",True)
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
    monkeypatch.setattr(gw,"HIGH_EFFECT_REQUIRE_RPC_LIVENESS",True)
-   monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_SOCKET",str(sock))
-   monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_WORKER_UID",os.getuid())
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_SOCKET",str(sock))
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_UID",os.getuid())
    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([asdict(cap)]))
    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(owner))
    action={"action_type":"cargo_test","target":"/content/workspace/knid-solana/Cargo.toml",

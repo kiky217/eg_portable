@@ -60,10 +60,10 @@ def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
     if child.poll() is not None:raise AssertionError(child.stderr.read().decode())
     time.sleep(.02)
    assert sock.exists()
-   monkeypatch.setattr(gw,"HIGH_EFFECT_PRODUCTION_ENABLED",True)
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
    monkeypatch.setattr(gw,"HIGH_EFFECT_REQUIRE_RPC_LIVENESS",True)
-   monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_SOCKET",str(sock))
-   monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_WORKER_UID",os.getuid())
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_SOCKET",str(sock))
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_UID",os.getuid())
    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([asdict(cap)]))
    monkeypatch.setattr(gw,"HITL_PUBLIC_KEY_B64",pub(owner))
    payload=canonical({"operation":"cargo_fmt_check","manifest":str(ROOT/"Cargo.toml")})
@@ -116,5 +116,9 @@ def test_real_cargo_sandbox_pre_execute_post(monkeypatch):
                          stdout="PARENT=PASS",value="PARENT=PASS")
    assert parentpost.status_code==200,parentpost.text
    assert parentpost.json()["contract_status"]=="SATISFIED",parentpost.text
+   # Restore the production-dispatch guard before the global integrity audit.
+   # An in-process test fixture must never be accepted as a live external
+   # executor during gateway integrity verification.
+   monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","disabled")
    assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
   finally:child.terminate();child.wait(timeout=5)

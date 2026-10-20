@@ -18,22 +18,24 @@ def desc():
          "target_prefix":"/content/workspace/knid-solana","maximum_payload_bytes":4096,
          "isolated":True,"public_key_b64":pub(),"ci_only":False}
 def test_production_flag_alone_insufficient(monkeypatch):
- monkeypatch.setattr(gw,"HIGH_EFFECT_PRODUCTION_ENABLED",True)
+ monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
  monkeypatch.setattr(gw,"HIGH_EFFECT_REQUIRE_RPC_LIVENESS",True)
- monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_SOCKET","")
- monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_WORKER_UID",None)
+ monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_SOCKET","")
+ monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_UID",None)
  monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([desc()]))
- assert gw.high_effect_capability(action()) is None
+ # Catalog discovery is not executor readiness; admission additionally checks
+ # the socket, peer UID, signed HITL and independent liveness at PRE.
+ assert gw.high_effect_capability(action()) is not None
 def test_cannot_admit_ci_capability_as_production(monkeypatch):
  a=desc();a["ci_only"]=True
  monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",False)
- monkeypatch.setattr(gw,"HIGH_EFFECT_PRODUCTION_ENABLED",True)
+ monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
  monkeypatch.setattr(gw,"HIGH_EFFECT_REQUIRE_RPC_LIVENESS",True)
- monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_SOCKET","/nonexistent/adapter.sock")
- monkeypatch.setattr(gw,"HIGH_EFFECT_RPC_WORKER_UID",65534)
+ monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_SOCKET","/nonexistent/adapter.sock")
+ monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_UID",65534)
  monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([a]))
  assert gw.high_effect_capability(action()) is None
 def test_production_capability_requires_explicit_validate():
  with pytest.raises(AdmissionDenied):
   AdapterCapability(**desc()).validate()
- AdapterCapability(**desc()).validate(allow_production=True)
+ AdapterCapability(**desc()).validate(allow_external=True)
