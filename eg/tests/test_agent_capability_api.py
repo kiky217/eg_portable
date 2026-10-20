@@ -1,6 +1,6 @@
 """Agent discovery must never silently elevate user-supplied capability claims."""
 import json
-from tests.harness import CLIENT, HEAD
+from harness import CLIENT, HEAD
 import app.main as gw
 
 
