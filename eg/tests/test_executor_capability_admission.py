@@ -26,7 +26,7 @@ def test_supported_write_can_ready_and_capabilities_advertised():
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==200 and r.json()["verdict"]=="READY_TO_EXECUTE"
     p=CLIENT.get("/v1/protocol",headers=HEAD).json()
-    assert len(p["executor_capabilities"])==2
+    assert {(c["action_type"],c["effect_class"]) for c in p["executor_capabilities"]}=={("read","E0"),("write","E2"),("replace","E2")}
     assert p["executor_target_root_provisioned"]
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
 
