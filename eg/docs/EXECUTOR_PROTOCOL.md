@@ -61,6 +61,24 @@ Normative rules. "MUST" violations are rejected fail-closed by the gateway.
   validating the original signer, target, output and existing gate.
   No older PRE may be reused to start an uncommitted write.
 
+## Reversible E2 replacement with compare-and-swap preimage
+
+- The built-in worker may replace an existing regular worker-owned file in its
+  private output root using the bounded `replace/E2` action. All existing PRE,
+  separately signed receipt and POST gates remain mandatory.
+- `previous_sha256` commits the exact expected existing file bytes; the new
+  `payload_sha256` and `payload_bytes` commit the proposed replacement.
+- Before any effect, the worker checks ownership, the exact preimage digest,
+  allowed suffixes and size. It persists the preimage in the protected durable
+  journal, performs an atomic same-directory replacement and reads back the new
+  bytes before signing a receipt.
+- Recovery may only reuse a sealed matching receipt. A changed or unknown
+  preimage never authorizes replay. Restoring a prior version requires its own
+  separately authorized step; journal presence alone is not rollback execution.
+- A staging runner may enable admission only for its freshly provisioned,
+  isolated gateway/worker identities. This does not enable admission in any
+  existing or production EG runtime.
+
 ## Protocol identity and compatibility (stable)
 
 Software version (SemVer) comes from `eg/VERSION`; the protocol human label
