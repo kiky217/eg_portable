@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from no_redirect_http import urlopen
 from capability_catalog import parse_catalog, lookup, CatalogError
 
-BUILTIN = {"E0": {"read"}, "E2": {"write"}}
+BUILTIN = {"E0": {"read"}, "E2": {"write", "replace"}}
 ENV_MODE = "EVALUATION_GATEWAY_ADMISSION_MODE"
 ENV_ROOT = "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT"
 ENV_KEY = "EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64"
@@ -35,7 +35,7 @@ def diagnose(effect: str, action: str, env: dict[str, str], catalog=()) -> dict:
         reasons.append("EXECUTOR_PUBLIC_KEY_NOT_CONFIGURED")
     if effect not in BUILTIN or action not in BUILTIN.get(effect, set()):
         reasons.append("EXTERNAL_CAPABILITY_UNVERIFIED" if candidates else "CAPABILITY_NOT_DISCOVERED")
-    if effect == "E2" and action == "write" and not output_root_present:
+    if effect == "E2" and action in ("write", "replace") and not output_root_present:
         reasons.append("EXECUTOR_OUTPUT_ROOT_NOT_CONFIGURED")
     # Even with every local setting present, runtime authentication, separate
     # signer identity and exact PRE must be checked against live EG.
