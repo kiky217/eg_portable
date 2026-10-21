@@ -158,8 +158,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             request={"task_id":task,"step_key":"01.01","action":action,
                      "data_b64":base64.b64encode(payload).decode()},
             eg_url=url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
-            external_adapter_id=adapter,hitl_public_key_b64=pub(human),
-            hitl_approval=approval)
+            hitl_public_key_b64=pub(human),hitl_approval=approval)
         assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
         assert result["execution_receipt"]["output_sha256"]==hashlib.sha256(payload).hexdigest()
         post=raw_eval(task,contract,pre.json()["checkpoint_no"],step="01.01",

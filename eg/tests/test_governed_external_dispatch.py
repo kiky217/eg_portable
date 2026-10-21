@@ -149,3 +149,20 @@ def test_auto_dispatch_cannot_create_missing_operator_registry(monkeypatch,tmp_p
                         executor_public_key_b64="separate-key",
                         external_adapter_id="trusted-adapter-missing")
     assert not (directory/"adapter-activation.sqlite3").exists()
+
+@pytest.mark.parametrize('response,reason', [
+    ({'status':'ADMISSION_DISABLED','admission':False,'candidates':[]},'NO_ACTIVE_TYPED_ADAPTER'),
+    ({'status':'MATCHED_PRE_REQUIRED','admission':False,'candidates':[
+        {'adapter_id':'trusted-adapter-a','status':'LIVE_PRE_ATTESTATION_REQUIRED'},
+        {'adapter_id':'trusted-adapter-b','status':'LIVE_PRE_ATTESTATION_REQUIRED'}]},
+     'AMBIGUOUS_OR_MISSING_OPERATOR_ADAPTER'),
+    ({'status':'MATCHED_PRE_REQUIRED','admission':False,'candidates':[
+        {'adapter_id':'trusted-adapter-unsigned','status':'OPERATOR_BINDING_REQUIRED'}]},
+     'AMBIGUOUS_OR_MISSING_OPERATOR_ADAPTER'),
+])
+def test_auto_route_fail_closed_without_unique_active_binding(monkeypatch,response,reason):
+    import io,json
+    import tools.governed_agent_dispatcher as gw
+    monkeypatch.setattr(gw,'urlopen',lambda *a,**k:io.BytesIO(json.dumps(response).encode()))
+    with pytest.raises(DispatchDenied,match=reason):
+        gw._unique_active_adapter('https://eg.example','api',REQ['action'])
