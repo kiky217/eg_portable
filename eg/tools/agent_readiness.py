@@ -31,7 +31,7 @@ def diagnose(effect: str, action: str, env: dict[str, str], catalog=()) -> dict:
         reasons.append("INVALID_ADMISSION_MODE")
     if mode == "disabled":
         reasons.append("ADMISSION_DISABLED_ALL_CONCRETE_ACTIONS_DENIED")
-    if not key_present:
+    if effect in BUILTIN and action in BUILTIN[effect] and not key_present:
         reasons.append("EXECUTOR_PUBLIC_KEY_NOT_CONFIGURED")
     if effect not in BUILTIN or action not in BUILTIN.get(effect, set()):
         reasons.append("EXTERNAL_CAPABILITY_UNVERIFIED" if candidates else "CAPABILITY_NOT_DISCOVERED")
