@@ -11,7 +11,8 @@ import os
 import socket
 import struct
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 from app.execution_receipts import verify as verify_receipt
 from app.no_effect_receipts import verify_no_effect
 from tools.high_effect_admission import action_fingerprint
