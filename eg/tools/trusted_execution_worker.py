@@ -13,6 +13,8 @@ import json
 import os
 import secrets
 import socketserver
+import socket
+import struct
 import stat
 import sys
 import time
@@ -368,9 +370,27 @@ def serve(config):
                          config.get('allowed_suffixes'))
     sock=Path(config['socket_path'])
     if sock.exists():raise WorkerDenied('SOCKET_ALREADY_EXISTS')
+    controller_uid=config.get('controller_uid')
+    controller_gid=config.get('controller_group_gid')
+    if controller_uid is not None or controller_gid is not None:
+        if (type(controller_uid) is not int or controller_uid<=0 or
+            controller_uid==os.geteuid() or type(controller_gid) is not int or
+            controller_gid<=0 or controller_gid==os.getegid()):
+            raise WorkerDenied('INVALID_INDEPENDENT_CONTROLLER_IDENTITY')
+        parent=sock.parent.lstat()
+        mode=stat.S_IMODE(parent.st_mode)
+        if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid!=os.geteuid()
+            or parent.st_gid!=controller_gid or not parent.st_mode & stat.S_ISGID
+            or not mode & stat.S_IXGRP or mode & 0o067):
+            raise WorkerDenied('WORKER_SOCKET_GROUP_NOT_PRIVATE')
     class Handler(socketserver.StreamRequestHandler):
         def handle(self):
             try:
+                if controller_uid is not None:
+                    credentials=self.request.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,
+                        struct.calcsize('3i'))
+                    if struct.unpack('3i',credentials)[1]!=controller_uid:
+                        raise WorkerDenied('UNAUTHORIZED_CONTROLLER_UID')
                 line=self.rfile.readline(MAX_PAYLOAD+1)
                 if not line.endswith(b'\n') or len(line)>MAX_PAYLOAD:
                     raise WorkerDenied('INVALID_RPC_SIZE')
@@ -386,7 +406,7 @@ def serve(config):
     class Server(socketserver.ThreadingUnixStreamServer):
         daemon_threads=True
     with Server(str(sock),Handler) as server:
-        os.chmod(sock,0o600)
+        os.chmod(sock,0o660 if controller_uid is not None else 0o600)
         server.serve_forever(poll_interval=.2)
 
 if __name__=='__main__':
