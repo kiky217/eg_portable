@@ -237,6 +237,7 @@ class Action(Strict):
     real_world_effect: bool = False
     payload_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
     payload_bytes: int | None = Field(default=None, ge=1, le=512*1024)
+    previous_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
     source_action_fingerprint: str | None = Field(default=None, pattern=HASH_RE.pattern)
     source_gate_checkpoint_no: int | None = Field(default=None, ge=1)
     proofs: list[ActionProof] = Field(default_factory=list, max_length=20)
@@ -684,6 +685,8 @@ def action_intent_fingerprint(action: Action | None) -> str:
         intent["payload_sha256"]=action.payload_sha256
     if action.payload_bytes is not None:
         intent["payload_bytes"]=action.payload_bytes
+    if action.previous_sha256 is not None:
+        intent["previous_sha256"]=action.previous_sha256
     return sha(canon(intent))
 
 
@@ -1428,7 +1431,8 @@ def protocol():
     return {"version": PROTOCOL_VERSION, "hash": protocol_hash(),
             "admission_mode": ADMISSION_MODE,
             "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
-                                       {"action_type":"write","effect_class":"E2"}]
+                                       {"action_type":"write","effect_class":"E2"},
+                                       {"action_type":"replace","effect_class":"E2"}]
                                       if ADMISSION_MODE=="enabled" and EXECUTOR_OUTPUT_ROOT else []),
             "high_effect_execution_mode": ("CI_DISPOSABLE_ONLY" if HIGH_EFFECT_CI_FIXTURE_ENABLED
                                            else "UNPROVISIONED_FAIL_CLOSED"),
@@ -1456,6 +1460,8 @@ def agent_capabilities():
                 "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"},
                {"id": "builtin.write", "effect_class": "E2", "action_type": "write",
                 "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"}]
+    entries.append({"id":"builtin.replace", "effect_class":"E2", "action_type":"replace",
+                    "adapter_id":"builtin.worker", "status":"CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"})
     entries.extend({"id": row["id"], "effect_class": row["effect_class"],
                     "action_type": row["action_type"], "adapter_id": row["adapter_id"],
                     "status": "UNVERIFIED_NOT_AUTHORIZED"} for row in configured)
@@ -1657,8 +1663,10 @@ def worker_capability(action: Action) -> tuple[bool,str]:
         return True,"HIGH_EFFECT_ADAPTER_CAPABILITY_ADMITTED"
     if (action.action_type,action.effect_class,action.reversible,
             action.real_world_effect) not in (
-            ("read","E0",False,False),("write","E2",True,False)):
+            ("read","E0",False,False),("write","E2",True,False),("replace","E2",True,False)):
         return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
+    if action.action_type=="replace" and not action.previous_sha256:
+        return False,"EXPECTED_PREVIOUS_DIGEST_REQUIRED"
     if not EXECUTOR_OUTPUT_ROOT:
         return False,"EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
     root=Path(EXECUTOR_OUTPUT_ROOT)
