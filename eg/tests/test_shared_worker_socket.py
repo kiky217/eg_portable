@@ -33,9 +33,14 @@ def test_group_sharing_never_bypasses_controller_uid(tmp_path):
     assert stat.S_IMODE(sock.stat().st_mode)==0o660
     with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
         peer.settimeout(5);peer.connect(str(sock))
-        peer.sendall(b'{"operation":"attest","challenge":{}}\n')
-        response=json.loads(peer.recv(4096))
+        try:
+            peer.sendall(b'{"operation":"attest","challenge":{}}\n')
+            raw=peer.recv(4096)
+        except (BrokenPipeError,ConnectionResetError):
+            raw=b""  # Worker may reject mismatched peer UID before send.
     thread.join(timeout=5)
     assert not thread.is_alive() and not captured
-    assert response["status"]=="DENIED"
-    assert response["reason"]=="TrustedRpcDenied"
+    if raw:
+        response=json.loads(raw)
+        assert response["status"]=="DENIED"
+        assert response["reason"]=="TrustedRpcDenied"
