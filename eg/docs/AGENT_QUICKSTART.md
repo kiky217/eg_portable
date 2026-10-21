@@ -24,6 +24,8 @@ python eg/tools/agent_readiness.py --effect E3 --action service_control --json
 
 Without `--url`, this command **does not perform network calls, mutate state, print secrets, or authorize effects**. Use `--url https://YOUR-EG` with operator-provided `EVALUATION_GATEWAY_API_KEY` to perform authenticated **read-only** runtime discovery. The live result is `REQUIRES_LIVE_PRE`, never an action grant; it cannot verify executor identity or a specific PRE by itself. For the live decision, inspect the target system's authenticated task, health, evidence and worker status. Never copy configuration from a different instance.
 
+For a reusable operator-pinned build/test process worker, see [one-time E3 process worker onboarding](OPERATOR_PROCESS_SERVICE.md). This requires an independent OS operator, not another AI agent.
+
 ## How to approach real development tasks
 
 Break a real goal into registered steps only if each physical operation has an independently approved transport. Running `cargo build`, Rust source modifications, Git push, shell and service control are **not** a generic E2 write via the built-in worker. Implement and independently audit typed adapters with bounded permissions, action fingerprints, pre-execution scope, journal/idempotency, signed receipts and POST verification. Until provisioned, surface a precise missing-adapter diagnostic. Do not silently downgrade to a logical step, escape to host-root shell, or use disposable CI adapters in production.
