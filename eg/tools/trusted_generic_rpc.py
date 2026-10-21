@@ -8,7 +8,8 @@ from __future__ import annotations
 import base64,hashlib,hmac,json,os,socket,stat,struct
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import Request,urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 from tools.high_effect_admission import action_fingerprint
 from tools.signed_hitl_approval import verify_approval
