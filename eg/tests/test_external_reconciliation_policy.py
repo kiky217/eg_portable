@@ -28,7 +28,9 @@ def test_e5_cannot_compensate(monkeypatch):
             operation="compensate")
 
 
-@pytest.mark.parametrize("wire_reply",[b"[]\n",b"null\n",b"42\n",b'"ok"\n'])
+@pytest.mark.parametrize("wire_reply",[b"[]\n",b"null\n",b"42\n",b'"ok"\n',
+                                       TimeoutError("ACK lost after effect"),
+                                       BrokenPipeError("partial request send")])
 def test_malformed_worker_ack_is_typed_unknown_and_never_replayed(monkeypatch,wire_reply):
     import socket,struct
     from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
@@ -75,10 +77,16 @@ def test_malformed_worker_ack_is_typed_unknown_and_never_replayed(monkeypatch,wi
         def settimeout(self,value):pass
         def connect(self,path):pass
         def getsockopt(self,*a):return struct.pack("3i",99999,os.getuid()+1,0)
-        def sendall(self,packet):sent.append(packet)
-        def recv(self,size):return wire_reply
+        def sendall(self,packet):
+            sent.append(packet)
+            if isinstance(wire_reply,BrokenPipeError):raise wire_reply
+        def recv(self,size):
+            if isinstance(wire_reply,OSError):raise wire_reply
+            return wire_reply
     monkeypatch.setattr(socket,"socket",lambda *a,**kw:FakeSocket())
-    with pytest.raises(ext.ExternalDispatchDenied,match="INVALID_WORKER_RESPONSE_RECONCILE"):
+    expected=("WORKER_ACK_UNKNOWN_RECONCILE" if isinstance(wire_reply,OSError)
+              else "INVALID_WORKER_RESPONSE_RECONCILE")
+    with pytest.raises(ext.ExternalDispatchDenied,match=expected):
         ext.dispatch(request={"task_id":task,"step_key":step,"action":action,
                               "approval":approval,
                               "data_b64":base64.b64encode(payload).decode()},
