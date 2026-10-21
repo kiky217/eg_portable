@@ -76,15 +76,14 @@ jobs:
       - name: Prepare isolated separate-UID test source
         run: |
           sudo install -d -m 0755 /tmp/eg-ci-source
-          sudo cp -R eg/app eg/docs eg/tools eg/VERSION /tmp/eg-ci-source/
+          sudo cp -R eg/app eg/docs eg/tools eg/examples eg/VERSION /tmp/eg-ci-source/
           sudo chmod -R a+rX /tmp/eg-ci-source
       - name: Signed executor E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
       - name: Remedial E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
       - name: Single-agent cafe website staged PRE execution POST E2E
-        working-directory: eg
-        run: sudo env PYTHONPATH=. "$(command -v python)" tools/local_project_e2e.py examples/cafe-website.json
+        run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/local_project_e2e.py /tmp/eg-ci-source/examples/cafe-website.json
       - name: Build and smoke production Docker runtime imports
         run: |
           docker build -t eg-runtime-smoke eg
