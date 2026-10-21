@@ -28,3 +28,11 @@ def test_new_files_must_not_claim_prior_hash():
 def test_malformed_allowlist_denies_with_typed_scope_error(bad):
     with pytest.raises(GitHubScopeDenied,match="INVALID_GITHUB_SCOPE_POLICY"):
         validate_operation(REQ,{**POL,"actions":bad})
+
+@pytest.mark.parametrize("invalid_branch", [
+    "agent/change..bad", "agent/hidden.lock", "agent/.hidden",
+    "agent/sub/.lock", "agent/trailing.", "agent/nested/x..y",
+])
+def test_reject_invalid_git_refs_before_consuming_approved_effect(invalid_branch):
+    with pytest.raises(GitHubScopeDenied, match="GITHUB_EFFECT_SCOPE_DENIED"):
+        validate_operation({**REQ, "branch": invalid_branch}, POL)
