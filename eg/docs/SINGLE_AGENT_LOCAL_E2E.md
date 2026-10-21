@@ -1,8 +1,8 @@
 # Single-agent EG local website acceptance
 
-This is an **isolated staging integration scenario**, not a production deployment workflow. One AI agent can register the task and perform every **supported E2 file creation** step through the existing separately privileged EG worker, without assigning work to another AI agent.
+This is an **isolated staging integration scenario**, not a production deployment workflow. One AI agent can register the task and perform every **supported E2 file creation/replacement** step through the existing separately privileged EG worker, without assigning work to another AI agent.
 
-The runner provisions a disposable local EG instance, separate gateway/worker UIDs, distinct signing roots, and admission explicitly enabled for scoped E2. Each requested website file and revision follows **registered acceptance → signed PRE → admitted worker write → independent receipt and byte readback → signed POST**. It also serves the resulting files on a temporary loopback HTTP server for read-only smoke verification, verifies all step checkpoints and the EG audit chain, then stops the processes.
+The runner provisions a disposable local EG instance, separate gateway/worker UIDs, distinct signing roots, and admission explicitly enabled for scoped E2. Each requested website file and revision follows **registered acceptance → signed PRE → admitted worker action → independent receipt and byte readback → signed POST**. It also serves the resulting files on a temporary loopback HTTP server for read-only smoke verification, verifies all step checkpoints and the EG audit chain, then stops the processes.
 
 Run only in a disposable Linux environment where privileged operator-owned separate UID setup is authorized:
 
