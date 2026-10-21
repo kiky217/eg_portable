@@ -75,7 +75,7 @@ def test_unified_dispatch_denies_e0_e2_without_worker_socket():
         dispatch_action(REQ,eg_url="http://invalid",api_key="unused",
                         executor_public_key_b64="unused")
 
-@pytest.mark.parametrize("reply",[b"[]\\n",b"null\\n",b"42\\n",b'"ok"\\n',b'{"status":\\n'])
+@pytest.mark.parametrize("reply",[b"[]\n",b"null\n",b"42\n",b'"ok"\n',b'{"status":\n'])
 def test_untrusted_builtin_worker_ack_requires_reconciliation(monkeypatch,reply):
     import tools.governed_agent_dispatcher as module
     state,detail=state_and_detail()
