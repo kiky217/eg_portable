@@ -190,7 +190,7 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
                     raise DispatchDenied("INCOMPLETE_SIGNED_OPERATOR_REGISTRY")
                 from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
                 try:
-                    operator_registry=OperatorAdapterRegistry(directory,operator_key)
+                    operator_registry=OperatorAdapterRegistry(directory,operator_key,read_only=True)
                 except (RegistryDenied,OSError) as exc:
                     raise DispatchDenied("INVALID_SIGNED_OPERATOR_REGISTRY") from exc
         if operator_registry is not None:
