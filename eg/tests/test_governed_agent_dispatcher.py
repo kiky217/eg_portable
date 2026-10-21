@@ -74,3 +74,45 @@ def test_unified_dispatch_denies_e0_e2_without_worker_socket():
     with pytest.raises(DispatchDenied,match="INDEPENDENT_E0_E2_WORKER_SOCKET_REQUIRED"):
         dispatch_action(REQ,eg_url="http://invalid",api_key="unused",
                         executor_public_key_b64="unused")
+
+@pytest.mark.parametrize("reply",[b"[]\n",b"null\n",b"42\n",b'"ok"\n',b'{"status":\n'])
+def test_untrusted_builtin_worker_ack_requires_reconciliation(monkeypatch,reply):
+    import tools.governed_agent_dispatcher as module
+    state,detail=state_and_detail()
+    monkeypatch.setattr(module,"_get",lambda url,key,task,suffix:
+                        state if suffix=="/state" else detail)
+    packets=[]
+    class Worker:
+        def __enter__(self):return self
+        def __exit__(self,*args):return False
+        def settimeout(self,value):pass
+        def connect(self,path):pass
+        def sendall(self,data):packets.append(data)
+        def recv(self,size):return reply
+    monkeypatch.setattr(module.socket,"socket",lambda *a,**kw:Worker())
+    with pytest.raises(DispatchDenied,match="INVALID_WORKER_RESPONSE_RECONCILE"):
+        dispatch(REQ,eg_url="http://127.0.0.1:1",api_key="fixture",
+                 worker_socket="/tmp/signed-worker.sock",
+                 executor_public_key_b64="independent-key")
+    assert len(packets)==1
+
+
+def test_builtin_worker_socket_timeout_after_send_is_unknown_not_retry(monkeypatch):
+    import tools.governed_agent_dispatcher as module
+    state,detail=state_and_detail()
+    monkeypatch.setattr(module,"_get",lambda url,key,task,suffix:
+                        state if suffix=="/state" else detail)
+    sent=[]
+    class Worker:
+        def __enter__(self):return self
+        def __exit__(self,*args):return False
+        def settimeout(self,value):pass
+        def connect(self,path):pass
+        def sendall(self,data):sent.append(data)
+        def recv(self,size):raise TimeoutError("ACK lost after effect")
+    monkeypatch.setattr(module.socket,"socket",lambda *a,**kw:Worker())
+    with pytest.raises(DispatchDenied,match="WORKER_ACK_UNKNOWN_RECONCILE"):
+        dispatch(REQ,eg_url="http://127.0.0.1:1",api_key="fixture",
+                 worker_socket="/tmp/signed-worker.sock",
+                 executor_public_key_b64="independent-key")
+    assert len(sent)==1
