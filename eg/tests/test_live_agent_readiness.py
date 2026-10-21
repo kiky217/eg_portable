@@ -47,3 +47,35 @@ def test_live_discovery_unavailable_is_not_admitted(monkeypatch,catalog_valid,ad
     assert report["preflight"]=="NOT_ADMITTED"
     assert reason in report["reasons"]
     assert report["live_verified"] is False
+
+@pytest.mark.parametrize("status,reason",[
+    ("UNVERIFIED_NOT_AUTHORIZED","MATCHED_CAPABILITY_NOT_TRUSTED"),
+    ("EXTERNAL_OPERATOR_BINDING_REQUIRED","OPERATOR_BINDING_REQUIRED"),
+    ("UNAVAILABLE","MATCHED_CAPABILITY_NOT_TRUSTED"),
+])
+def test_untrusted_discovered_capability_cannot_be_misreported_as_live_pre(monkeypatch,status,reason):
+    monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
+        "admission_mode":"enabled","catalog_valid":True,
+        "capabilities":[{"id":"untrusted.proposed","effect_class":"E4",
+                         "action_type":"update_file","status":status}]}))
+    report=readiness.diagnose_live("E4","update_file",
+                                   url="https://eg.example",api_key="operator-api")
+    assert report["preflight"]=="NOT_ADMITTED"
+    assert report["reasons"]==[reason]
+    assert report["registered_count"]==1
+    assert report["live_verified"] is False and report["mutated"] is False
+
+
+def test_trusted_adapter_not_suppressed_by_untrusted_matching_catalog_row(monkeypatch):
+    monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
+        "admission_mode":"enabled","catalog_valid":True,
+        "capabilities":[
+            {"id":"agent.unverified","effect_class":"E4","action_type":"update_file",
+             "status":"UNVERIFIED_NOT_AUTHORIZED"},
+            {"id":"registered.operator","effect_class":"E4","action_type":"update_file",
+             "status":"EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"}]}))
+    report=readiness.diagnose_live("E4","update_file",
+                                   url="https://eg.example",api_key="operator-api")
+    assert report["preflight"]=="REQUIRES_LIVE_PRE"
+    assert report["registered_count"]==2
+    assert report["live_verified"] is False
