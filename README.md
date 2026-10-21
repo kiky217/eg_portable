@@ -110,6 +110,7 @@ The E3–E5 disposable adapters included for repository tests are **CI fixtures,
 | [Portable runbook](eg/docs/PORTABLE_RUNBOOK.md) | Installation, daily operation, staging, recovery, and rollback |
 | [Agent quickstart](eg/docs/AGENT_QUICKSTART.md) | Readiness checks, admitted capabilities, and safe agent usage |
 | [Executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Exact PRE/POST contracts, evidence, and receipts |
+| [Independent E3 process worker](eg/docs/OPERATOR_PROCESS_SERVICE.md) | One-time operator provisioning for fixed build/test commands |
 | [Architecture](eg/docs/UNIFIED_ARCHITECTURE.md) | Components, isolation, and trust boundaries |
 | [Remediation protocol](eg/docs/REMEDIAL_PROTOCOL.md) | Failure handling and controlled repair |
 | [Production promotion](eg/docs/PRODUCTION_PROMOTION.md) | Software release versus live production readiness |
