@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 from tools.trusted_github_effect import TrustedGitHubEffect
 from tools.github_rpc_adapter import GitHubRpcAdapter
+from tools.github_pull_request_adapter import GitHubPullRequestAdapter
 from tools.trusted_generic_rpc import serve
 
 class WorkerConfigurationDenied(RuntimeError): pass
@@ -36,7 +37,10 @@ def load_worker(config_path):
         raise WorkerConfigurationDenied("INDEPENDENT_NONROOT_WORKER_REQUIRED")
     try:
         config=json.loads(_private_file(config_path).decode("utf-8"))
-        if not isinstance(config,dict) or set(config)!=CONFIG_FIELDS or config["version"]!=1:
+        if (not isinstance(config,dict) or
+            set(config) not in (CONFIG_FIELDS, CONFIG_FIELDS | {"operation_kind"}) or
+            config["version"]!=1 or
+            config.get("operation_kind", "contents") not in ("contents", "pull_requests")):
             raise WorkerConfigurationDenied("INVALID_OPERATOR_CONFIG")
         private_key_bytes=_private_file(config["worker_key_file"],limit=64)
         if len(private_key_bytes)!=32:
@@ -52,14 +56,18 @@ def load_worker(config_path):
         group=config["controller_group_gid"]
         if group is not None and (type(group) is not int or group<=0):
             raise WorkerConfigurationDenied("INVALID_CONTROLLER_GROUP")
-        worker=TrustedGitHubEffect(
+        worker_type=(TrustedGitHubEffect if config.get("operation_kind", "contents")=="contents"
+                     else GitHubPullRequestAdapter)
+        worker=worker_type(
             journal_dir=config["journal_dir"],private_key=private,
             adapter_id=config["adapter_id"],
             hitl_public_key_b64=config["hitl_public_key_b64"],
             policy=config["policy"],github_token=token)
         public=base64.b64encode(private.public_key().public_bytes(
                Encoding.Raw,PublicFormat.Raw)).decode()
-        return {"adapter":GitHubRpcAdapter(worker),
+        adapter=(GitHubRpcAdapter(worker) if isinstance(worker,TrustedGitHubEffect)
+                 else worker)
+        return {"adapter":adapter,
                 "socket_path":config["socket_path"],
                 "capability_sha256":config["capability_sha256"],
                 "eg_url":config["eg_url"],"eg_key":eg_key,

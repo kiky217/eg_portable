@@ -29,7 +29,8 @@ def test_root_can_never_start_production_worker(tmp_path,monkeypatch):
 
 
 @pytest.mark.skipif(os.getuid()==0,reason="Production worker is never run as root")
-def test_operator_provisioned_private_worker_loads_without_remote_effect(tmp_path):
+@pytest.mark.parametrize("kind",["contents","pull_requests"])
+def test_operator_provisioned_private_worker_loads_without_remote_effect(tmp_path,kind):
     import base64
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,PublicFormat,NoEncryption
@@ -51,10 +52,18 @@ def test_operator_provisioned_private_worker_loads_without_remote_effect(tmp_pat
               Encoding.Raw,PublicFormat.Raw)).decode(),
        "capability_sha256":"a"*64,"eg_url":"http://127.0.0.1:9000",
        "controller_uid":os.getuid()+1,"controller_group_gid":None}
+    if kind=="pull_requests":
+        config["operation_kind"]="pull_requests"
+        config["policy"]={"repository":"example/project","branch_prefix":"agent/",
+                          "base_branches":["main"],
+                          "operations":["create_pull_request","merge_pull_request"]}
     path=tmp_path/"operator.json"
     path.write_text(json.dumps(config));path.chmod(0o600)
     result=load_worker(str(path))
     assert result["adapter"].adapter_id=="trusted-adapter-github-test"
+    if kind=="pull_requests":
+        from tools.github_pull_request_adapter import GitHubPullRequestAdapter
+        assert isinstance(result["adapter"],GitHubPullRequestAdapter)
     assert result["controller_uid"]!=os.getuid()
     assert result["worker_public_key_b64"]==base64.b64encode(worker.public_key().public_bytes(
         Encoding.Raw,PublicFormat.Raw)).decode()

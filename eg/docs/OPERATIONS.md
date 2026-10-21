@@ -134,3 +134,29 @@ Do not treat
 attestation or set an in-process CI-only dispatcher as production transport.
 Only authenticated original-gate PRE signing roots may validate subsequent
 E3–E5 POST or no-effect reconciliation; absence of a trustworthy root is BLOCKED.
+
+
+### Optional operator-scoped GitHub PR/merge E4 worker
+
+The existing independent GitHub worker also supports an explicit operator-owned
+`operation_kind: "pull_requests"` config. The default (field omitted) remains
+`contents` for backward compatibility. PR mode uses policy fields
+`repository`, `branch_prefix` (for example `agent/`), `base_branches` (list
+of explicitly allowed destination branches), and `operations`
+(`create_pull_request` and/or `merge_pull_request`). The generic capability
+`action_type` is `github_pull_request`, `effect_class` is `E4`, and the
+`target_prefix` is `/github/<owner>/<repo>/pulls/`.
+
+Create operations bind the head/base/title/body in the exact canonical
+`{"version":1,"operation":{...}}` signed payload; the action target is
+`/github/<owner>/<repo>/pulls/head/<head-branch>`. Merge operations bind the
+PR number, expected head commit SHA, and method; target is
+`/github/<owner>/<repo>/pulls/<number>`. The worker checks repository and
+branch policy before consuming approval, then performs one HTTPS GitHub API
+request, verifies PR/commit readback, seals an independent receipt, and
+requires canonical EG POST. Redirects are denied. An ambiguous acknowledgement
+is `UNKNOWN_NO_REPLAY` and must be reconciled using the original journal.
+
+This operator-controlled mode never provisions tokens, signature keys,
+approvals, UIDs or workers from agent input. Granting GitHub credentials or
+a production merge approval remains outside the local CI fixture.
