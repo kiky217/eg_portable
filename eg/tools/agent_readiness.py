@@ -74,7 +74,8 @@ def diagnose_live(effect: str, action: str, *, url: str, api_key: str) -> dict:
     mode = payload.get("admission_mode")
     trusted_statuses = {"CONFIGURED_NEEDS_LIVE_PRE", "EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"}
     available = valid_catalog and mode == "enabled" and any(
-        row.get("status") in trusted_statuses for row in matches)
+        isinstance(row.get("status"),str) and row["status"] in trusted_statuses
+        for row in matches)
     reason = ("INVALID_LIVE_CAPABILITY_CATALOG" if not valid_catalog else
               "ADMISSION_DISABLED" if mode != "enabled" else
               "CAPABILITY_NOT_DISCOVERED" if not matches else
