@@ -72,11 +72,19 @@ def diagnose_live(effect: str, action: str, *, url: str, api_key: str) -> dict:
                and row.get("effect_class") == effect and row.get("action_type") == action]
     valid_catalog = payload.get("catalog_valid") is True
     mode = payload.get("admission_mode")
-    available = valid_catalog and mode == "enabled" and bool(matches)
+    trusted_statuses = {"CONFIGURED_NEEDS_LIVE_PRE", "EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"}
+    available = valid_catalog and mode == "enabled" and any(
+        isinstance(row.get("status"),str) and row["status"] in trusted_statuses
+        for row in matches)
+    reason = ("INVALID_LIVE_CAPABILITY_CATALOG" if not valid_catalog else
+              "ADMISSION_DISABLED" if mode != "enabled" else
+              "CAPABILITY_NOT_DISCOVERED" if not matches else
+              "OPERATOR_BINDING_REQUIRED" if any(
+                  row.get("status") == "EXTERNAL_OPERATOR_BINDING_REQUIRED" for row in matches)
+              else "MATCHED_CAPABILITY_NOT_TRUSTED")
     return {"effect":effect, "action":action,
             "preflight":"REQUIRES_LIVE_PRE" if available else "NOT_ADMITTED",
-            "reasons":[] if available else (["INVALID_LIVE_CAPABILITY_CATALOG"] if not valid_catalog else
-                ["ADMISSION_DISABLED"] if mode != "enabled" else ["CAPABILITY_NOT_DISCOVERED"]),
+            "reasons":[] if available else [reason],
             "candidates":matches, "registered_count":len(matches),
             "admission_mode":payload.get("admission_mode"),
             "catalog_valid":payload.get("catalog_valid") is True,

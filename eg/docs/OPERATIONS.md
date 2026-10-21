@@ -121,8 +121,15 @@ security domain is required. An expired PRE with no observed action requires
 a new PRE after native executor admission; an effect already present instead
 requires reconciliation, not re-execution or a retrospective receipt.
 
-## E3–E5 operational limits (v3.1.37)
-Production runtime has no provisioned E3–E5 worker transport. Do not treat
+## E3–E5 operational limits
+The portable package does not automatically provision production E3–E5 workers.
+An operator can register multiple independent signed worker bindings using
+`EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR` and
+`EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64`, then enable
+`EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE=enabled` with typed capabilities and
+a separate HITL trust root. Canonical PRE checks each worker's live identity;
+the agent dispatcher reuses active bindings without per-task socket/UID entry.
+Do not treat
 `EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON` as a liveness/privilege
 attestation or set an in-process CI-only dispatcher as production transport.
 Only authenticated original-gate PRE signing roots may validate subsequent

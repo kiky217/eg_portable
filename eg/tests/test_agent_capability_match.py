@@ -35,3 +35,61 @@ def test_match_respects_type_scope_and_admission(monkeypatch):
 def test_bad_query_rejected():
     response=CLIENT.get(URL,params={"effect_class":"E9","action_type":"operate","target":"/a"},headers=HEAD)
     assert response.status_code==422
+
+
+def test_signed_operator_binding_discovery_is_read_only_and_actionable(monkeypatch,tmp_path):
+    import hashlib
+    import os
+    import time
+    from dataclasses import asdict
+    from tools.high_effect_admission import AdapterCapability
+    from tools.operator_runtime_registry import OperatorAdapterRegistry
+    from tools.operator_adapter_binding import canonical
+    from test_operator_runtime_registry import revoke
+    operator,worker=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
+    def pub(key):
+        return base64.b64encode(key.public_key().public_bytes(
+            Encoding.Raw,PublicFormat.Raw)).decode()
+    spec={"adapter_id":"trusted-adapter-ready-demo","action_type":"scan",
+          "effect_class":"E3","target_prefix":"/sandbox/",
+          "maximum_payload_bytes":512,"isolated":True,
+          "public_key_b64":pub(worker),"version":1,"ci_only":False}
+    cap=AdapterCapability(**spec)
+    digest=hashlib.sha256(gw.canon(asdict(cap)).encode()).hexdigest()
+    directory=tmp_path/"private";directory.mkdir(mode=0o700)
+    monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([spec]))
+    monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
+    monkeypatch.setattr(gw,"EXTERNAL_REGISTRY_DIR",str(directory))
+    monkeypatch.setattr(gw,"EXTERNAL_REGISTRY_KEY",pub(operator))
+    params={"effect_class":"E3","action_type":"scan","target":"/sandbox/a"}
+    before=CLIENT.get(URL,params=params,headers=HEAD).json()
+    assert before["status"]=="CAPABILITY_UNPROVISIONED"
+    assert before["next_action"]=="RENEW_OR_ACTIVATE_OPERATOR_BINDING"
+    assert before["candidates"][0]["status"]=="OPERATOR_BINDING_REQUIRED"
+    assert not (directory/"adapter-activation.sqlite3").exists()
+    now=int(time.time())
+    document={"version":1,"adapter_id":cap.adapter_id,"capability_sha256":digest,
+              "worker_uid":os.getuid()+12000,"socket_path":"/run/eg-demo/worker.sock",
+              "worker_public_key_b64":pub(worker),"issued_at":now-1,
+              "expires_at":now+120,"environment":"test",
+              "operator_nonce":"operator-binding-signed-demo"}
+    signed={**document,"signature_b64":
+            base64.b64encode(operator.sign(canonical(document))).decode()}
+    monkeypatch.setattr("tools.operator_runtime_registry.probe_unix",lambda *a,**kw: True)
+    reg=OperatorAdapterRegistry(directory,pub(operator))
+    reg.activate(signed,adapter_id=cap.adapter_id,capability_sha256=digest)
+    db=directory/"adapter-activation.sqlite3"
+    import sqlite3
+    with sqlite3.connect(db) as connection:
+        original_rows=connection.execute("SELECT * FROM adapters ORDER BY adapter_id").fetchall()
+    ready=CLIENT.get(URL,params=params,headers=HEAD).json()
+    assert ready["status"]=="MATCHED_PRE_REQUIRED"
+    assert ready["candidates"][0]["status"]=="LIVE_PRE_ATTESTATION_REQUIRED"
+    catalog=CLIENT.get("/v1/agent/capabilities",headers=HEAD).json()
+    assert any(row.get("status")=="EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"
+               and row.get("adapter_id")==cap.adapter_id for row in catalog["capabilities"])
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT * FROM adapters ORDER BY adapter_id").fetchall()==original_rows
+    reg.revoke(revoke(operator,signed),adapter_id=cap.adapter_id)
+    revoked=CLIENT.get(URL,params=params,headers=HEAD).json()
+    assert revoked["candidates"][0]["status"]=="OPERATOR_BINDING_REQUIRED"

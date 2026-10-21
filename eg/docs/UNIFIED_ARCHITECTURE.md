@@ -47,8 +47,9 @@ change outside this repository.
   live independently secured executor.
 - Authenticated PRE audit records pin high-effect adapter identity, signing
   root, action fingerprint and signed approval nonce for POST/reconciliation.
-- `GET /v1/protocol` distinguishes executable E0/E2 capabilities from a
-  high-effect *diagnostic* catalog marked UNPROVISIONED (or CI_ONLY in tests).
+- `GET /v1/protocol` distinguishes executable E0/E2 capabilities from
+  configured high-effect diagnostics; signed worker identity and exact PRE
+  remain separate prerequisites.
 - Production E3–E5 dispatch requires an explicitly provisioned and separately protected RPC transport,
   worker attestation/liveness and independently verified trust model exist.
 - Historical accepted task contracts and their hashes remain immutable;
@@ -57,10 +58,11 @@ change outside this repository.
 ## Unified agent action interface (v3.1.43)
 `tools.governed_agent_dispatcher.dispatch_action` is the fail-closed
 single action-routing contract. E0/E2 route via the privileged worker socket;
-E3/E4/E5 are available **only** through explicit disposable CI adapters in
-this repository. The core never executes physical actions directly and a
-configured high-effect registry cannot grant a production transport.
+E3/E4/E5 can use independently operated external RPC workers after explicit
+operator signing and activation. The core never performs the physical effect;
+disposable E3/E4/E5 adapters remain **CI-only** and are not production workers.
 
 The versioned `AdapterCapability` schema explicitly marks repository high-effect
-entries `ci_only=True` and rejects unsupported schema versions. No production
-high-effect descriptor may be admitted without Issue #26 independent transport.
+entries `ci_only=True` and rejects unsupported schema versions. A production high-effect descriptor requires an actual independently
+provisioned transport, kernel UID isolation, scoped signed HITL, live
+attestation, immutable PRE, signed receipt and canonical POST.

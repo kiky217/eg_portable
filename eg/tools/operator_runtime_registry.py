@@ -13,7 +13,7 @@ from tools.adapter_liveness import probe_unix
 class RegistryDenied(RuntimeError):pass
 
 class OperatorAdapterRegistry:
-    def __init__(self, directory, operator_public_key_b64):
+    def __init__(self, directory, operator_public_key_b64, *, read_only=False):
         directory=Path(directory)
         if (not directory.is_dir() or directory.is_symlink()
             or directory.stat().st_uid!=os.getuid()
@@ -22,14 +22,27 @@ class OperatorAdapterRegistry:
             raise RegistryDenied("PRIVATE_OPERATOR_REGISTRY_REQUIRED")
         self.path=directory/"adapter-activation.sqlite3"
         self.operator_key=operator_public_key_b64
-        with self._connect() as db:
-            db.execute("CREATE TABLE IF NOT EXISTS adapters ("
-              "adapter_id TEXT PRIMARY KEY,cap_sha TEXT NOT NULL,nonce TEXT NOT NULL,"
-              "binding_json TEXT NOT NULL,status TEXT NOT NULL "
-              "CHECK(status IN ('ACTIVE','REVOKED')))")
-        os.chmod(self.path,0o600)
+        self.read_only=read_only
+        if read_only:
+            try:
+                info=self.path.lstat()
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid()
+                    or stat.S_IMODE(info.st_mode)&0o077):
+                    raise RegistryDenied("PRIVATE_OPERATOR_REGISTRY_REQUIRED")
+            except OSError as exc:
+                raise RegistryDenied("OPERATOR_REGISTRY_NOT_PROVISIONED") from exc
+        else:
+            with self._connect() as db:
+                db.execute("CREATE TABLE IF NOT EXISTS adapters ("
+                  "adapter_id TEXT PRIMARY KEY,cap_sha TEXT NOT NULL,nonce TEXT NOT NULL,"
+                  "binding_json TEXT NOT NULL,status TEXT NOT NULL "
+                  "CHECK(status IN ('ACTIVE','REVOKED')))")
+            os.chmod(self.path,0o600)
 
     def _connect(self):
+        if self.read_only:
+            return sqlite3.connect(self.path.as_uri()+"?mode=ro",
+                                   uri=True,timeout=10,isolation_level=None)
         db=sqlite3.connect(self.path,timeout=10,isolation_level=None)
         db.execute("PRAGMA busy_timeout=10000")
         db.execute("PRAGMA synchronous=FULL")
@@ -37,6 +50,8 @@ class OperatorAdapterRegistry:
         return db
 
     def activate(self, binding, *, adapter_id, capability_sha256):
+        if self.read_only:
+            raise RegistryDenied("READ_ONLY_OPERATOR_REGISTRY")
         approved=verify_operator_binding(binding,operator_public_key_b64=self.operator_key,
                           adapter_id=adapter_id,capability_sha256=capability_sha256)
         with self._connect() as db:
@@ -79,6 +94,8 @@ class OperatorAdapterRegistry:
                 "next_action":"LIVE_PRE_AND_INDEPENDENT_SIGNED_HITL"}
 
     def revoke(self, envelope, *, adapter_id, now=None):
+        if self.read_only:
+            raise RegistryDenied("READ_ONLY_OPERATOR_REGISTRY")
         instant=time.time() if now is None else now
         fields={"version","adapter_id","capability_sha256","binding_nonce",
                 "decision","issued_at","expires_at","reason"}
