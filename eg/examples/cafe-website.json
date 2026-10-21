@@ -1,0 +1,9 @@
+{
+  "name": "cafe-sore",
+  "files": {
+    "index.html": "<!doctype html>\n<html lang=\"id\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Kafe Sore — Menu</title><link rel=\"stylesheet\" href=\"styles.css\"></head><body><main><h1>Kafe Sore</h1><p>Kopi hangat, sore yang tenang.</p><section id=\"menu\" aria-label=\"Daftar menu\"></section></main><script src=\"app.js\"></script></body></html>\n",
+    "styles.css": "body{font:16px system-ui,sans-serif;max-width:48rem;margin:4rem auto;padding:0 1rem;background:#fcf8f1;color:#29221e}h1{font-size:3rem;letter-spacing:-.05em}#menu{display:grid;gap:.8rem;margin-top:2rem}article{padding:1rem;border:1px solid #d9cdbf;border-radius:.5rem;background:white}article strong{float:right}\n",
+    "app.js": "fetch('menu.json').then(r=>{if(!r.ok)throw Error('menu unavailable');return r.json()}).then(menu=>{const root=document.querySelector('#menu');for(const item of menu){const card=document.createElement('article');const name=document.createElement('span');name.textContent=item.name;const price=document.createElement('strong');price.textContent=new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(item.price);card.append(name,price);root.append(card)}}).catch(()=>{document.querySelector('#menu').textContent='Menu sedang tidak tersedia.'});\n",
+    "menu.json": "[{\"name\":\"Kopi Susu Gula Aren\",\"price\":24000},{\"name\":\"Espresso\",\"price\":18000},{\"name\":\"Matcha Latte\",\"price\":28000}]\n"
+  }
+}
