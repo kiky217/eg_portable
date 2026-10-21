@@ -109,13 +109,16 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
             socket.SO_PEERCRED,struct.calcsize("3i")))
         if uid!=expected_worker_uid:
             raise ExternalDispatchDenied("EXECUTOR_IDENTITY_MISMATCH")
-        peer.sendall(packet)
-        data_reply=bytearray()
-        while b"\n" not in data_reply:
-            chunk=peer.recv(65536)
-            if not chunk or len(data_reply)+len(chunk)>1_000_000:
-                raise ExternalDispatchDenied("INCOMPLETE_EXECUTION_ACK_RECONCILE")
-            data_reply.extend(chunk)
+        try:
+            peer.sendall(packet)
+            data_reply=bytearray()
+            while b"\n" not in data_reply:
+                chunk=peer.recv(65536)
+                if not chunk or len(data_reply)+len(chunk)>1_000_000:
+                    raise ExternalDispatchDenied("INCOMPLETE_EXECUTION_ACK_RECONCILE")
+                data_reply.extend(chunk)
+        except OSError as exc:
+            raise ExternalDispatchDenied("WORKER_ACK_UNKNOWN_RECONCILE") from exc
     try:
         answer=json.loads(data_reply.split(b"\n",1)[0])
     except (ValueError,TypeError) as exc:
