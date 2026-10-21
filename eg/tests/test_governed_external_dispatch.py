@@ -113,3 +113,39 @@ def test_partial_auto_registry_is_fail_closed(monkeypatch):
         dispatch_action(REQ,eg_url="https://eg.example",api_key="secret",
                         executor_public_key_b64="separate-root",
                         external_adapter_id="trusted-adapter-one")
+
+def test_auto_dispatch_only_reads_operator_registry(tmp_path,monkeypatch):
+    import os,stat
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from tools.operator_runtime_registry import OperatorAdapterRegistry
+    from test_operator_runtime_registry import binding,pub
+    operator,worker=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
+    record=binding(operator,worker)
+    directory=tmp_path/"operator";directory.mkdir(mode=0o700)
+    monkeypatch.setattr("tools.operator_runtime_registry.probe_unix",lambda *a,**k: True)
+    registry=OperatorAdapterRegistry(directory,pub(operator))
+    registry.activate(record,adapter_id=record["adapter_id"],
+                      capability_sha256=record["capability_sha256"])
+    os.chmod(registry.path,0o400)
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(directory))
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",pub(operator))
+    seen=[]
+    monkeypatch.setattr(external,"dispatch",lambda **kw: seen.append(kw) or
+                        {"status":"RECEIPT_VERIFIED_POST_REQUIRED"})
+    result=dispatch_action(REQ,eg_url="https://eg.example",api_key="fixture",
+        executor_public_key_b64="separate-key",external_adapter_id=record["adapter_id"],
+        hitl_public_key_b64="separate-hitl",hitl_approval={"nonce":"signed"})
+    assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
+    assert seen[0]["expected_worker_uid"]==record["worker_uid"]
+    assert stat.S_IMODE(registry.path.stat().st_mode)==0o400
+
+
+def test_auto_dispatch_cannot_create_missing_operator_registry(monkeypatch,tmp_path):
+    directory=tmp_path/"operator";directory.mkdir(mode=0o700)
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(directory))
+    monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64","signed-operator")
+    with pytest.raises(DispatchDenied,match="INVALID_SIGNED_OPERATOR_REGISTRY"):
+        dispatch_action(REQ,eg_url="https://eg.example",api_key="fixture",
+                        executor_public_key_b64="separate-key",
+                        external_adapter_id="trusted-adapter-missing")
+    assert not (directory/"adapter-activation.sqlite3").exists()
