@@ -65,19 +65,27 @@ def dispatch(request: dict, *, eg_url: str, api_key: str, worker_socket: str,
     with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as sock:
         sock.settimeout(15)
         sock.connect(str(Path(worker_socket)))
-        sock.sendall(payload)
-        chunks=[];total=0
-        while True:
-            part=sock.recv(65536)
-            if not part:break
-            total+=len(part)
-            if total>1024*1024:raise DispatchDenied("WORKER_RESPONSE_TOO_LARGE")
-            chunks.append(part)
-            if b"\n" in part:break
+        try:
+            sock.sendall(payload)
+            chunks=[];total=0
+            while True:
+                part=sock.recv(65536)
+                if not part:break
+                total+=len(part)
+                if total>1024*1024:raise DispatchDenied("WORKER_RESPONSE_TOO_LARGE")
+                chunks.append(part)
+                if b"\n" in part:break
+        except OSError as exc:
+            raise DispatchDenied("WORKER_ACK_UNKNOWN_RECONCILE") from exc
     raw=b"".join(chunks)
     if not raw.endswith(b"\n"):
         raise DispatchDenied("INCOMPLETE_WORKER_RECEIPT")
-    answer=json.loads(raw)
+    try:
+        answer=json.loads(raw)
+    except (ValueError,TypeError) as exc:
+        raise DispatchDenied("INVALID_WORKER_RESPONSE_RECONCILE") from exc
+    if not isinstance(answer,dict):
+        raise DispatchDenied("INVALID_WORKER_RESPONSE_RECONCILE")
     if answer.get("status")!="PASS":
         raise DispatchDenied("WORKER_DENIED:"+str(answer.get("reason","unknown")))
     receipt=answer.get("receipt")
