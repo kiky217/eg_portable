@@ -72,7 +72,7 @@ def tb(task, idx, crit, cp):
     return {"kind": "task_criterion", "eg_task_id": task, "criterion_index": idx, "criterion": crit, "phase": "POST_EXECUTION", "checkpoint_no": cp, "matcher": {"kind": "contains", "value": "TASK=PASS"}}
 
 
-def cl(ref, idx, text): return {"criterion_index": idx, "claim": text, "evidence": [{"source_type": "knid_task", "reference": ref}]}
+def cl(ref, idx, text): return {"criterion_index": idx, "claim": text, "evidence": [{"source_type": "trusted_task", "reference": ref}]}
 
 
 class C:

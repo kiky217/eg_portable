@@ -85,7 +85,7 @@ def notarized(source_id, stdout="CHECK=PASS", bindings=None, age=0, status="PASS
 
 # ---- request builders --------------------------------------------------------------------------
 def evp(ref):
-    return {"source_type": "knid_task", "reference": ref}
+    return {"source_type": "trusted_task", "reference": ref}
 
 
 def manual():
