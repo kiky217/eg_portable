@@ -1487,10 +1487,8 @@ def agent_capability_match(effect_class: str, action_type: str, target: str):
         if (cap.effect_class==effect_class and cap.action_type==action_type
             and target_within_scope(target,cap.target_prefix)):
             matches.append({"adapter_id":cap.adapter_id,"version":cap.version,
-                "status":("LIVE_PRE_ATTESTATION_REQUIRED" if
-                    EXTERNAL_ADAPTER_MODE=="enabled" and not cap.ci_only
-                    else "CI_ONLY_NOT_PRODUCTION" if cap.ci_only
-                    else "UNPROVISIONED"),"maximum_payload_bytes":cap.maximum_payload_bytes})
+                "status":(external_discovery_status(cap).removeprefix("EXTERNAL_")
+                    if not cap.ci_only else "CI_ONLY_NOT_PRODUCTION"),"maximum_payload_bytes":cap.maximum_payload_bytes})
     if effect_class in ("E0","E2"):
         try:
             candidate=Action(action_type=action_type,target=target,effect_class=effect_class,
@@ -1508,6 +1506,8 @@ def agent_capability_match(effect_class: str, action_type: str, target: str):
         else "CAPABILITY_UNPROVISIONED")
     return {"status":status,"admission":False,"candidates":matches,
             "next_action":("OBTAIN_CANONICAL_PRE" if status=="MATCHED_PRE_REQUIRED"
+                           else "RENEW_OR_ACTIVATE_OPERATOR_BINDING" if any(
+                               row["status"]=="OPERATOR_BINDING_REQUIRED" for row in matches)
                            else "ONBOARD_INDEPENDENT_TRUSTED_ADAPTER"),
             "note":"Matching is not execution authorization."}
 
@@ -1560,14 +1560,26 @@ def configured_high_effect_capabilities(*, allow_external: bool = False,
         return []
 
 
+def external_discovery_status(cap: AdapterCapability) -> str:
+    """Read signed binding state without authorizing an effect."""
+    if EXTERNAL_ADAPTER_MODE!="enabled":
+        return "UNPROVISIONED"
+    if EXTERNAL_REGISTRY_DIR:
+        try:
+            external_route(cap,read_only=True)
+        except AdmissionDenied:
+            return "EXTERNAL_OPERATOR_BINDING_REQUIRED"
+    return "EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"
+
+
 def high_effect_catalog() -> list[dict]:
     """Diagnostic metadata only, never advertise an online E3-E5 executor."""
     return [{"adapter_id":cap.adapter_id,"version":cap.version,"ci_only":cap.ci_only,
              "effect_class":cap.effect_class,
              "action_type":cap.action_type,"availability":(
                  "CI_ONLY_NOT_PRODUCTION" if cap.ci_only and HIGH_EFFECT_CI_FIXTURE_ENABLED
-                 else "EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED" if not cap.ci_only
-                     and EXTERNAL_ADAPTER_MODE=="enabled" else "UNPROVISIONED")}
+                 else external_discovery_status(cap) if not cap.ci_only
+                     else "UNPROVISIONED")}
             for cap in configured_high_effect_capabilities(
                 allow_external=EXTERNAL_ADAPTER_MODE=="enabled")]
 
@@ -1614,13 +1626,14 @@ def pinned_high_effect_gate(c: sqlite3.Connection, task_id: str,
     raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_MISSING"})
 
 
-def external_route(cap: AdapterCapability) -> tuple[int,str]:
+def external_route(cap: AdapterCapability, *, read_only=False) -> tuple[int,str]:
     """Resolve a pinned adapter's independently signed, live worker identity."""
     if not EXTERNAL_REGISTRY_DIR:
         return EXTERNAL_ADAPTER_UID, EXTERNAL_ADAPTER_SOCKET
     from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
     try:
-        route=OperatorAdapterRegistry(EXTERNAL_REGISTRY_DIR,EXTERNAL_REGISTRY_KEY).resolve(cap.adapter_id)
+        route=OperatorAdapterRegistry(EXTERNAL_REGISTRY_DIR,EXTERNAL_REGISTRY_KEY,
+                                      read_only=read_only).resolve(cap.adapter_id)
         digest=sha(canon(asdict(cap)))
         uid=route["worker_uid"]
         if (route["capability_sha256"]!=digest or
@@ -1629,7 +1642,7 @@ def external_route(cap: AdapterCapability) -> tuple[int,str]:
             not Path(route["socket_path"]).is_absolute()):
             raise RegistryDenied("CAPABILITY_AND_SIGNED_OPERATOR_BINDING_MISMATCH")
         return uid,route["socket_path"]
-    except RegistryDenied as exc:
+    except (RegistryDenied,sqlite3.Error) as exc:
         raise AdmissionDenied("EXTERNAL_OPERATOR_BINDING_INVALID_OR_EXPIRED") from exc
 
 
