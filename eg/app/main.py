@@ -554,7 +554,8 @@ def require_config() -> None:
     except Exception as exc:
         raise RuntimeError("invalid evidence notary public key") from exc
     legacy_notary_keys()  # reject malformed historical trust roots at startup
-    if ADMISSION_MODE == "enabled" and not EXECUTOR_PUBLIC_KEY_B64:
+    if (ADMISSION_MODE == "enabled" and not EXECUTOR_PUBLIC_KEY_B64
+        and (EXTERNAL_ADAPTER_MODE != "enabled" or EXECUTOR_OUTPUT_ROOT)):
         raise RuntimeError("independent executor public key missing: fail closed")
     if EXECUTOR_PUBLIC_KEY_B64:
         try:
