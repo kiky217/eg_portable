@@ -9,7 +9,8 @@ import base64
 import hashlib
 import json
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 from tools.github_effect_scope import validate_operation, GitHubScopeDenied
 
 class GitHubReadbackDenied(RuntimeError):
