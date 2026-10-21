@@ -25,14 +25,14 @@ def test_disabled_no_false_admission(monkeypatch):
     monkeypatch.setattr(gw, "ADMISSION_MODE", "disabled")
     data = CLIENT.get("/v1/agent/capabilities", headers=HEAD).json()
     assert data["next_action"] == "PROVISION_TRUSTED_EXECUTOR"
-    assert all(x["status"] == "UNAVAILABLE" for x in data["capabilities"][:2])
+    assert all(x["status"] == "UNAVAILABLE" for x in data["capabilities"][:3])
 
 
 def test_invalid_catalog_fails_closed(monkeypatch):
     monkeypatch.setenv("EVALUATION_GATEWAY_AGENT_CATALOG_JSON", "{not-json")
     data = CLIENT.get("/v1/agent/capabilities", headers=HEAD).json()
     assert data["catalog_valid"] is False
-    assert len(data["capabilities"]) == 2
+    assert {r["id"] for r in data["capabilities"]} == {"builtin.read", "builtin.write", "builtin.replace"}
 
 
 def test_registered_external_adapter_discovered_but_not_self_admitted(monkeypatch):

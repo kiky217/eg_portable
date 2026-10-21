@@ -64,6 +64,7 @@ environ={**os.environ,
  'EVALUATION_GATEWAY_ANCHOR_PATH':str(EGROOT/'anchor/audit.anchor'),
  'EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID':str(EG_USER),
  'EVALUATION_GATEWAY_INTEGRITY_CACHE_SECONDS':'0',
+ 'EVALUATION_GATEWAY_ADMISSION_MODE':'enabled',
  'EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT':str(WORK/'outputs'),
  'PYTHONPATH':str(STAGE)}
 def as_uid(uid):
@@ -145,15 +146,18 @@ def binding(task,key,criterion,phase,cp,mark,scope='step'):
           'phase':phase,'checkpoint_no':cp,'matcher':{'kind':'contains','value':mark}}
     if scope=='step':data['step_key']=key
     return data
-def e2_action(task,key,cp,target,payload=None):
+def e2_action(task,key,cp,target,payload=None,previous=None):
     actual=data(task,key) if payload is None else payload
     skeleton={'action_type':'write','target':str(target),'effect_class':'E2',
               'reversible':True,'real_world_effect':False,
               'payload_sha256':hashlib.sha256(actual).hexdigest(),
               'payload_bytes':len(actual),'proofs':[]}
+    if previous is not None:
+        skeleton.update(action_type='replace',previous_sha256=hashlib.sha256(previous).hexdigest())
     intent={field:skeleton[field] for field in
        ('action_type','target','effect_class','reversible','real_world_effect',
         'payload_sha256','payload_bytes')}
+    if previous is not None:intent['previous_sha256']=skeleton['previous_sha256']
     fp=sha(canon(intent).encode())
     values={'sandbox_pass':'SANDBOX=PASS','rollback_ready':'ROLLBACK=READY',
             'reversible':'REVERSIBLE=YES'}

@@ -38,7 +38,7 @@ def _admit(req: dict, state: dict, detail: dict) -> dict:
         raise DispatchDenied("INVALID_AGENT_ACTION")
     klass=(action.get("action_type"),action.get("effect_class"),
            action.get("reversible"),action.get("real_world_effect"))
-    if klass not in (("read","E0",False,False),("write","E2",True,False)):
+    if klass not in (("read","E0",False,False),("write","E2",True,False),("replace","E2",True,False)):
         raise DispatchDenied("UNSUPPORTED_EXECUTOR_CAPABILITY")
     if state.get("status") in ("PAUSED","RECOVERY_PENDING"):
         raise DispatchDenied("AGENT_GATE_PAUSED_OR_RECOVERY")

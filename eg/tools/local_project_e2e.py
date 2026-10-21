@@ -23,7 +23,7 @@ ALLOWED = {'.html', '.css', '.js', '.json', '.txt'}
 
 def validated_files(path: Path) -> list[tuple[str, bytes]]:
     data = json.loads(path.read_text(encoding='utf-8'))
-    if (not isinstance(data, dict) or set(data) != {'name', 'files'}
+    if (not isinstance(data, dict) or set(data) not in ({'name', 'files'}, {'name', 'files', 'revisions'})
         or not isinstance(data['name'], str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,31}', data['name'])
         or not isinstance(data['files'], dict) or not 1 <= len(data['files']) <= 25):
         raise ValueError('INVALID_LOCAL_PROJECT_MANIFEST')
@@ -41,7 +41,30 @@ def validated_files(path: Path) -> list[tuple[str, bytes]]:
     return result
 
 
-def smoke_web(root: Path, names: set[str]) -> dict:
+def validated_revisions(path: Path, files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
+    changes = json.loads(path.read_text(encoding='utf-8')).get('revisions', [])
+    if not isinstance(changes,list) or len(changes)>25:
+        raise ValueError('INVALID_PROJECT_REVISIONS')
+    allowed={name for name,_ in files}
+    output=[]
+    current=dict(files)
+    for row in changes:
+        if (not isinstance(row,dict) or set(row)!={'path','content'}
+            or row['path'] not in allowed or not isinstance(row['content'],str)):
+            raise ValueError('UNSAFE_PROJECT_REVISION')
+        raw=row['content'].encode('utf-8')
+        if not 0<len(raw)<=524288:
+            raise ValueError('INVALID_PROJECT_FILE_SIZE')
+        if row['path'].endswith('.json'):
+            json.loads(row['content'])
+        if raw==current[row['path']]:
+            raise ValueError('NO_OP_PROJECT_REVISION')
+        current[row['path']]=raw
+        output.append((row['path'],raw))
+    return output
+
+
+def smoke_web(root: Path, names: set[str], digests: dict[str, str] | None = None) -> dict:
     """Local preview readback, never a production deployment or EG E3 action."""
     if 'index.html' not in names:
         return {'status':'SKIPPED_NO_ENTRYPOINT'}
@@ -60,6 +83,8 @@ def smoke_web(root: Path, names: set[str]) -> dict:
                 if response.status!=200:
                     raise RuntimeError('HTTP_ASSET_FAILED')
                 content[name]=response.read()
+                if digests and hashlib.sha256(content[name]).hexdigest()!=digests[name]:
+                    raise RuntimeError('HTTP_READBACK_DIGEST_MISMATCH')
         if 'menu.json' in content and not isinstance(json.loads(content['menu.json']),list):
             raise RuntimeError('CAFE_MENU_RESPONSE_INVALID')
         return {'status':'PASS','http_200_assets':len(content)}
@@ -71,6 +96,8 @@ def smoke_web(root: Path, names: set[str]) -> dict:
 
 def run(manifest: Path):
     files = validated_files(manifest)
+    revisions = validated_revisions(manifest, files)
+    changes=[(name,raw,False) for name,raw in files]+[(name,raw,True) for name,raw in revisions]
     if os.geteuid() != 0:
         raise RuntimeError("ISOLATED_LOCAL_STAGING_REQUIRES_PRIVILEGED_OPERATOR_BOOTSTRAP")
     import run_trusted_e2e as eg
@@ -82,15 +109,17 @@ def run(manifest: Path):
     eg.worker_config.chmod(0o600)
     task = eg.PROJECT + '-website'
     criterion = 'Actual file SHA-256 independently read back after trusted execution'
-    precondition = 'File not present and target within the worker-owned output root'
-    step_keys = [f'01.{i:02d}' for i in range(1, len(files)+1)]
+    create_precondition = 'File not present and target within the worker-owned output root'
+    edit_precondition = 'Existing file digest matches action previous_sha256 within the worker-owned output root'
+    step_keys = [f'01.{i:02d}' for i in range(1, len(changes)+1)]
     steps = [{'step_key':'01', 'title':'Verify complete website',
               'acceptance_criteria':['Every project file independently verified'],
               'execution_required':False}]
-    steps += [{'step_key':key,'title':'Create ' + filename,
-               'acceptance_criteria':[criterion], 'preconditions':[precondition],
+    steps += [{'step_key':key,'title':('Revise ' if replace else 'Create ') + filename,
+               'acceptance_criteria':[criterion],
+               'preconditions':[edit_precondition if replace else create_precondition],
                'execution_required':True}
-              for key, (filename, _) in zip(step_keys, files)]
+              for key, (filename, _, replace) in zip(step_keys, changes)]
     eg.start()
     try:
         eg.PH = eg.eg_req('GET', '/v1/protocol')['hash']
@@ -100,12 +129,17 @@ def run(manifest: Path):
             'protocol_hash':eg.PH,'acceptance_criteria':['All file steps verified'],
             'steps':steps})
         contract, checkpoint, evidence = registration['contract_hash'], 0, []
-        for key, (filename, raw) in zip(step_keys, files):
+        for key, (filename, raw, replace) in zip(step_keys, changes):
             target = eg.WORK/'outputs'/filename
-            if target.exists():
+            if replace and not target.is_file():
+                raise RuntimeError('REVISION_BASELINE_MISSING')
+            if not replace and target.exists():
                 raise RuntimeError('BASELINE_TARGET_NOT_EMPTY')
-            action = eg.e2_action(task,key,checkpoint,target,raw)
-            prepared = eg.notarize([eg.binding(task,key,precondition,'PRE_EXECUTION',checkpoint,'ABSENT=PASS')], 'ABSENT=PASS')
+            previous=target.read_bytes() if replace else None
+            action = eg.e2_action(task,key,checkpoint,target,raw,previous=previous)
+            precondition=edit_precondition if replace else create_precondition
+            marker='PREIMAGE_SHA='+hashlib.sha256(previous).hexdigest() if replace else 'ABSENT=PASS'
+            prepared = eg.notarize([eg.binding(task,key,precondition,'PRE_EXECUTION',checkpoint,marker)],marker)
             pre = eg.eg_req('POST', '/v1/evaluate', {
                 'event_id':eg.id('pre'),'task_id':task,'contract_hash':contract,
                 'protocol_hash':eg.PH,'checkpoint_no':checkpoint,'step_key':key,
@@ -136,9 +170,11 @@ def run(manifest: Path):
                 raise RuntimeError('EG_POST_NOT_VERIFIED:'+repr(post))
             checkpoint = post['checkpoint_no']
             evidence.append({'step':key,'filename':filename,
+                             'action':'replace' if replace else 'write',
                              'sha256':hashlib.sha256(actual).hexdigest(),
                              'receipt_verified':True,'verdict':post['verdict']})
-        smoke=smoke_web(eg.WORK/'outputs',set(name for name,_ in files))
+        expected_final={name:hashlib.sha256(raw).hexdigest() for name,raw,_ in changes}
+        smoke=smoke_web(eg.WORK/'outputs',set(name for name,_ in files),expected_final)
         if smoke['status'] not in ('PASS','SKIPPED_NO_ENTRYPOINT'):
             raise RuntimeError('WEB_PREVIEW_FAILED')
         final_criterion = 'Every project file independently verified'
@@ -164,7 +200,7 @@ def run(manifest: Path):
         verified = current['contract_status']=='SATISFIED' and parent_post['verdict']=='VERIFIED_PASS' and audit['status']=='PASS'
         result={'pass':verified,'task_id':task,                'status':current['contract_status'],'audit':audit['status'],
                 'verified_steps':len(evidence),'files':evidence,'http_smoke':smoke,
-                'workspace':str(eg.WORK/'outputs'),'scope':'E2 file creation; no E3 build or deployment'}
+                'workspace':str(eg.WORK/'outputs'),'scope':'E2 file creation and atomic replacement; no E3 build or deployment'}
         (eg.SESSION/'local_project_e2e.json').write_text(json.dumps(result,indent=2))
         return result
     finally:

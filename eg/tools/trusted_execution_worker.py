@@ -7,6 +7,7 @@ exclusive file creation. Durable intent prevents duplicate effects on retry.
 """
 from __future__ import annotations
 import base64
+import re
 import hashlib
 import json
 import os
@@ -41,6 +42,18 @@ def canon(data):
     return json.dumps(data,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
 def fingerprint(action):
     return hashlib.sha256(canon(action)).hexdigest()
+def store_replace(path,payload):
+    """Atomic, worker-owned replacement; never expose a partial target."""
+    temporary=path.parent/('.'+path.name+'.'+secrets.token_hex(12)+'.tmp')
+    try:
+        store_exclusive(temporary,payload)
+        os.replace(temporary,path)
+        fd=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try:os.fsync(fd)
+        finally:os.close(fd)
+    finally:
+        if temporary.exists():temporary.unlink()
+
 def store_exclusive(path,payload):
     fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600)
     with os.fdopen(fd,'wb') as f:
@@ -102,7 +115,7 @@ class TrustedWriter:
             task=request["task_id"]; step=request["step_key"]; action=request["action"]
             if not isinstance(task,str) or not isinstance(step,str) or not isinstance(action,dict):
                 raise WorkerDenied("INVALID_RECONCILIATION_FIELDS")
-            if len(task)>127 or len(step)>18 or action.get("action_type")!="write" or action.get("effect_class")!="E2":
+            if len(task)>127 or len(step)>18 or action.get("action_type") not in ("write","replace") or action.get("effect_class")!="E2":
                 raise WorkerDenied("NO_EFFECT_PROOF_REQUIRES_BOUNDED_WRITE")
             try:
                 target=self.bounded_target(action.get("target",""))
@@ -117,12 +130,23 @@ class TrustedWriter:
                 raise WorkerDenied("NO_PENDING_RECOVERY_GATE")
             intent=self.journal/(task.replace("/","_")+"-"+step+".json")
             retired=self.journal/(task.replace("/","_")+"-"+step+"-"+str(gate["pre_checkpoint_no"])+".no-effect.json")
-            if intent.is_symlink() or retired.is_symlink() or target.is_symlink() or target.exists():
+            replace=action["action_type"]=="replace"
+            if intent.is_symlink() or retired.is_symlink() or target.is_symlink():
+                raise WorkerDenied("NO_EFFECT_UNPROVEN_OR_TARGET_PRESENT")
+            if replace:
+                if (not re.fullmatch(r"[0-9a-f]{64}",action.get("previous_sha256",""))
+                    or not target.is_file() or
+                    hashlib.sha256(target.read_bytes()).hexdigest()!=action["previous_sha256"]):
+                    raise WorkerDenied("NO_EFFECT_UNPROVEN_OR_PREIMAGE_CHANGED")
+            elif target.exists():
                 raise WorkerDenied("NO_EFFECT_UNPROVEN_OR_TARGET_PRESENT")
             if intent.exists():
                 if retired.exists() or not intent.is_file():
                     raise WorkerDenied("AMBIGUOUS_WORKER_RECOVERY_JOURNAL")
                 initial=json.loads(intent.read_text())
+                if replace and (initial.get('previous_sha256')!=action['previous_sha256'] or
+                    hashlib.sha256(base64.b64decode(initial.get('previous_content_b64',''))).hexdigest()!=action['previous_sha256']):
+                    raise WorkerDenied("UNTRUSTED_REPLACEMENT_PREIMAGE_JOURNAL")
                 if (initial.get("stage")!="INTENT_DURABLE" or
                     initial.get("task_id")!=task or initial.get("step_key")!=step or
                     initial.get("gate")!=gate["pre_checkpoint_no"] or
@@ -140,6 +164,8 @@ class TrustedWriter:
                 if not retired.is_file():
                     raise WorkerDenied("RETIRED_INTENT_NOT_REGULAR")
                 initial=json.loads(retired.read_text())
+                if replace and initial.get('previous_sha256')!=action['previous_sha256']:
+                    raise WorkerDenied("RETIRED_PREIMAGE_MISMATCH")
                 if (initial.get("stage")!="INTENT_DURABLE" or
                     initial.get("gate")!=gate["pre_checkpoint_no"] or
                     initial.get("task_id")!=task or initial.get("step_key")!=step or
@@ -167,7 +193,8 @@ class TrustedWriter:
         if not (len(task)<=127 and len(step)<=18):raise WorkerDenied('INVALID_IDENTIFIERS')
         if len(request['data_b64'])>4*MAX_CONTENT//3+8:raise WorkerDenied('PAYLOAD_OVERSIZE')
         data=base64.b64decode(request['data_b64'],validate=True)
-        is_write=(action.get('action_type')=='write' and action.get('effect_class')=='E2'
+        is_replace=action.get("action_type")=="replace"
+        is_write=(action.get('action_type') in ('write','replace') and action.get('effect_class')=='E2'
                   and action.get('reversible') is True and action.get('real_world_effect') is False)
         is_read=(action.get('action_type')=='read' and action.get('effect_class')=='E0'
                  and action.get('reversible') is False and action.get('real_world_effect') is False)
@@ -180,6 +207,8 @@ class TrustedWriter:
                     or type(action.get('payload_bytes')) is not int
                     or action['payload_bytes']!=len(data)):
                 raise WorkerDenied('PAYLOAD_NOT_AUTHORIZED_BY_PRE')
+        if is_replace and not re.fullmatch(r"[0-9a-f]{64}",action.get("previous_sha256","")):
+            raise WorkerDenied("EXPECTED_PREVIOUS_DIGEST_REQUIRED")
         if is_read and data:raise WorkerDenied('READ_MUST_HAVE_EMPTY_INPUT')
         target=self.bounded_target(action.get('target',''))
         if is_write and target.suffix == '.json':
@@ -213,6 +242,7 @@ class TrustedWriter:
                 initial=json.loads(intent.read_text())
                 expected_digest=hashlib.sha256(data).hexdigest()
                 if (initial.get('task_id')!=task or initial.get('step_key')!=step
+                    or (is_replace and initial.get('previous_sha256')!=action['previous_sha256'])
                     or initial.get('gate')!=gate['pre_checkpoint_no']
                     or initial.get('target')!=str(target)
                     or initial.get('data_sha256')!=expected_digest
@@ -260,6 +290,7 @@ class TrustedWriter:
         if intent.exists():
             initial=json.loads(intent.read_text())
             if (initial.get('task_id')!=task or initial.get('step_key')!=step
+                or (is_replace and initial.get('previous_sha256')!=action['previous_sha256'])
                 or initial.get('gate')!=gate['pre_checkpoint_no']
                 or initial.get('target')!=str(target)
                 or initial.get('data_sha256')!=digest
@@ -293,16 +324,27 @@ class TrustedWriter:
             if not gate_entry or not gate_allows_new_effect(gate_entry['created_at']):
                 raise WorkerDenied('EXECUTION_LEASE_EXPIRED_REAUTHORIZE_SAFELY')
             # No existing output may be converted to a retroactive receipt.
-            if target.exists():raise WorkerDenied('PREEXISTING_EFFECT_RETROACTIVE_DENIED')
+            if not is_replace and target.exists():raise WorkerDenied('PREEXISTING_EFFECT_RETROACTIVE_DENIED')
+            if is_replace:
+                if (not target.is_file() or target.is_symlink() or
+                    target.stat().st_uid!=os.getuid() or target.stat().st_size>MAX_CONTENT):
+                    raise WorkerDenied('REPLACE_TARGET_NOT_WORKER_OWNED')
+                previous=target.read_bytes()
+                if (not previous or hashlib.sha256(previous).hexdigest()!=action['previous_sha256']
+                    or previous==data):
+                    raise WorkerDenied('REPLACE_PREIMAGE_MISMATCH')
             if action.get('payload_sha256') is None or action.get('payload_bytes') is None:
                 raise WorkerDenied('EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE')
             initial={'stage':'INTENT_DURABLE','task_id':task,'step_key':step,
                      'gate':gate['pre_checkpoint_no'],'target':str(target),
                      'action_fingerprint':gate['action_fingerprint'],
                      'data_sha256':digest}
+            if is_replace:
+                initial['previous_sha256']=action['previous_sha256']
+                initial['previous_content_b64']=base64.b64encode(previous).decode()
             store_exclusive(intent,canon(initial))
             # Only privileged worker performs physical WRITE, after PRE.
-            store_exclusive(target,data)
+            (store_replace if is_replace else store_exclusive)(target,data)
         observed=target.read_bytes()
         if observed!=data:raise WorkerDenied('INDEPENDENT_READBACK_MISMATCH')
         receipt=sign(body(task,step,gate['pre_checkpoint_no'],
