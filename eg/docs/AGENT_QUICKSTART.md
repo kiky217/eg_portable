@@ -13,6 +13,8 @@
 
 `admission_mode=disabled` is explicitly a **historical/audit-only** mode for hosts without independently trusted execution. This is not equivalent to production execution. Enable admission only after the trust prerequisites are actually met. A public key without a separately protected private signer does not prove executor independence.
 
+For an independently provisioned **E3–E5-only** instance, the built-in E0/E2 executor signing key is not required if no E0/E2 output root is configured. The external worker still needs its own distinct signing identity, approved capability, operator binding, separately signed HITL, and exact PRE/POST. When the built-in E0/E2 output root is configured, its own separate signing key remains mandatory; missing trust still fails closed.
+
 ## Agent usability diagnostic
 
 Run from repository root:
