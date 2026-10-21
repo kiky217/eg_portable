@@ -52,6 +52,7 @@ def test_live_discovery_unavailable_is_not_admitted(monkeypatch,catalog_valid,ad
     ("UNVERIFIED_NOT_AUTHORIZED","MATCHED_CAPABILITY_NOT_TRUSTED"),
     ("EXTERNAL_OPERATOR_BINDING_REQUIRED","OPERATOR_BINDING_REQUIRED"),
     ("UNAVAILABLE","MATCHED_CAPABILITY_NOT_TRUSTED"),
+    ([],"MATCHED_CAPABILITY_NOT_TRUSTED"),
 ])
 def test_untrusted_discovered_capability_cannot_be_misreported_as_live_pre(monkeypatch,status,reason):
     monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
