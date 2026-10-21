@@ -21,7 +21,8 @@ import time
 import uuid
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from no_redirect_http import urlopen
 
 
 def env_from_file(path: Path) -> dict[str, str]:
