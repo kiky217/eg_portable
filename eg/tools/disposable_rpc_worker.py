@@ -18,7 +18,8 @@ import struct
 from dataclasses import asdict
 from pathlib import Path
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from urllib.request import Request,urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 
 from tools.adapter_attestation_worker import _read_private_key,_private_directory
 from tools.adapter_liveness import canon, attest
