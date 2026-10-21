@@ -145,7 +145,11 @@ def test_third_process_consumer_signed_registry_physical_post(monkeypatch):
         assert final.status_code==200 and final.json()["contract_status"]=="SATISFIED"
         _,status=os.waitpid(pid,0);pid=0
         assert os.waitstatus_to_exitcode(status)==0
-        assert H.CLIENT.get("/v1/audit/verify",headers=H.HEAD).json()["status"]=="PASS"
+        # CI harness runs its gateway as root. Production external admission
+        # rejects that identity, so restore the harness mode for audit readback.
+        monkeypatch.setattr(H.gw,"EXTERNAL_ADAPTER_MODE","disabled")
+        audit=H.CLIENT.get("/v1/audit/verify",headers=H.HEAD)
+        assert audit.status_code==200 and audit.json()["status"]=="PASS",audit.text
     finally:
         if pid:
             try:os.kill(pid,9)
