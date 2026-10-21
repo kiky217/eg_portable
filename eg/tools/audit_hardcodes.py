@@ -19,7 +19,6 @@ PATTERNS = {
 }
 
 
-
 # Candidate disposition is intentionally NOT an independent semantic sign-off.
 # It names accountable producer/consumer and forces human review for risky core cases.
 def _scope(name):
