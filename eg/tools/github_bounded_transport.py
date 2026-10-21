@@ -6,7 +6,8 @@ Never infer a verified physical effect from the GitHub API acknowledgement.
 from __future__ import annotations
 import base64,json,re
 from urllib.parse import quote
-from urllib.request import Request,urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 from tools.github_effect_scope import validate_operation
 
 _SHA=re.compile(r"^[0-9a-f]{40}$")

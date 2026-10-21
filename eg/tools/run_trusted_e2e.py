@@ -6,7 +6,8 @@ run with different UIDs and distinct Ed25519 private keys. No test secrets logge
 """
 import base64,hashlib,json,os,secrets,socket,subprocess,sys,time,uuid,tempfile
 from pathlib import Path
-from urllib.request import Request,urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 from urllib.error import HTTPError,URLError
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,NoEncryption,PublicFormat

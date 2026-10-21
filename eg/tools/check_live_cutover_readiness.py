@@ -16,7 +16,8 @@ from pathlib import Path
 import sqlite3
 import tarfile
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 
 from tools.trusted_execution_worker import MAX_NEW_WRITE_LEASE_SECONDS
 from tools.cutover_attestation import verify_independent_cutover, _digest, MAX_ARCHIVE_BYTES, MAX_RESTORE_BYTES, MAX_ARCHIVE_MEMBERS

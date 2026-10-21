@@ -7,10 +7,11 @@ import json
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from no_redirect_http import urlopen
 from capability_catalog import parse_catalog, lookup, CatalogError
 
 BUILTIN = {"E0": {"read"}, "E2": {"write"}}

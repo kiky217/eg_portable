@@ -10,7 +10,8 @@ import json
 import socket
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 
 from app.execution_receipts import verify
 from tools.trusted_execution_worker import fingerprint, gate_allows_new_effect
