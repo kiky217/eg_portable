@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import re
@@ -18,11 +19,57 @@ PATTERNS = {
 }
 
 
+
+# Candidate disposition is intentionally NOT an independent semantic sign-off.
+# It names accountable producer/consumer and forces human review for risky core cases.
+def _scope(name):
+    if name.startswith("eg/app/"):
+        return "GENERIC_EG_CORE", "HTTP_API_AND_CANONICAL_LEDGER"
+    if name.startswith("eg/tools/github_") or name.endswith("/trusted_github_effect.py"):
+        return "OPTIONAL_PROVIDER_ADAPTER", "INDEPENDENT_GITHUB_WORKER"
+    if name.startswith("eg/tests/"):
+        return "TEST_FIXTURE", "PYTEST_AND_CI"
+    if name.startswith("eg/artifacts/"):
+        return "HISTORICAL_EVIDENCE", "HUMAN_AUDIT"
+    if name.startswith("eg/tools/"):
+        return "PORTABLE_OPERATIONS", "OPERATOR_OR_INDEPENDENT_WORKER"
+    if name.startswith(".github/") or "Dockerfile" in name or "compose" in name:
+        return "PACKAGING_AND_CI", "BUILD_AND_RELEASE"
+    return "DOCUMENTATION_OR_CONFIG", "OPERATOR"
+
+
+def _review(name, line, category, literal):
+    scope, consumer = _scope(name)
+    if category == "APP_SPECIFIC" and scope == "GENERIC_EG_CORE":
+        risk, action = "HIGH", "REVIEW_PROVIDER_COUPLING_IN_CORE"
+    elif category in ("SECURITY_REVIEW", "SECURITY_INVARIANT") and scope not in (
+            "TEST_FIXTURE", "HISTORICAL_EVIDENCE", "DOCUMENTATION_OR_CONFIG"):
+        risk, action = "HIGH", "CHECK_SECURITY_CONTRACT_AND_NEGATIVE_TESTS"
+    elif category == "ENVIRONMENT_CONFIG" and scope not in ("TEST_FIXTURE", "DOCUMENTATION_OR_CONFIG"):
+        risk, action = "MEDIUM", "CHECK_ENVIRONMENT_OVERRIDE_AND_PORTABILITY"
+    elif category == "MAINTENANCE" and scope == "GENERIC_EG_CORE":
+        risk, action = "MEDIUM", "REVIEW_LEGACY_CONSUMERS_BEFORE_REMOVAL"
+    else:
+        risk, action = "LOW", "CHECK_EXPECTED_USE_AND_TEST"
+    return {"origin": scope, "consumer": consumer, "risk": risk,
+            "action": action, "review_status": "SEMANTIC_REVIEW_REQUIRED"}
+
+
+def _literal_category(value):
+    text = str(value)
+    for category in ("APP_SPECIFIC", "ENVIRONMENT_CONFIG", "SECURITY_REVIEW", "CONTRACT"):
+        if PATTERNS[category].search(text):
+            return category
+    if isinstance(value, (int, float)) and type(value) is not bool:
+        return "PORTABLE_DEFAULT_REVIEW"
+    return "UNKNOWN_REVIEW"
+
+
 def inventory(root: Path = ROOT) -> dict:
     sha = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
     names = subprocess.check_output(["git", "-C", str(root), "ls-files", "-z"]).split(b"\0")
     paths = sorted(n.decode("utf-8") for n in names if n)
-    files, findings = [], []
+    files, findings, literal_sites = [], [], []
     for name in paths:
         raw = (root / name).read_bytes()
         meta = {"path": name, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
@@ -41,12 +88,33 @@ def inventory(root: Path = ROOT) -> dict:
                         "path": name, "line": line_no,
                         "category": category, "match": match.group(0),
                         "status": "NEEDS_SEMANTIC_REVIEW",
+                        **_review(name, line_no, category, match.group(0)),
                     })
+        if name.endswith(".py"):
+            try:
+                tree = ast.parse("\n".join(lines), filename=name)
+            except SyntaxError:
+                meta["parse"] = "SYNTAX_ERROR_REVIEW_REQUIRED"
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Constant) or not isinstance(
+                        node.value, (str, int, float, bool, bytes, type(None))):
+                    continue
+                literal = repr(node.value)
+                category = _literal_category(node.value)
+                literal_sites.append({
+                    "path": name, "line": node.lineno,
+                    "literal": literal[:160], "truncated": len(literal)>160,
+                    "category": category,
+                    **_review(name, node.lineno, category, literal),
+                })
     return {"schema_version": 1, "source_commit": sha,
             "files_total": len(files),
             "files_scanned": sum(f["scan"] == "TEXT_SCANNED" for f in files),
             "files": files, "candidates_total": len(findings),
-            "candidates": findings}
+            "candidates": findings, "literal_sites_total": len(literal_sites),
+            "literal_sites": literal_sites,
+            "semantic_review_complete": False}
 
 
 def main() -> None:
@@ -56,7 +124,7 @@ def main() -> None:
     report = inventory()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-    print(f"source={report['source_commit']} files={report['files_total']} candidates={report['candidates_total']}")
+    print(f"source={report['source_commit']} files={report['files_total']} candidates={report['candidates_total']} literals={report['literal_sites_total']} semantic_review_complete=false")
 
 
 if __name__ == "__main__":
