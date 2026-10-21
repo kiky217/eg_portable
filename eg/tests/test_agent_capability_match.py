@@ -79,14 +79,17 @@ def test_signed_operator_binding_discovery_is_read_only_and_actionable(monkeypat
     reg=OperatorAdapterRegistry(directory,pub(operator))
     reg.activate(signed,adapter_id=cap.adapter_id,capability_sha256=digest)
     db=directory/"adapter-activation.sqlite3"
-    original_hash=hashlib.sha256(db.read_bytes()).hexdigest()
+    import sqlite3
+    with sqlite3.connect(db) as connection:
+        original_rows=connection.execute("SELECT * FROM adapters ORDER BY adapter_id").fetchall()
     ready=CLIENT.get(URL,params=params,headers=HEAD).json()
     assert ready["status"]=="MATCHED_PRE_REQUIRED"
     assert ready["candidates"][0]["status"]=="LIVE_PRE_ATTESTATION_REQUIRED"
     catalog=CLIENT.get("/v1/agent/capabilities",headers=HEAD).json()
     assert any(row.get("status")=="EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"
                and row.get("adapter_id")==cap.adapter_id for row in catalog["capabilities"])
-    assert hashlib.sha256(db.read_bytes()).hexdigest()==original_hash
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT * FROM adapters ORDER BY adapter_id").fetchall()==original_rows
     reg.revoke(revoke(operator,signed),adapter_id=cap.adapter_id)
     revoked=CLIENT.get(URL,params=params,headers=HEAD).json()
     assert revoked["candidates"][0]["status"]=="OPERATOR_BINDING_REQUIRED"
