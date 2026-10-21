@@ -28,7 +28,7 @@ def test_e5_cannot_compensate(monkeypatch):
             operation="compensate")
 
 
-@pytest.mark.parametrize("wire_reply",[b"[]\\n",b"null\\n",b"42\\n",b'"ok"\\n'])
+@pytest.mark.parametrize("wire_reply",[b"[]\n",b"null\n",b"42\n",b'"ok"\n'])
 def test_malformed_worker_ack_is_typed_unknown_and_never_replayed(monkeypatch,wire_reply):
     import socket,struct
     from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
