@@ -119,6 +119,8 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
         answer=json.loads(data_reply.split(b"\n",1)[0])
     except (ValueError,TypeError) as exc:
         raise ExternalDispatchDenied("INVALID_WORKER_RESPONSE_RECONCILE") from exc
+    if not isinstance(answer,dict):
+        raise ExternalDispatchDenied("INVALID_WORKER_RESPONSE_RECONCILE")
     if answer.get("status")!="PASS":
         raise ExternalDispatchDenied("WORKER_DENIED:"+str(answer.get("reason","unknown")))
     result=answer.get("result")
