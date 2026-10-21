@@ -48,7 +48,13 @@ def test_replace_verified_and_recovery_no_duplicate(tmp_path,monkeypatch):
     assert w.execute(payload)==receipt  # Original sealed receipt; not second physical effect.
     assert target.stat().st_ino==old_stat.st_ino
     assert target.stat().st_mtime_ns==old_stat.st_mtime_ns
-    post,_=do_post(task,contract,pre,action=action,execution_receipt=receipt)
+    failed,_=do_post(task,contract,pre,action=action,stdout='NO_VALID_EVIDENCE',
+                     execution_receipt=receipt)
+    assert failed.status_code==200 and failed.json()['verdict']=='UNVERIFIED',failed.text
+    assert w.execute(payload)==receipt  # Failed POST cannot trigger second file edit.
+    assert target.stat().st_ino==old_stat.st_ino
+    post,_=do_post(task,contract,pre,action=action,
+                   req_cp=failed.json()['checkpoint_no'],execution_receipt=receipt)
     assert post.status_code==200 and post.json()['verdict']=='VERIFIED_PASS',post.text
     assert CLIENT.get('/v1/audit/verify',headers=HEAD).json()['status']=='PASS'
 
