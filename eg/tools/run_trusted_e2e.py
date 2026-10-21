@@ -125,7 +125,7 @@ def eg_req(method,path,data=None):
     with urlopen(Request(EG_URL+path,data=b,method=method,headers=headers),timeout=15) as r:
         return json.loads(r.read())
 def notarize(bindings,text):
-    ref=id('knid-task')
+    ref=id('trusted-task')
     directory=EGROOT/'evidence'/ref
     directory.mkdir(mode=0o700);os.chown(directory,EG_USER,EG_USER)
     now=time.time()
@@ -137,7 +137,7 @@ def notarize(bindings,text):
             base64.b64encode(EG_NOTARY.sign(canon(payload).encode())).decode()}
     for name,raw in (('state.json',state),('stdout.log',out),('evidence.json',canon(signed).encode())):
         p=directory/name;p.write_bytes(raw);os.chown(p,EG_USER,EG_USER);os.chmod(p,0o600)
-    return {'source_type':'knid_task','reference':ref}
+    return {'source_type':'trusted_task','reference':ref}
 def binding(task,key,criterion,phase,cp,mark,scope='step'):
     data={'kind':'step_criterion' if scope=='step' else 'task_criterion',
           'eg_task_id':task,'criterion_index':0,'criterion':criterion,
