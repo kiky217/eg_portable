@@ -122,7 +122,7 @@ class TrustedGitHubEffect:
         receipt=sign(body(task_id,step_key,cp,fp,"trusted-worker-"+self.adapter_id,
                           action["target"],output,nonce,
                           completed_ns=max(time.time_ns(),int(epoch*1e9))),self.private)
-        self.ledger.record_executed_effect(action["target"],task_id=task_id,
+        self.ledger.record_executed_effect(action["target"]+"@"+ack["commit_sha"],task_id=task_id,
                gate_checkpoint_no=cp,action_fingerprint=fp,adapter_id=self.adapter_id,
                digest=hashlib.sha256(output).hexdigest())
         return {"status":"EXECUTED_POST_NOT_VERIFIED","receipt":self.ledger.seal_receipt(
