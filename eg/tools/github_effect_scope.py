@@ -35,6 +35,9 @@ def validate_operation(request: dict, policy: dict) -> dict:
         not _REF.fullmatch(request["branch"]) or
         not request["branch"].startswith(policy["branch_prefix"]) or
         any(x in ("", ".", "..") for x in request["branch"].split("/")) or
+        ".." in request["branch"] or request["branch"].endswith(".") or
+        any(x.startswith(".") or x.endswith(".lock")
+            for x in request["branch"].split("/")) or
         request["branch"] in ("main","master") or
         not isinstance(request.get("path"),str) or
         any(x in ("",".","..") for x in request["path"].split("/")) or
