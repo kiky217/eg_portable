@@ -82,6 +82,9 @@ jobs:
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_trusted_e2e.py
       - name: Remedial E2E
         run: sudo env PYTHONPATH=/tmp/eg-ci-source "$(command -v python)" /tmp/eg-ci-source/tools/run_remedial_e2e.py
+      - name: Single-agent cafe website staged PRE execution POST E2E
+        working-directory: eg
+        run: sudo env PYTHONPATH=. "$(command -v python)" tools/local_project_e2e.py examples/cafe-website.json
       - name: Build and smoke production Docker runtime imports
         run: |
           docker build -t eg-runtime-smoke eg
