@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import threading
 import time
+import sys
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -29,13 +30,42 @@ from tools.governed_agent_dispatcher import dispatch_action
 pytestmark=pytest.mark.skipif(os.getuid()!=0,reason="distinct-UID CI only")
 
 
-def test_third_process_consumer_signed_registry_physical_post(monkeypatch):
+@pytest.mark.parametrize("example", ("echo", "cafe_build_test_http"))
+def test_third_process_consumer_signed_registry_physical_post(monkeypatch,example):
     uid=65532
     base=Path(tempfile.mkdtemp(prefix="eg-process-",dir="/tmp"))
     base.chmod(0o755)
     socket_dir=base/"socket";socket_dir.mkdir(mode=0o700)
     journal=base/"journal";journal.mkdir(mode=0o700)
-    for folder in (socket_dir,journal):os.chown(folder,uid,uid)
+    project=base/"project";project.mkdir(mode=0o700)
+    if example=="cafe_build_test_http":
+        # Operator-owned pinned verifier: compile, validate a menu and serve an
+        # actual loopback API; it is never an agent-controlled shell command.
+        checker=project/"verify_app.py"
+        checker.write_text('''import json,sys,threading,urllib.request
+from http.server import BaseHTTPRequestHandler,HTTPServer
+source='def menu(): return [{"name": "Espresso", "price": 19000}]'
+namespace={}
+exec(compile(source,'cafe_api.py','exec'),namespace)
+expected=namespace['menu']()
+assert expected[0]['price']==19000
+class Api(BaseHTTPRequestHandler):
+ def do_GET(self):
+  data=json.dumps(expected).encode()
+  self.send_response(200 if self.path=='/menu' else 404)
+  self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
+ def log_message(self,*args): pass
+server=HTTPServer(('127.0.0.1',0),Api)
+thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+try:
+ with urllib.request.urlopen('http://127.0.0.1:%s/menu'%server.server_port,timeout=3) as response:
+  assert response.status==200 and json.loads(response.read())==expected
+finally:
+ server.shutdown();server.server_close();thread.join(timeout=3)
+sys.stdout.buffer.write(sys.stdin.buffer.read())
+''')
+        os.chown(checker,65532,65532)
+    for folder in (socket_dir,journal,project):os.chown(folder,uid,uid)
     sock=str(socket_dir/"worker.sock")
     operator,worker,human=(Ed25519PrivateKey.generate() for _ in range(3))
     task,contract=register_high_effect()
@@ -76,8 +106,10 @@ def test_third_process_consumer_signed_registry_physical_post(monkeypatch):
             os.setgroups([])
             os.setgid(uid);os.setuid(uid)
             process=TrustedProcessEffect(journal_dir=journal,private_key=worker,
-                adapter_id=adapter,hitl_key_b64=pub(human),executable="/usr/bin/cat",
-                fixed_args=(),target=target,timeout=5,max_stdout=4096,
+                adapter_id=adapter,hitl_key_b64=pub(human),
+                executable=str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if example=="cafe_build_test_http" else "/usr/bin/cat",
+                fixed_args=(str(checker),) if example=="cafe_build_test_http" else (),
+                target=target,timeout=5,max_stdout=4096,
                 input_schema=input_schema,input_schema_sha256=schema_hash,
                 output_schema=input_schema,output_schema_sha256=schema_hash)
             serve(socket_path=sock,adapter=process,capability_sha256=capsha,

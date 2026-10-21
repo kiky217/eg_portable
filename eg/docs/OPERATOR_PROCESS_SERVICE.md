@@ -1,0 +1,90 @@
+# One-time E3 process worker onboarding (operator-owned)
+
+A **single AI agent** can plan a task and use EG; it does **not** need a
+second AI agent. The executable performing a concrete effect is an ordinary
+operating-system process under an independent worker identity. The first
+installation still needs an authorized operator to provide distinct protected
+signing identities and scoped execution policy. The agent **does not** create
+its own trust root, approve itself, or substitute a local shell for EG.
+
+The packaged `tools/operator_process_service.py` starts an existing, bounded
+`TrustedProcessEffect` behind the generic UID-pinned Unix RPC service. It
+supports an **operator-fixed executable, fixed arguments, target, and execution
+limit**. It does not support agent-supplied shell strings, arbitrary commands,
+remote process control, or persistent server management. This worker can be
+reused across tasks until the operator binding expires or is revoked.
+
+## Provision once, before the agent starts
+
+The independent operator must create separate non-root OS identities for the
+EG controller, evidence notary, HITL signer, adapter registry and E3 worker,
+with distinct protected Ed25519 private keys. Reuse the existing
+[`operator_adapter_binding.py`](../tools/operator_adapter_binding.py) and
+[`operator_runtime_registry.py`](../tools/operator_runtime_registry.py) signed
+binding/activation contract; never register workers from an agent-selected
+public key alone. The worker socket directory must be owned by the worker and
+private, with an operator-approved controller group if the controller has a
+different UID (`chmod 2710`; the socket itself becomes `0660`). Both Unix peer
+credentials and the Ed25519 liveness challenge are checked before admission.
+
+Run the worker as its dedicated non-root UID with an **operator-owned 0600**
+JSON configuration file. Keys, the EG API credential, and the configuration
+must each be regular owner-only files with no symlink. No secret is supplied on
+the command line or stored in the Git repository:
+
+```sh
+python -m tools.operator_process_service /protected/worker.json
+```
+
+The config contains the following operator-selected values:
+
+| Field | Meaning |
+| --- | --- |
+| `adapter_id`, `capability_sha256` | Exact signed typed capability identity |
+| `socket_path`, `journal_dir` | Worker-private Unix RPC and durable nonce journal |
+| `private_key_path`, `eg_api_key_path` | Owner-only files, not secret strings in JSON |
+| `eg_url`, `hitl_public_key_b64` | Authenticated gateway and independent HITL authority |
+| `controller_uid`, optional `controller_group_gid` | Allowed distinct OS controller identity |
+| `executable`, `fixed_args`, `target` | The operator-approved, bounded process policy |
+
+An E3 action then follows **registered task → fresh PRE → separately signed
+HITL → active operator binding → UID-pinned worker → durable nonce claim →
+fixed process effect → signed receipt → canonical POST**. Receipt delivery is
+not completion. The agent reads back the current task state; the next step
+remains closed until independent POST evidence passes. Crash after a durable
+claim but before sealed receipt remains **UNKNOWN**, never automatically
+replayed.
+
+## What the agent can do
+
+An agent discovers `/v1/agent/capabilities`, resolves a previously provisioned
+adapter through the signed registry, and calls
+[`dispatch_action()`](../tools/governed_agent_dispatcher.py) with the task's
+original action and independently signed approval. The same dispatcher works
+for process, GitHub or newly provisioned typed adapters; no project/provider
+branches are added to EG core.
+
+If admission is disabled or no separately provisioned adapter exists, the
+correct result is **NOT_ADMITTED / OPERATOR_PROVISIONING_REQUIRED**, including
+which missing capability or trust is required. Do not silently set
+`admission_mode=enabled` for an existing host, forge approvals or use the
+CI-only disposable adapter. Source CI success does not verify any live
+production worker.
+
+## Reproducible validation
+
+- `tests/test_operator_process_service.py`: real non-root worker process,
+  independent controller UID, signed liveness, wrong UID denial and protected
+  key/config denial.
+- `tests/test_process_external_e2e.py`: real signed generic E3 PRE/POST,
+  receipt, checkpoint and audit. Its additional café case compiles Python,
+  validates a menu and requests the HTTP endpoint under a pinned test process.
+- `tests/test_external_uid_roundtrip.py` and
+  `tests/test_github_pr_external_uid_e2e.py`: other separately authenticated
+  typed adapters and negative tests.
+
+These are isolated tests, **not a certificate of production installation**.
+Further first-run work is required to automatically bind a concrete operator
+installation and to support user-authorized long-running services, cutover and
+rollback on the destination host. Keep [Issue #104](https://github.com/kiky217/eg_portable/issues/104)
+open until the entire acceptance matrix is verified.
