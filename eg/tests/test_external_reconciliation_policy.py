@@ -26,3 +26,64 @@ def test_e5_cannot_compensate(monkeypatch):
             expected_worker_uid=os.getuid()+1,adapter_id="trusted-adapter-test",
             pinned_public_key_b64="pub",hitl_public_key_b64="pub",
             operation="compensate")
+
+
+@pytest.mark.parametrize("wire_reply",[b"[]\\n",b"null\\n",b"42\\n",b'"ok"\\n'])
+def test_malformed_worker_ack_is_typed_unknown_and_never_replayed(monkeypatch,wire_reply):
+    import socket,struct
+    from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
+    from tools.signed_hitl_approval import canonical
+    human=Ed25519PrivateKey.generate()
+    worker=Ed25519PrivateKey.generate()
+    def pub(private):
+        return base64.b64encode(private.public_key().public_bytes(
+            Encoding.Raw,PublicFormat.Raw)).decode()
+    task,step,adapter="task-demo","01.01","trusted-adapter-demo"
+    payload=b"a"
+    action={"effect_class":"E3","action_type":"operate","target":"/demo/result",
+            "reversible":True,"real_world_effect":True,
+            "payload_sha256":hashlib.sha256(payload).hexdigest(),
+            "payload_bytes":len(payload)}
+    fp=action_fingerprint(action)
+    now=int(time.time())
+    signed_doc={"version":1,"task_id":task,"step_key":step,
+                "gate_checkpoint_no":4,"action_fingerprint":fp,
+                "adapter_id":adapter,"decision":"APPROVED",
+                "issued_at":now-1,"expires_at":now+120,
+                "nonce":"signed-once-worker-ack-demo"}
+    approval={**signed_doc,"signature_b64":
+              base64.b64encode(human.sign(canonical(signed_doc))).decode()}
+    gate={"checkpoint_no":4,"hitl_approved":True,
+          "action_fingerprint":fp,
+          "high_effect_pin":{"adapter_id":adapter,
+                             "public_key_b64":pub(worker),
+                             "action_fingerprint":fp,
+                             "approval_nonce":approval["nonce"]}}
+    state={"status":"IN_PROGRESS","current_step":step,
+           "pending_execution_gate":gate,
+           "latest_checkpoint":{"checkpoint_no":4,"verdict":"READY_TO_EXECUTE"}}
+    details={"task":{"contract_status":"OPEN"},
+             "checkpoints":[{"checkpoint_no":4,
+                             "verdict":"READY_TO_EXECUTE",
+                             "created_at":datetime.now(timezone.utc).isoformat()}]}
+    monkeypatch.setattr(ext,"_get",lambda base,key,task_id,suffix:
+                        state if suffix=="/state" else details)
+    sent=[]
+    class FakeSocket:
+        def __enter__(self):return self
+        def __exit__(self,*a):pass
+        def settimeout(self,value):pass
+        def connect(self,path):pass
+        def getsockopt(self,*a):return struct.pack("3i",99999,os.getuid()+1,0)
+        def sendall(self,packet):sent.append(packet)
+        def recv(self,size):return wire_reply
+    monkeypatch.setattr(socket,"socket",lambda *a,**kw:FakeSocket())
+    with pytest.raises(ext.ExternalDispatchDenied,match="INVALID_WORKER_RESPONSE_RECONCILE"):
+        ext.dispatch(request={"task_id":task,"step_key":step,"action":action,
+                              "approval":approval,
+                              "data_b64":base64.b64encode(payload).decode()},
+                     eg_url="http://127.0.0.1:8765",api_key="test",
+                     worker_socket="/tmp/worker.sock",expected_worker_uid=os.getuid()+1,
+                     adapter_id=adapter,pinned_public_key_b64=pub(worker),
+                     hitl_public_key_b64=pub(human))
+    assert len(sent)==1
