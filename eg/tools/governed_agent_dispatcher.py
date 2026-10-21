@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import socket
 from pathlib import Path
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from app.execution_receipts import verify
@@ -18,6 +19,11 @@ class DispatchDenied(RuntimeError):
     pass
 
 def _get(url: str, key: str, task: str, suffix: str) -> dict:
+    loc=urlsplit(url)
+    if (loc.username or loc.password or loc.query or loc.fragment or
+        not (loc.scheme=="https" or
+             (loc.scheme=="http" and loc.hostname in ("127.0.0.1","localhost")))):
+        raise DispatchDenied("UNTRUSTED_EG_STATUS_URL")
     with urlopen(Request(url.rstrip("/") + "/v1/tasks/" + task + suffix,
                          headers={"X-Evaluation-Key": key}), timeout=10) as response:
         return json.load(response)
