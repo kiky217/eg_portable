@@ -18,7 +18,8 @@ import time
 import threading
 from datetime import datetime
 from pathlib import Path
-from urllib.request import Request,urlopen
+from urllib.request import Request
+from tools.no_redirect_http import urlopen
 from urllib.error import HTTPError
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
 from app.execution_receipts import body, sign, verify
