@@ -160,3 +160,15 @@ is `UNKNOWN_NO_REPLAY` and must be reconciled using the original journal.
 This operator-controlled mode never provisions tokens, signature keys,
 approvals, UIDs or workers from agent input. Granting GitHub credentials or
 a production merge approval remains outside the local CI fixture.
+
+
+### Source-pinned semantic hardcode review (#104)
+
+The release workflow's existing read-only `audit_hardcodes.py` now includes
+source-file SHA256, path:line lexical findings, and Python AST literal sites
+with explicit origin, consumer, preliminary risk, and next review action.
+All automated classifications retain `SEMANTIC_REVIEW_REQUIRED`;
+`semantic_review_complete` stays false until independent semantic review.
+No automatic finding is a defect verdict or authorization to remove security
+invariants. Use the exact released source-commit and the archived candidate
+report before touching core code.
