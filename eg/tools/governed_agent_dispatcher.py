@@ -200,7 +200,7 @@ def dispatch_disposable_ci(*, task_id: str, step_key: str, action: dict,
 
 
 def dispatch_action(request: dict, *, eg_url: str, api_key: str,
-                    executor_public_key_b64: str, worker_socket: str | None = None,
+                    executor_public_key_b64: str | None = None, worker_socket: str | None = None,
                     ci_only: bool = False, disposable_adapter=None,
                     hitl_approval: dict | None = None,
                     hitl_public_key_b64: str | None = None,
@@ -283,7 +283,15 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
     if operation!="execute" or ci_only or disposable_adapter is not None:
         raise DispatchDenied("UNSUPPORTED_EXECUTION_TRANSPORT")
     if not worker_socket:
+        import os
+        worker_socket=os.getenv("EVALUATION_GATEWAY_WORKER_SOCKET")
+    if not worker_socket:
         raise DispatchDenied("INDEPENDENT_E0_E2_WORKER_SOCKET_REQUIRED")
+    if not executor_public_key_b64:
+        import os
+        executor_public_key_b64=os.getenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64")
+    if not executor_public_key_b64:
+        raise DispatchDenied("TRUSTED_E0_E2_EXECUTOR_PUBLIC_KEY_REQUIRED")
     return dispatch(request,eg_url=eg_url,api_key=api_key,
                     worker_socket=worker_socket,
                     executor_public_key_b64=executor_public_key_b64)

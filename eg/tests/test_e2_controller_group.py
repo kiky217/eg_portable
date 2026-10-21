@@ -86,10 +86,11 @@ def test_real_unprivileged_agent_creates_file_through_eg_pre_and_signed_post(mon
         assert pre.json()['verdict']=='READY_TO_EXECUTE',pre.text
         packet={'task_id':task,'step_key':'01.01','action':action,
                 'data_b64':base64.b64encode(content).decode()}
-        script='''import base64,json,sys\nfrom tools.governed_agent_dispatcher import dispatch\nq=json.load(sys.stdin)\nr=dispatch(q,eg_url=sys.argv[1],api_key=sys.argv[2],worker_socket=sys.argv[3],executor_public_key_b64=sys.argv[4])\nprint(json.dumps(r))'''
-        agent=subprocess.run([sys.executable,'-c',script,url,H.API_KEY,
-                   config['socket_path'],pub],input=json.dumps(packet),text=True,
-                   cwd=source,env={**os.environ,'PYTHONPATH':str(source)},
+        script='''import base64,json,sys\nfrom tools.governed_agent_dispatcher import dispatch_action\nq=json.load(sys.stdin)\nr=dispatch_action(q,eg_url=sys.argv[1],api_key=sys.argv[2])\nprint(json.dumps(r))'''
+        agent=subprocess.run([sys.executable,'-c',script,url,H.API_KEY],input=json.dumps(packet),text=True,
+                   cwd=source,env={**os.environ,'PYTHONPATH':str(source),
+                   'EVALUATION_GATEWAY_WORKER_SOCKET':config['socket_path'],
+                   'EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64':pub},
                    preexec_fn=_as(CONTROLLER),capture_output=True,timeout=12)
         assert agent.returncode==0,agent.stderr
         result=json.loads(agent.stdout)
