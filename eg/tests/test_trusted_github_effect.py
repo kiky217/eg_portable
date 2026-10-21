@@ -90,3 +90,72 @@ def test_direct_worker_rejects_invalid_message_and_approval_before_effect(tmp_pa
     with pytest.raises(GitHubWorkerDenied,match="SIGNED_HITL_APPROVAL_REQUIRED_NO_EFFECT"):
         w.execute(**{**kwargs,"approval":None,"commit_message":"safe"})
     assert calls==[]
+
+
+def test_sequential_authorized_github_updates_same_path_do_not_collide(tmp_path):
+    """Each immutable commit is a separate effect; one path can be updated twice."""
+    executor, human = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()
+    policy = {"repository": "example/project", "branch_prefix": "agent/",
+              "path_prefix": "src", "actions": ["create_file", "update_file"]}
+    journal = tmp_path / "journal"
+    journal.mkdir(mode=0o700)
+    calls = []
+
+    def write(operation, policy, content, *, token, commit_message):
+        idx = len(calls)
+        calls.append(operation["operation"])
+        return {"commit_sha": f"{idx+1:040x}", "blob_sha": f"{idx+11:040x}"}
+
+    def readback(operation, policy, *, commit_sha, expected_bytes, token):
+        return {"status": "CONTENT_VERIFIED_NOT_EXECUTION_PROOF",
+                "commit_sha": commit_sha,
+                "blob_sha256": hashlib.sha256(expected_bytes).hexdigest()}
+
+    adapter_id = "trusted-adapter-github-repeat"
+    w = TrustedGitHubEffect(journal_dir=journal, private_key=executor,
+        adapter_id=adapter_id, hitl_public_key_b64=pub(human), policy=policy,
+        github_token="fixture", write=write, readback=readback)
+    receipts = []
+    for i, name in enumerate(("create_file", "update_file"), start=1):
+        content = f"revision {i}".encode()
+        op = {"repository": "example/project", "operation": name,
+              "branch": "agent/test", "path": "src/a.py",
+              "expected_blob_sha": "" if i == 1 else f"{11:040x}"}
+        payload = json.dumps({"operation": op, "commit_message": "governed edit",
+                "content_sha256": hashlib.sha256(content).hexdigest()},
+                sort_keys=True, separators=(",", ":")).encode()
+        action = {"action_type": "github_contents_write", "effect_class": "E4",
+                  "real_world_effect": True, "reversible": False,
+                  "target": "/github/example/project/src/a.py",
+                  "payload_bytes": len(payload),
+                  "payload_sha256": hashlib.sha256(payload).hexdigest()}
+        fp = action_fingerprint(action)
+        now = int(time.time())
+        nonce = f"independent_nonce_repeated_edit_{i}_123"
+        envelope = {"version": 1, "task_id": f"github-task-{i}",
+                    "step_key": "01.01", "gate_checkpoint_no": i,
+                    "action_fingerprint": fp, "adapter_id": adapter_id,
+                    "decision": "APPROVED", "issued_at": now-1,
+                    "expires_at": now+100, "nonce": nonce}
+        approval = {**envelope, "signature_b64": base64.b64encode(
+            human.sign(canonical(envelope))).decode()}
+        gate = {"task_id": f"github-task-{i}", "step_key": "01.01",
+                "checkpoint_no": i, "verdict": "READY_TO_EXECUTE",
+                "hitl_approved": True, "action_fingerprint": fp,
+                "high_effect_pin": {"adapter_id": adapter_id,
+                    "public_key_b64": pub(executor), "approval_nonce": nonce}}
+        kw = dict(task_id=f"github-task-{i}", step_key="01.01",
+                  action=action, approval=approval, gate=gate,
+                  gate_created_at=datetime.now(timezone.utc).isoformat(),
+                  operation=op, content=content, commit_message="governed edit")
+        outcome = w.execute(**kw)
+        assert outcome["status"] == "EXECUTED_POST_NOT_VERIFIED"
+        receipts.append(outcome["receipt"])
+        try:
+            w.execute(**kw)
+        except GitHubWorkerDenied as exc:
+            assert "NO_REPLAY" in str(exc)
+        else:
+            raise AssertionError("repeated nonce replay accepted")
+    assert calls == ["create_file", "update_file"]
+    assert receipts[0]["nonce"] != receipts[1]["nonce"]
