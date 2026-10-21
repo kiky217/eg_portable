@@ -64,7 +64,7 @@ def validated_revisions(path: Path, files: list[tuple[str, bytes]]) -> list[tupl
     return output
 
 
-def smoke_web(root: Path, names: set[str]) -> dict:
+def smoke_web(root: Path, names: set[str], digests: dict[str, str] | None = None) -> dict:
     """Local preview readback, never a production deployment or EG E3 action."""
     if 'index.html' not in names:
         return {'status':'SKIPPED_NO_ENTRYPOINT'}
@@ -83,6 +83,8 @@ def smoke_web(root: Path, names: set[str]) -> dict:
                 if response.status!=200:
                     raise RuntimeError('HTTP_ASSET_FAILED')
                 content[name]=response.read()
+                if digests and hashlib.sha256(content[name]).hexdigest()!=digests[name]:
+                    raise RuntimeError('HTTP_READBACK_DIGEST_MISMATCH')
         if 'menu.json' in content and not isinstance(json.loads(content['menu.json']),list):
             raise RuntimeError('CAFE_MENU_RESPONSE_INVALID')
         return {'status':'PASS','http_200_assets':len(content)}
@@ -171,7 +173,8 @@ def run(manifest: Path):
                              'action':'replace' if replace else 'write',
                              'sha256':hashlib.sha256(actual).hexdigest(),
                              'receipt_verified':True,'verdict':post['verdict']})
-        smoke=smoke_web(eg.WORK/'outputs',set(name for name,_ in files))
+        expected_final={name:hashlib.sha256(raw).hexdigest() for name,raw,_ in changes}
+        smoke=smoke_web(eg.WORK/'outputs',set(name for name,_ in files),expected_final)
         if smoke['status'] not in ('PASS','SKIPPED_NO_ENTRYPOINT'):
             raise RuntimeError('WEB_PREVIEW_FAILED')
         final_criterion = 'Every project file independently verified'
