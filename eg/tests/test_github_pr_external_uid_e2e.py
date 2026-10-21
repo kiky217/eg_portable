@@ -135,7 +135,7 @@ def test_independent_github_pr_create_and_merge_canonical_pre_post(monkeypatch):
             result=dispatch_action(request={"task_id":task,"step_key":"01.01",
                  "action":action,"data_b64":base64.b64encode(payload).decode()},
                  eg_url=eg_url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
-                 external_adapter_id=adapter_id,hitl_public_key_b64=pub(human),
+                 hitl_public_key_b64=pub(human),
                  hitl_approval=approval)
             assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
             post=raw_eval(task,contract,pre.json()["checkpoint_no"],step="01.01",
