@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import socket
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from urllib.request import Request
 from tools.no_redirect_http import urlopen
 
@@ -28,6 +28,34 @@ def _get(url: str, key: str, task: str, suffix: str) -> dict:
     with urlopen(Request(url.rstrip("/") + "/v1/tasks/" + task + suffix,
                          headers={"X-Evaluation-Key": key}), timeout=10) as response:
         return json.load(response)
+
+def _unique_active_adapter(url: str, key: str, action: dict) -> str:
+    """Discover a typed scope only; the signed registry and PRE still decide authority."""
+    loc=urlsplit(url)
+    if (loc.username or loc.password or loc.query or loc.fragment or
+        not (loc.scheme=="https" or
+             (loc.scheme=="http" and loc.hostname in ("127.0.0.1","localhost")))):
+        raise DispatchDenied("UNTRUSTED_EG_STATUS_URL")
+    values=("effect_class","action_type","target")
+    if any(not isinstance(action.get(k),str) or not action[k] for k in values):
+        raise DispatchDenied("INVALID_TYPED_ACTION")
+    query=urlencode({key:action[key] for key in values})
+    with urlopen(Request(url.rstrip("/")+"/v1/agent/capability-match?"+query,
+                         headers={"X-Evaluation-Key":key}),timeout=10) as response:
+        raw=response.read(65537)
+    if len(raw)>65536:
+        raise DispatchDenied("CAPABILITY_RESPONSE_TOO_LARGE")
+    result=json.loads(raw)
+    if (not isinstance(result,dict) or result.get("status")!="MATCHED_PRE_REQUIRED"
+        or result.get("admission") is not False or not isinstance(result.get("candidates"),list)):
+        raise DispatchDenied("NO_ACTIVE_TYPED_ADAPTER")
+    matches={item.get("adapter_id") for item in result["candidates"]
+             if isinstance(item,dict) and item.get("status")=="LIVE_PRE_ATTESTATION_REQUIRED"
+             and isinstance(item.get("adapter_id"),str)
+             and item["adapter_id"].startswith("trusted-adapter-")}
+    if len(matches)!=1:
+        raise DispatchDenied("AMBIGUOUS_OR_MISSING_OPERATOR_ADAPTER")
+    return matches.pop()
 
 def _admit(req: dict, state: dict, detail: dict) -> dict:
     """No worker RPC is permitted without a fresh, unchanged actionable PRE."""
@@ -211,9 +239,12 @@ def dispatch_action(request: dict, *, eg_url: str, api_key: str,
         if operator_registry is not None:
             from tools.operator_runtime_registry import OperatorAdapterRegistry,RegistryDenied
             if (type(operator_registry) is not OperatorAdapterRegistry or
-                not isinstance(external_adapter_id,str) or
                 external_worker_socket is not None or external_worker_uid is not None or
                 external_public_key_b64 is not None):
+                raise DispatchDenied("INVALID_OPERATOR_ROUTE_REQUEST")
+            if external_adapter_id is None:
+                external_adapter_id=_unique_active_adapter(eg_url,api_key,action)
+            if not isinstance(external_adapter_id,str):
                 raise DispatchDenied("INVALID_OPERATOR_ROUTE_REQUEST")
             try:
                 route=operator_registry.resolve(external_adapter_id)
