@@ -94,7 +94,7 @@ Updating this file intentionally creates a new protocol digest for new
 registrations, requiring regression and signed E2E validation before release.
 
 The only currently provisionable built-in concrete actions are read E0 and
-restricted reversible write E2 in an independently secured output root.
+restricted reversible write/replace E2 in an independently secured output root.
 New write PRE binds exact payload SHA-256 and size plus signed sandbox and
 rollback proofs. Unsupported cutover remains BLOCKED. Pending UNKNOWN effect
 must not be replayed or treated as NOT_EXECUTED without signed independent
