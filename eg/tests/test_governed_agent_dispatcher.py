@@ -116,3 +116,18 @@ def test_builtin_worker_socket_timeout_after_send_is_unknown_not_retry(monkeypat
                  worker_socket="/tmp/signed-worker.sock",
                  executor_public_key_b64="independent-key")
     assert len(sent)==1
+
+@pytest.mark.parametrize("url",[
+    "http://untrusted.invalid:8765",
+    "http://127.0.0.2:8765",
+    "file:///etc/passwd",
+    "https://operator:password@eg.example",
+    "https://eg.example/?token=not-allowed",
+    "https://eg.example/#fragment",
+])
+def test_untrusted_status_endpoint_denied_without_sending_eg_key(monkeypatch,url):
+    import tools.governed_agent_dispatcher as module
+    monkeypatch.setattr(module,"urlopen",
+                        lambda *_a,**_k:pytest.fail("EG secret sent to untrusted URL"))
+    with pytest.raises(DispatchDenied,match="UNTRUSTED_EG_STATUS_URL"):
+        module._get(url,"private-eg-key","task-valid","/state")
