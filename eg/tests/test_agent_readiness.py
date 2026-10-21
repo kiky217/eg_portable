@@ -43,3 +43,23 @@ def test_invalid_mode_fails_closed():
     assert "INVALID_ADMISSION_MODE" in diagnose("E0", "read", {
         "EVALUATION_GATEWAY_ADMISSION_MODE": "maybe"
     })["reasons"]
+
+
+def test_external_adapter_never_requires_unrelated_builtin_e2_key():
+    from tools.capability_catalog import parse_catalog
+    raw = '{"schema_version":1,"capabilities":[{"id":"build.worker","effect_class":"E3","action_type":"bounded_process_run","adapter_id":"trusted-adapter-build"}]}'
+    report = diagnose("E3", "bounded_process_run",
+                      {"EVALUATION_GATEWAY_ADMISSION_MODE": "enabled"},
+                      parse_catalog(raw))
+    assert "EXTERNAL_CAPABILITY_UNVERIFIED" in report["reasons"]
+    assert "EXECUTOR_PUBLIC_KEY_NOT_CONFIGURED" not in report["reasons"]
+    assert report["preflight"] == "NOT_ADMITTED"
+    assert report["live_verified"] is False
+
+
+def test_builtin_e2_still_requires_executor_signer():
+    report = diagnose("E2", "write",
+                      {"EVALUATION_GATEWAY_ADMISSION_MODE": "enabled",
+                       "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT": "/bounded"})
+    assert "EXECUTOR_PUBLIC_KEY_NOT_CONFIGURED" in report["reasons"]
+    assert report["preflight"] == "NOT_ADMITTED"
