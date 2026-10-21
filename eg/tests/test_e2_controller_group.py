@@ -69,8 +69,9 @@ def test_real_unprivileged_agent_creates_file_through_eg_pre_and_signed_post(mon
         monkeypatch.setattr(H.gw,'EXECUTOR_OUTPUT_ROOT',str(output))
         monkeypatch.setattr(H.gw,'EXECUTOR_PUBLIC_KEY_B64',pub)
         monkeypatch.setattr(H.gw,'ADMISSION_MODE','enabled')
-        cmd=[sys.executable,str(H.ROOT/'tools/trusted_execution_worker.py'),str(cfg)]
-        child=subprocess.Popen(cmd,cwd=H.ROOT,env={**os.environ,'PYTHONPATH':str(H.ROOT)},
+        source=Path(os.environ.get('EG_E2_TEST_SOURCE',str(H.ROOT)))
+        cmd=[sys.executable,str(source/'tools/trusted_execution_worker.py'),str(cfg)]
+        child=subprocess.Popen(cmd,cwd=source,env={**os.environ,'PYTHONPATH':str(source)},
                                preexec_fn=_as(WORKER),stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
         for _ in range(80):
             if Path(config['socket_path']).is_socket():break
@@ -88,7 +89,7 @@ def test_real_unprivileged_agent_creates_file_through_eg_pre_and_signed_post(mon
         script='''import base64,json,sys\nfrom tools.governed_agent_dispatcher import dispatch\nq=json.load(sys.stdin)\nr=dispatch(q,eg_url=sys.argv[1],api_key=sys.argv[2],worker_socket=sys.argv[3],executor_public_key_b64=sys.argv[4])\nprint(json.dumps(r))'''
         agent=subprocess.run([sys.executable,'-c',script,url,H.API_KEY,
                    config['socket_path'],pub],input=json.dumps(packet),text=True,
-                   cwd=H.ROOT,env={**os.environ,'PYTHONPATH':str(H.ROOT)},
+                   cwd=source,env={**os.environ,'PYTHONPATH':str(source)},
                    preexec_fn=_as(CONTROLLER),capture_output=True,timeout=12)
         assert agent.returncode==0,agent.stderr
         result=json.loads(agent.stdout)
