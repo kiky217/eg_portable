@@ -24,6 +24,8 @@ python eg/tools/agent_readiness.py --effect E3 --action service_control --json
 
 Without `--url`, this command **does not perform network calls, mutate state, print secrets, or authorize effects**. Use `--url https://YOUR-EG` with operator-provided `EVALUATION_GATEWAY_API_KEY` to perform authenticated **read-only** runtime discovery. The live result is `REQUIRES_LIVE_PRE`, never an action grant; it cannot verify executor identity or a specific PRE by itself. For the live decision, inspect the target system's authenticated task, health, evidence and worker status. Never copy configuration from a different instance.
 
+For an independent non-root agent/controller to call the built-in E2 worker, the operator may set `controller_uid` and `controller_group_gid` in the existing worker configuration. Put the Unix socket in a worker-owned, group-owned private directory (`2710`) and ensure the controller belongs to that approved group. EG checks the exact Linux `SO_PEERCRED` UID on each connection and makes the socket group-writable (`0660`) only for that configuration; the default remains worker-private (`0600`). This does not grant execution rights beyond fresh PRE, receipt and POST. A working example is `tests/test_e2_controller_group.py`.
+
 For a reusable operator-pinned build/test process worker, see [one-time E3 process worker onboarding](OPERATOR_PROCESS_SERVICE.md). This requires an independent OS operator, not another AI agent.
 
 ## How to approach real development tasks
