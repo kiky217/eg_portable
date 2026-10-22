@@ -71,7 +71,7 @@ def test_one_task_real_site_deploy_edit_and_rollback(monkeypatch):
                    'preconditions':['high-effect independent baseline ready'],
                    'acceptance_criteria':[H.CRIT],'execution_required':True}
                   for step,name in (('01.01','deploy'),('01.02','revise'),('01.03','rollback'))]
-        })
+            ]})
         assert reg.status_code==200,reg.text
         contract=reg.json()['contract_hash']
         class Api(BaseHTTPRequestHandler):
