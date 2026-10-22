@@ -17,7 +17,7 @@ def action(operation,raw=b''):
 @pytest.mark.skipif(os.geteuid()!=0,reason='requires independent OS identities')
 def test_real_staging_persistence_and_rollback():
     base=Path(tempfile.mkdtemp(prefix='eg-site-staging-',dir='/tmp'));base.chmod(0o755)
-    source=Path(os.environ['EG_TEST_SOURCE'])
+    source=Path(os.environ.get('EG_TEST_SOURCE',Path(__file__).resolve().parents[1]))
     process=None
     try:
         state=base/'state';state.mkdir(mode=0o700);os.chown(state,OWNER,OWNER)

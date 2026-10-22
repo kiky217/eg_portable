@@ -60,6 +60,17 @@ def provision(policy):
         or not policy['adapter_id'].startswith('trusted-adapter-')
         or not (policy['eg_url'].startswith('https://') or policy['eg_url'].startswith(('http://127.0.0.1:', 'http://localhost:')))):
         raise ValueError('OUT_OF_SCOPE_OPERATOR_POLICY')
+    # A pinned command must not be replaceable by the AI agent after approval.
+    executable=Path(policy['executable'])
+    binary=executable.lstat()
+    if (not stat.S_ISREG(binary.st_mode) or binary.st_uid not in (0,worker)
+        or binary.st_mode & 0o022 or not binary.st_mode & 0o111):
+        raise ValueError('UNTRUSTED_OPERATOR_EXECUTABLE')
+    for ancestor in executable.parents:
+        info=ancestor.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0,worker)
+            or info.st_mode & 0o022):
+            raise ValueError('UNTRUSTED_EXECUTABLE_PATH')
     original=Path(policy['gateway_key_file']);src=os.open(original,os.O_RDONLY|os.O_NOFOLLOW)
     try:
         info=os.fstat(src)
