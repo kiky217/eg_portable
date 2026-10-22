@@ -57,6 +57,9 @@ jobs:
             --require-hashes -r requirements.lock
       - name: Install test-only dependencies
         run: python -m pip install "pytest==9.1.1" "httpx==0.28.1"
+      - name: Generic EG core provider and host path boundaries
+        working-directory: eg
+        run: python -m pytest -q tests/test_generic_core_boundaries.py
       - name: Regression suite including bundle safety
         working-directory: eg
         env:
