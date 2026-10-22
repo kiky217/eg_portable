@@ -2018,69 +2018,59 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         c.close()
 
 
-@app.post("/v1/tasks/{task_id}/pause", dependencies=[Depends(require_key)])
-def pause_task(task_id: str, req: SuspensionRequest):
+def _change_suspension(task_id: str, req: SuspensionRequest, *, pause: bool):
+    """One audited transaction for pause/resume; retain the two public routes."""
     if not ID_RE.fullmatch(task_id):
         raise HTTPException(422, "invalid identifier")
-    body={"task_id":task_id,**req.model_dump(mode="json")}
-    rh=sha(canon(body))
-    c=conn()
+    # Use the task's signed intake protocol hash even after an EG upgrade.
+    body = {"task_id": task_id, **req.model_dump(mode="json")}
+    rh = sha(canon(body))
+    c = conn()
     try:
-        c.execute("BEGIN IMMEDIATE");guard_anchor(c)
-        repeated=replay(c,req.event_id,rh)
-        if repeated is not None:
-            c.commit();return repeated
-        t=c.execute("SELECT * FROM task_registry WHERE task_id=?",(task_id,)).fetchone()
+        c.execute("BEGIN IMMEDIATE")
+        guard_anchor(c)
+        previous = replay(c, req.event_id, rh)
+        if previous is not None:
+            c.commit()
+            return previous
+        t = c.execute("SELECT * FROM task_registry WHERE task_id=?", (task_id,)).fetchone()
         if not t:
-            raise HTTPException(404,"task not registered")
+            raise HTTPException(404, "task not registered")
         _require_registered_protocol(c, task_id, req.protocol_hash)
-        if t["contract_status"]!="OPEN" or t["status"]=="PAUSED":
-            raise HTTPException(409,{"code":"TASK_NOT_PAUSABLE"})
-        if t["contract_hash"]!=req.contract_hash or t["checkpoint_no"]!=req.checkpoint_no:
-            raise HTTPException(409,{"code":"PAUSE_STALE_CONTRACT_OR_CHECKPOINT"})
-        c.execute("UPDATE task_registry SET status='PAUSED' WHERE task_id=?",(task_id,))
-        response={"task_id":task_id,"status":"PAUSED","checkpoint_no":req.checkpoint_no,
-                  "contract_status":"OPEN","indefinite":True,"idempotent_replay":False}
-        return commit_audited(c,task_id,req.event_id,"TASK_PAUSE",req.contract_hash,rh,body,response)
+        if t["contract_status"] != "OPEN" or (t["status"] == "PAUSED") != (not pause):
+            raise HTTPException(409, {"code": "TASK_NOT_PAUSABLE" if pause else "TASK_NOT_PAUSED"})
+        if t["contract_hash"] != req.contract_hash or t["checkpoint_no"] != req.checkpoint_no:
+            raise HTTPException(409, {"code": "PAUSE_STALE_CONTRACT_OR_CHECKPOINT" if pause else "RESUME_STALE_CONTRACT_OR_CHECKPOINT"})
+        unresolved = False
+        if not pause:
+            _, _, key = current_step(c, task_id)
+            gate = latest_gate(c, task_id, key) if key else None
+            unresolved = bool(gate and gate["pre_verdict"] == "READY_TO_EXECUTE" and not gate["consumed"])
+        status = "PAUSED" if pause else ("RECOVERY_PENDING" if unresolved else "IN_PROGRESS")
+        c.execute("UPDATE task_registry SET status=? WHERE task_id=?", (status, task_id))
+        response = {"task_id": task_id, "status": status, "checkpoint_no": req.checkpoint_no,
+                    "contract_status": "OPEN", "idempotent_replay": False}
+        if pause:
+            response["indefinite"] = True
+        else:
+            response["next_action"] = "RECONCILE_EXISTING_EXECUTION" if unresolved else "EVALUATE_NEXT_STEP"
+        return commit_audited(c, task_id, req.event_id,
+                              "TASK_PAUSE" if pause else "TASK_RESUME", req.contract_hash, rh, body, response)
     except BaseException:
-        c.rollback();raise
-    finally:c.close()
+        c.rollback()
+        raise
+    finally:
+        c.close()
+
+
+@app.post("/v1/tasks/{task_id}/pause", dependencies=[Depends(require_key)])
+def pause_task(task_id: str, req: SuspensionRequest):
+    return _change_suspension(task_id, req, pause=True)
 
 
 @app.post("/v1/tasks/{task_id}/resume", dependencies=[Depends(require_key)])
 def resume_task(task_id: str, req: SuspensionRequest):
-    if not ID_RE.fullmatch(task_id):
-        raise HTTPException(422,"invalid identifier")
-    # Resume uses the immutable signed TASK_INTAKE hash (checked below), not
-    # the current bootstrap hash. No historical validator is reactivated.
-    body={"task_id":task_id,**req.model_dump(mode="json")}
-    rh=sha(canon(body))
-    c=conn()
-    try:
-        c.execute("BEGIN IMMEDIATE");guard_anchor(c)
-        repeated=replay(c,req.event_id,rh)
-        if repeated is not None:
-            c.commit();return repeated
-        t=c.execute("SELECT * FROM task_registry WHERE task_id=?",(task_id,)).fetchone()
-        if not t:raise HTTPException(404,"task not registered")
-        _require_registered_protocol(c, task_id, req.protocol_hash)
-        if t["contract_status"]!="OPEN" or t["status"]!="PAUSED":
-            raise HTTPException(409,{"code":"TASK_NOT_PAUSED"})
-        if t["contract_hash"]!=req.contract_hash or t["checkpoint_no"]!=req.checkpoint_no:
-            raise HTTPException(409,{"code":"RESUME_STALE_CONTRACT_OR_CHECKPOINT"})
-        _,_,key=current_step(c,task_id)
-        gate=latest_gate(c,task_id,key) if key else None
-        unresolved=bool(gate and gate["pre_verdict"]=="READY_TO_EXECUTE" and not gate["consumed"])
-        status="RECOVERY_PENDING" if unresolved else "IN_PROGRESS"
-        c.execute("UPDATE task_registry SET status=? WHERE task_id=?",(status,task_id))
-        response={"task_id":task_id,"status":status,"checkpoint_no":req.checkpoint_no,
-                  "contract_status":"OPEN",
-                  "next_action":"RECONCILE_EXISTING_EXECUTION" if unresolved else "EVALUATE_NEXT_STEP",
-                  "idempotent_replay":False}
-        return commit_audited(c,task_id,req.event_id,"TASK_RESUME",req.contract_hash,rh,body,response)
-    except BaseException:
-        c.rollback();raise
-    finally:c.close()
+    return _change_suspension(task_id, req, pause=False)
 
 
 @app.post("/v1/tasks/{task_id}/reconcile", dependencies=[Depends(require_key)])
