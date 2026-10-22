@@ -74,3 +74,40 @@ def test_low_risk_scoped_review_never_masks_vendor_in_generic_core():
     assert semantic_disposition(provider)=='APP_SPECIFIC'
     assert semantic_disposition({**generic,'category':'APP_SPECIFIC'})=='UNKNOWN'
     assert semantic_disposition({**generic,'category':'SECURITY_REVIEW'})=='SECURITY_INVARIANT'
+
+
+def test_inventory_rejects_staged_and_unstaged_worktree_changes(tmp_path):
+    import pytest
+    root = tmp_path / "source"
+    root.mkdir()
+    path = root / "main.py"
+    path.write_text('VALUE = "canonical"\n')
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "main.py"], check=True)
+    subprocess.run(["git", "-C", str(root), "-c", "user.name=Audit",
+                    "-c", "user.email=audit@example.invalid", "commit",
+                    "-qm", "baseline"], check=True)
+    head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    assert inventory(root)["source_commit"] == head
+    path.write_text('VALUE = "unstaged"\n')
+    with pytest.raises(ValueError, match="SOURCE_TREE_DIFFERS_FROM_PINNED_HEAD"):
+        inventory(root)
+    subprocess.run(["git", "-C", str(root), "add", "main.py"], check=True)
+    with pytest.raises(ValueError, match="SOURCE_TREE_DIFFERS_FROM_PINNED_HEAD"):
+        inventory(root)
+
+
+def test_inventory_rejects_tracked_symlink_outside_source(tmp_path):
+    import pytest
+    root = tmp_path / "source"
+    root.mkdir()
+    outside = tmp_path / "private-file.txt"
+    outside.write_text("fixture-outside-repo\n")
+    (root / "external.txt").symlink_to(outside)
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "external.txt"], check=True)
+    subprocess.run(["git", "-C", str(root), "-c", "user.name=Audit",
+                    "-c", "user.email=audit@example.invalid", "commit",
+                    "-qm", "baseline"], check=True)
+    with pytest.raises(ValueError, match="TRACKED_SYMLINK_CANNOT_BE_SOURCE_PINNED"):
+        inventory(root)
