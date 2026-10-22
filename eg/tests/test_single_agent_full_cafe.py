@@ -188,7 +188,15 @@ sys.stdout.write(json.dumps(value))
         monkeypatch.setattr(H.gw,'HITL_PUBLIC_KEY_B64',pub(human))
         monkeypatch.setenv('EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR',str(op_dir))
         monkeypatch.setenv('EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64',pub(operator))
-        approval=signed(human,task,effect,adapter,cp+1,time.time(),step='01.03')
+        from tools.operator_scoped_approval import Grants
+        grants_dir=base/'standing-policy';grants_dir.mkdir(mode=0o700)
+        grants=Grants({'key':human,'ledger_dir':str(grants_dir),
+              'adapter_id':adapter,'target_prefix':'/tasks/cafe',
+              'expires_at':int(time.time())+120,'max_grants':1,'max_payload_bytes':4096})
+        approval=grants.issue({'task_id':task,'step_key':'01.03',
+              'gate_checkpoint_no':cp+1,'action':effect})
+        assert grants.issue({'task_id':task,'step_key':'01.03',
+              'gate_checkpoint_no':cp+1,'action':effect})==approval
         pre3=H.raw_eval(task,contract,cp,step='01.03',
             claims=[high_pre_claim(high_pre_ref(task,cp,step='01.03'))],
             phase='PRE_EXECUTION',action=effect,hitl_approval=approval)
