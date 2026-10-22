@@ -37,6 +37,8 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
             'eg_url':'http://127.0.0.1:18766','gateway_key_file':str(eg_key)}
     worker=None
     try:
+        with pytest.raises(ValueError,match='OUT_OF_SCOPE_OPERATOR_POLICY'):
+            provision({**policy,'target_prefix':'/tasks/../escape','target':'/tasks/../escape/build'})
         result=provision(policy)
         assert result['adapter_id']==policy['adapter_id']
         assert len({result['operator_public_key_b64'],result['hitl_public_key_b64'],
