@@ -56,6 +56,7 @@ def provision(policy):
         or not isinstance(policy['target'],str) or not policy['target'].startswith('/tasks/')
         or not isinstance(policy['target_prefix'],str) or not policy['target_prefix'].startswith('/tasks/')
         or not policy['target'].startswith(policy['target_prefix'].rstrip('/')+'/')
+        or '..' in policy['target_prefix'].split('/') or '..' in policy['target'].split('/')
         or not policy['adapter_id'].startswith('trusted-adapter-')
         or not (policy['eg_url'].startswith('https://') or policy['eg_url'].startswith(('http://127.0.0.1:', 'http://localhost:')))):
         raise ValueError('OUT_OF_SCOPE_OPERATOR_POLICY')
