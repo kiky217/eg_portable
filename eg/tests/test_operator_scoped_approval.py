@@ -97,15 +97,16 @@ def test_unprivileged_agent_cannot_read_signer_key_but_can_request_scoped_grant(
             time.sleep(.04)
         assert Path(policy['socket_path']).is_socket()
         req=json.dumps(_scope())+'\n'
-        script='''import socket,sys
-with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
- peer.connect(sys.argv[1]);peer.sendall(sys.stdin.buffer.read());print(peer.recv(8192).decode())'''
-        response=subprocess.run([sys.executable,'-c',script,policy['socket_path']],
-                input=req.encode(),preexec_fn=user(AGENT),capture_output=True,timeout=5)
+        script='''import json,sys
+from tools.governed_agent_dispatcher import request_scoped_approval
+print(json.dumps(request_scoped_approval(json.load(sys.stdin))))'''
+        response=subprocess.run([sys.executable,'-c',script],
+                input=req.encode(),preexec_fn=user(AGENT),capture_output=True,timeout=5,
+                cwd=source,env={**os.environ,'PYTHONPATH':str(source),
+                'EVALUATION_GATEWAY_STANDING_APPROVAL_SOCKET':policy['socket_path'],
+                'EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64':pub})
         assert response.returncode==0,response.stderr
-        result=json.loads(response.stdout)
-        assert result['status']=='PASS',result
-        proof=result['approval']
+        proof=json.loads(response.stdout)
         assert verify_approval(proof,pub,task_id='cafe-123',step_key='01.03',
             gate_checkpoint_no=4,action_fingerprint=action_fingerprint(_scope()['action']),
             adapter_id=policy['adapter_id'])
