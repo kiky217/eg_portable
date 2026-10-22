@@ -89,7 +89,4 @@ production worker.
   typed adapters and negative tests.
 
 These are isolated tests, **not a certificate of production installation**.
-Further first-run work is required to automatically bind a concrete operator
-installation and to support user-authorized long-running services, cutover and
-rollback on the destination host. Keep [Issue #104](https://github.com/kiky217/eg_portable/issues/104)
-open until the entire acceptance matrix is verified.
+The local/staging engineering acceptance of [Issue #104](https://github.com/kiky217/eg_portable/issues/104) was completed and closed in v3.1.115. Production operator authorization, service cutover, rollback and destination-specific E2E remain separate prerequisites.
