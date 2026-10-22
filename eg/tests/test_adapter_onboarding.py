@@ -64,3 +64,11 @@ def test_external_only_onboarding_does_not_require_unrelated_e2_executor():
         assert result["admission"] is False
     assert "FOUR_INDEPENDENT_SIGNING_ROOTS" in inspect_onboarding(
         record(k[2]),**args,executor_key=k[2])["missing"]
+
+
+def test_malformed_optional_e2_root_is_not_treated_as_absent():
+    k=[key() for _ in range(3)]
+    for invalid in (0,False,[],{},42):
+        result=inspect_onboarding(record(k[2]),gateway_uid=10001,worker_uid=10002,
+            notary_key=k[0],hitl_key=k[1],executor_key=invalid)
+        assert "FOUR_INDEPENDENT_SIGNING_ROOTS" in result["missing"]
