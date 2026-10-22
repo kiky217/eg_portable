@@ -19,6 +19,40 @@ from tools.trusted_execution_worker import fingerprint, gate_allows_new_effect
 class DispatchDenied(RuntimeError):
     pass
 
+
+def request_scoped_approval(request: dict, *, socket_path=None, public_key_b64=None):
+    """Ask the independent operator signer for a bound E3 approval before PRE."""
+    import os
+    from tools.high_effect_admission import action_fingerprint
+    from tools.signed_hitl_approval import verify_approval
+    if not isinstance(request, dict) or set(request)!={"task_id","step_key","gate_checkpoint_no","action"}:
+        raise DispatchDenied("INVALID_SCOPED_APPROVAL_REQUEST")
+    sockpath=socket_path or os.getenv("EVALUATION_GATEWAY_STANDING_APPROVAL_SOCKET")
+    pub=public_key_b64 or os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64")
+    if not sockpath or not pub:
+        raise DispatchDenied("INDEPENDENT_STANDING_APPROVAL_NOT_PROVISIONED")
+    packet=(json.dumps(request,sort_keys=True,separators=(",",":"))+"\n").encode()
+    if len(packet)>8192:raise DispatchDenied("SCOPED_APPROVAL_REQUEST_TOO_LARGE")
+    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
+        peer.settimeout(5);peer.connect(sockpath);peer.sendall(packet)
+        chunks=[];total=0
+        while total<=8192:
+            part=peer.recv(8193-total)
+            if not part:break
+            total+=len(part);chunks.append(part)
+            if b"\n" in part:break
+    reply=b"".join(chunks)
+    if len(reply)>8192 or not reply.endswith(b"\n"):
+        raise DispatchDenied("INVALID_STANDING_APPROVAL_RESPONSE")
+    result=json.loads(reply)
+    if not isinstance(result,dict) or result.get("status")!="PASS":
+        raise DispatchDenied("STANDING_APPROVAL_DENIED")
+    action=request["action"]
+    verify_approval(result["approval"],pub,task_id=request["task_id"],
+        step_key=request["step_key"],gate_checkpoint_no=request["gate_checkpoint_no"],
+        action_fingerprint=action_fingerprint(action),adapter_id=result["approval"]["adapter_id"])
+    return result["approval"]
+
 def _get(url: str, key: str, task: str, suffix: str) -> dict:
     loc=urlsplit(url)
     if (loc.username or loc.password or loc.query or loc.fragment or
