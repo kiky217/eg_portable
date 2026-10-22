@@ -149,7 +149,20 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(reg_dir))
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",
                            pub(operator))
-        approval=signed(human,task,action,adapter,1,time.time())
+        if example=="cafe_build_test_http":
+            # Operator grants bounded staging authority once; no second AI
+            # agent, and the E3 worker still enforces the exact signed PRE.
+            from tools.operator_scoped_approval import Grants
+            grant_dir=base/"grant-ledger";grant_dir.mkdir(mode=0o700)
+            approvals=Grants({"key":human,"ledger_dir":str(grant_dir),
+                "adapter_id":adapter,"target_prefix":"/tasks/process",
+                "expires_at":int(time.time())+120,"max_grants":2,"max_payload_bytes":4096})
+            approval=approvals.issue({"task_id":task,"step_key":"01.01",
+                "gate_checkpoint_no":1,"action":action})
+            assert approvals.issue({"task_id":task,"step_key":"01.01",
+                "gate_checkpoint_no":1,"action":action})==approval
+        else:
+            approval=signed(human,task,action,adapter,1,time.time())
         pre=raw_eval(task,contract,0,
                      claims=[high_pre_claim(high_pre_ref(task,0))],
                      phase="PRE_EXECUTION",action=action,hitl_approval=approval)
