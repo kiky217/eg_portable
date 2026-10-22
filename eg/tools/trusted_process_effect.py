@@ -47,6 +47,14 @@ class TrustedProcessEffect:
         if (not stat.S_ISREG(info.st_mode) or not info.st_mode & stat.S_IXUSR
             or info.st_mode & 0o022):
             raise ProcessDenied("UNSAFE_EXECUTABLE")
+        # Mode bits on the executable alone are insufficient: an untrusted
+        # parent can rename/replace an otherwise owner-pinned file.
+        for parent in Path(executable).parents:
+            directory=parent.lstat()
+            if (not stat.S_ISDIR(directory.st_mode)
+                or directory.st_uid not in (0,os.geteuid())
+                or directory.st_mode & 0o022):
+                raise ProcessDenied("UNSAFE_EXECUTABLE_PATH")
         if not 0<timeout<=30 or not 0<max_stdout<=524288:
             raise ProcessDenied("UNBOUNDED_EXECUTION")
         if ((input_schema is None)!=(input_schema_sha256 is None)
