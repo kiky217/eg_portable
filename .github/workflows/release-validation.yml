@@ -87,6 +87,9 @@ jobs:
       - name: E2 independent unprivileged controller signed PRE POST
         working-directory: eg
         run: sudo env PYTHONPATH=.:tests EG_E2_TEST_SOURCE=/tmp/eg-ci-source "$(command -v python)" -m pytest -q tests/test_e2_controller_group.py
+      - name: Persistent staging site: signed E3 deploy revise rollback
+        working-directory: eg
+        run: sudo env PYTHONPATH=.:tests EG_TEST_SOURCE=/tmp/eg-ci-source "$(command -v python)" -m pytest -q tests/test_staging_site_service.py tests/test_staging_site_eg_integration.py
       - name: One-task cafe E2 create edit E3 compile HTTP E2 source rollback
         working-directory: eg
         run: sudo env PYTHONPATH=.:tests "$(command -v python)" -m pytest -q tests/test_single_agent_full_cafe.py
