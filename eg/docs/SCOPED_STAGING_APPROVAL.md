@@ -84,5 +84,4 @@ the same kind of grant, independent physical worker, signed PRE/POST).
 
 **Not supported:** production approvals, unrestricted shell commands, automatic
 service deployment or signed authority that has never been issued by the
-operator. The generic first-run Issue #104 remains open until its complete
-acceptance contract is verified.
+operator. Issue #104 closed on local/staging engineering acceptance. Its closure does not authorize production deployment or remove the independent operator prerequisite.
