@@ -130,6 +130,7 @@ def serve(config):
     class Handler(socketserver.StreamRequestHandler):
         def handle(self):
             try:
+                self.request.settimeout(4)
                 uid=struct.unpack('3i',self.request.getsockopt(socket.SOL_SOCKET,
                         socket.SO_PEERCRED,struct.calcsize('3i')))[1]
                 if uid!=config['controller_uid']:
