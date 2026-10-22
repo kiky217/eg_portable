@@ -35,7 +35,7 @@ worker. Independently create an Ed25519 signer key in a regular, owner-only
 The worker socket uses `0660` access only within the group-pinned directory;
 every request is additionally checked with Linux `SO_PEERCRED`. The agent has
 **no read access** to the signer key, approval database or worker signing key.
-The signer may not run as root.
+The signer may not run as root. After a process crash, a restart may reclaim only a stale socket owned by the signer while holding an exclusive worker-owned lock. A live listener, a symlink, an untrusted socket or a second concurrent signer is never overwritten. The durable grant ledger persists across restart; retries reuse the exact same sealed nonce.
 
 The operator must separately provision/activate the E3 worker and register
 the matching public HITL key with EG. No credentials, UID, private signing
