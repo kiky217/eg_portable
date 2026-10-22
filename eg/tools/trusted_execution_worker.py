@@ -21,6 +21,7 @@ import time
 import threading
 from datetime import datetime
 from pathlib import Path
+from tools.private_unix_socket import private_socket_lease
 from urllib.request import Request
 from tools.no_redirect_http import urlopen
 from urllib.error import HTTPError
@@ -369,7 +370,6 @@ def serve(config):
                          config['eg_api_key'],config['executor_id'],
                          config.get('allowed_suffixes'))
     sock=Path(config['socket_path'])
-    if sock.exists():raise WorkerDenied('SOCKET_ALREADY_EXISTS')
     controller_uid=config.get('controller_uid')
     controller_gid=config.get('controller_group_gid')
     if controller_uid is not None or controller_gid is not None:
@@ -405,7 +405,7 @@ def serve(config):
             self.wfile.write(canon(answer)+b'\n')
     class Server(socketserver.ThreadingUnixStreamServer):
         daemon_threads=True
-    with Server(str(sock),Handler) as server:
+    with private_socket_lease(sock), Server(str(sock),Handler) as server:
         os.chmod(sock,0o660 if controller_uid is not None else 0o600)
         server.serve_forever(poll_interval=.2)
 

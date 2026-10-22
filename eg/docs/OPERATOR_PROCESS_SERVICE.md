@@ -25,7 +25,7 @@ binding/activation contract; never register workers from an agent-selected
 public key alone. The worker socket directory must be owned by the worker and
 private, with an operator-approved controller group if the controller has a
 different UID (`chmod 2710`; the socket itself becomes `0660`). Both Unix peer
-credentials and the Ed25519 liveness challenge are checked before admission.
+credentials and the Ed25519 liveness challenge are checked before admission. A process restart after an abrupt interruption may recover a stale worker-owned socket only under its exclusive private lock; it must never overwrite a live listener. Existing durable nonce and signed receipt records are unaffected.
 
 Run the worker as its dedicated non-root UID with an **operator-owned 0600**
 JSON configuration file. Keys, the EG API credential, and the configuration
