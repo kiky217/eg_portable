@@ -37,6 +37,12 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
             'eg_url':'http://127.0.0.1:18766','gateway_key_file':str(eg_key)}
     worker=None
     try:
+        untrusted=parent/'agent-command'
+        untrusted.write_text('#!/bin/sh\necho untrusted\n')
+        untrusted.chmod(0o755)
+        os.chown(untrusted,AGENT,AGENT)
+        with pytest.raises(ValueError,match='UNTRUSTED_OPERATOR_EXECUTABLE'):
+            provision({**policy,'executable':str(untrusted)})
         with pytest.raises(ValueError,match='OUT_OF_SCOPE_OPERATOR_POLICY'):
             provision({**policy,'target_prefix':'/tasks/../escape','target':'/tasks/../escape/build'})
         result=provision(policy)
