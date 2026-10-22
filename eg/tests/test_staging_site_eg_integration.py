@@ -13,6 +13,7 @@ from tools.operator_scoped_approval import Grants
 from tools.trusted_generic_rpc import serve
 from tools.trusted_process_effect import TrustedProcessEffect
 from tools.governed_agent_dispatcher import dispatch_action
+from tools.single_agent_workflow import run_step
 from test_high_effect_gateway_integration import pub,high_pre_claim,high_pre_ref
 
 SITE=65530
@@ -144,25 +145,26 @@ def test_one_task_real_site_deploy_edit_and_rollback(monkeypatch):
                 'payload_bytes':len(payload),'proofs':[]}
             approval=grant.issue({'task_id':task,'step_key':step,
                 'gate_checkpoint_no':cp+1,'action':action})
-            pre=H.raw_eval(task,contract,cp,step=step,
-                claims=[high_pre_claim(high_pre_ref(task,cp,step=step))],
-                phase='PRE_EXECUTION',action=action,hitl_approval=approval)
-            assert pre.status_code==200 and pre.json()['verdict']=='READY_TO_EXECUTE',pre.text
-            completed=dispatch_action({'task_id':task,'step_key':step,'action':action,
-                'data_b64':base64.b64encode(payload).decode()},
-                eg_url=gateway,api_key=H.API_KEY,
-                hitl_public_key_b64=pub(human),hitl_approval=approval)
-            assert completed['status']=='RECEIPT_VERIFIED_POST_REQUIRED'
-            assert len(completed['execution_receipt']['output_sha256'])==64
-            assert urllib.request.urlopen(website,timeout=3).read()==expected
-            assert site.poll() is None  # Site survives each governed worker call.
-            post=H.raw_eval(task,contract,pre.json()['checkpoint_no'],step=step,
-                claims=[H.claim(H.step_ref(task,'POST_EXECUTION',
-                    pre.json()['gate_checkpoint_no'],step=step))],
-                phase='POST_EXECUTION',action=action,
-                execution_receipt=completed['execution_receipt'])
-            assert post.status_code==200 and post.json()['verdict']=='VERIFIED_PASS',post.text
-            cp=post.json()['checkpoint_no']
+            pre_request={'event_id':H.eid('pre'),'task_id':task,
+                'contract_hash':contract,'protocol_hash':H.gw.protocol_hash(),
+                'checkpoint_no':cp,'step_key':step,'agent':'ChatGPT',
+                'phase':'PRE_EXECUTION','action':action,
+                'claims':[high_pre_claim(high_pre_ref(task,cp,step=step))],
+                'hitl_approval':approval}
+            def verify_site(pre,receipt):
+                assert len(receipt['output_sha256'])==64
+                assert urllib.request.urlopen(website,timeout=3).read()==expected
+                assert site.poll() is None  # Site survives independently governed effect.
+                return {'event_id':H.eid('post'),'claims':[H.claim(H.step_ref(
+                    task,'POST_EXECUTION',pre['gate_checkpoint_no'],step=step))]}
+            post=run_step(H.CLIENT,H.HEAD,task_id=task,step_key=step,
+                action=action,payload_b64=base64.b64encode(payload).decode(),
+                pre_request=pre_request,
+                dispatch_once=lambda packet: dispatch_action(packet,eg_url=gateway,
+                    api_key=H.API_KEY,hitl_public_key_b64=pub(human),hitl_approval=approval),
+                post_evidence=verify_site)
+            assert post['verdict']=='VERIFIED_PASS'
+            cp=post['checkpoint_no']
         parent,_=H.do_pre(task,contract,cp,step='01',
             criteria=[(0,'parent criterion')],stdout='PARENT=PASS',value='PARENT=PASS')
         accepted,_=H.do_post(task,contract,parent,step='01',
