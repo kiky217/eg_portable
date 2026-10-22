@@ -34,6 +34,10 @@ The HIGH/MEDIUM line-by-line source-context triage yielded: **266 SECURITY_INVAR
 
 A constant is **not a defect just because it is literal**. Fixed domain schema fields, terminal verdicts, explicit policy limits and signed envelope keys are retained deliberately. An application name, action or endpoint becomes problematic when a *generic* EG component requires it; the provider/core negative guard in `tests/test_generic_core_boundaries.py` makes two such regressions fail CI.
 
+## Full AST traceability in each release
+
+Each source-pinned release now attaches `audit/literal-disposition-matrix.jsonl` alongside `hardcode-candidates.json` in its GitHub Actions hardcode-audit artifact. The matrix covers **every Python AST literal**, not only HIGH/MEDIUM candidates: exact source SHA, file SHA-256, path, line, code context, producer, consumer, risk, risk-triage disposition and action. New project/provider strings in generic core are explicitly `UNKNOWN` and continue to fail dedicated core-boundary CI tests. Categories are reproducible risk triage, **not** independently signed semantic approval; the report continues to mark `semantic_review_complete=false` until a genuine reviewed signoff is attached.
+
 ## Limits of this evidence
 
 The full machine inventory still marks `semantic_review_complete=false`. This report is a source-context, rule-assisted risk triage and explicitly **not** a claim that all 20,778 literals have been individually audited by an independent operator. If a previously unrecognized application-specific assumption is found, create a failing acceptance case and remediate the smallest producer/consumer boundary. Never remove signed execution and no-replay controls to reduce a line count.
