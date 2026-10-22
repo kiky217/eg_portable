@@ -1,6 +1,4 @@
 """Crash/timeout recovery cannot clobber an active worker or untrusted socket."""
-from pathlib import Path
-import os
 import socket
 import pytest
 from tools.private_unix_socket import private_socket_lease, SocketBusy
