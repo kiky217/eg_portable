@@ -25,7 +25,7 @@ def identity(uid):
 @pytest.mark.skipif(os.geteuid()!=0,reason='requires two non-root OS identities')
 def test_one_task_real_site_deploy_edit_and_rollback(monkeypatch):
     root=Path(tempfile.mkdtemp(prefix='eg-staging-eg-',dir='/tmp'));root.chmod(0o755)
-    source=Path(os.environ['EG_TEST_SOURCE'])
+    source=Path(os.environ.get('EG_TEST_SOURCE',Path(__file__).resolve().parents[1]))
     site=None;pid=None;proxy=None
     try:
         private=root/'site';private.mkdir(mode=0o700);os.chown(private,SITE,SITE)
