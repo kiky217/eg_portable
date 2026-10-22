@@ -7,6 +7,7 @@ a distinct non-root OS user; no untrusted dynamic class imports or shell.
 from __future__ import annotations
 import base64,hashlib,hmac,json,os,socket,stat,struct
 from pathlib import Path
+from tools.private_unix_socket import private_socket_lease
 from urllib.parse import urlsplit
 from urllib.request import Request
 from tools.no_redirect_http import urlopen
@@ -121,7 +122,7 @@ def serve(*,socket_path,adapter,capability_sha256,eg_url,eg_key,
         or any(x not in "0123456789abcdef" for x in capability_sha256)):
         raise TrustedRpcDenied("INDEPENDENT_RUNTIME_NOT_PROVISIONED")
     path=Path(socket_path)
-    if not path.is_absolute() or not path.parent.is_dir() or path.exists() or path.is_symlink():
+    if not path.is_absolute() or not path.parent.is_dir():
         raise TrustedRpcDenied("SOCKET_PATH_NOT_PRIVATE_OR_OCCUPIED")
     parent=path.parent.stat()
     if parent.st_uid!=os.getuid():
@@ -140,7 +141,7 @@ def serve(*,socket_path,adapter,capability_sha256,eg_url,eg_key,
         raise TrustedRpcDenied("INVALID_ADAPTER")
     old=os.umask(0o077)
     try:
-        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as server:
+        with private_socket_lease(path), socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as server:
             server.bind(str(path))
             os.chmod(path,0o660 if controller_group_gid is not None else 0o600)
             inode=path.stat().st_ino
