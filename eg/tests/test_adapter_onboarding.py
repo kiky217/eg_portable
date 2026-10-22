@@ -49,3 +49,18 @@ def test_malformed_descriptor_types_fail_closed_without_crash():
         result=inspect_onboarding({**record(k[3]),field:bad},**opts)
         assert result["status"]=="INVALID_ADAPTER_DESCRIPTOR",field
         assert result["admission"] is False
+
+
+def test_external_only_onboarding_does_not_require_unrelated_e2_executor():
+    k=[key() for _ in range(3)]
+    args=dict(gateway_uid=10001,worker_uid=10002,notary_key=k[0],hitl_key=k[1])
+    result=inspect_onboarding(record(k[2]),**args)
+    assert "THREE_INDEPENDENT_SIGNING_ROOTS" not in result["missing"]
+    assert "FOUR_INDEPENDENT_SIGNING_ROOTS" not in result["missing"]
+    assert "WORKER_RUNTIME_ATTESTATION" in result["missing"]
+    for conflicting in [dict(notary_key=k[2]),dict(hitl_key=k[2]),dict(notary_key="")]:
+        result=inspect_onboarding(record(k[2]),**{**args,**conflicting})
+        assert "THREE_INDEPENDENT_SIGNING_ROOTS" in result["missing"]
+        assert result["admission"] is False
+    assert "FOUR_INDEPENDENT_SIGNING_ROOTS" in inspect_onboarding(
+        record(k[2]),**args,executor_key=k[2])["missing"]
