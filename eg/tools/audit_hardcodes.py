@@ -116,13 +116,59 @@ def inventory(root: Path = ROOT) -> dict:
             "semantic_review_complete": False}
 
 
+
+def semantic_disposition(site: dict) -> str:
+    """Risk-triage class, never an independent approval of a literal."""
+    scope, category = site["origin"], site["category"]
+    if category == "APP_SPECIFIC":
+        return "UNKNOWN" if scope == "GENERIC_EG_CORE" else "APP_SPECIFIC"
+    if category == "SECURITY_REVIEW":
+        return "SECURITY_INVARIANT"
+    if category == "ENVIRONMENT_CONFIG":
+        return "ENVIRONMENT_CONFIG"
+    if category == "CONTRACT":
+        return "CONTRACT"
+    if scope in ("TEST_FIXTURE", "PACKAGING_AND_CI", "HISTORICAL_EVIDENCE"):
+        return "PORTABLE_DEFAULT"
+    if category == "PORTABLE_DEFAULT_REVIEW":
+        return "PORTABLE_DEFAULT"
+    return "UNKNOWN"
+
+
+def semantic_matrix(report: dict, root: Path) -> list[dict]:
+    """Trace every Python AST site to its exact source line and file SHA-256."""
+    hashes = {f["path"]: f["sha256"] for f in report["files"]}
+    lines = {}
+    result = []
+    for site in report["literal_sites"]:
+        path, number = site["path"], site["line"]
+        if path not in lines:
+            lines[path] = (root / path).read_text(encoding="utf-8").splitlines()
+        result.append({
+            "source_commit": report["source_commit"], "file_sha256": hashes[path],
+            "path": path, "line": number, "literal": site["literal"],
+            "source_line": lines[path][number - 1].strip()[:240],
+            "risk": site["risk"], "disposition": semantic_disposition(site),
+            "producer": site["origin"], "consumer": site["consumer"],
+            "review_action": site["action"], "review_status": "SOURCE_TRIAGE_NOT_SIGNOFF",
+        })
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--matrix-output", type=Path)
     args = parser.parse_args()
     report = inventory()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    if args.matrix_output:
+        matrix = semantic_matrix(report, ROOT)
+        args.matrix_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.matrix_output.open("w", encoding="utf-8") as target:
+            for site in matrix:
+                target.write(json.dumps(site, sort_keys=True) + "\n")
     print(f"source={report['source_commit']} files={report['files_total']} candidates={report['candidates_total']} literals={report['literal_sites_total']} semantic_review_complete=false")
 
 
