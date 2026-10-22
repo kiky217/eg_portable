@@ -1,7 +1,7 @@
 """#104: all tracked text scanned; AST sites and risk carry explicit uncertainty."""
 import subprocess
 from pathlib import Path
-from tools.audit_hardcodes import _review, _literal_category, inventory, semantic_matrix
+from tools.audit_hardcodes import _review, _literal_category, inventory, semantic_matrix, semantic_disposition
 
 
 def test_provider_specific_token_in_core_is_high_risk_not_approved():
@@ -65,3 +65,12 @@ def test_full_matrix_is_source_sha_pinned_and_unsafe_core_provider_is_unknown(tm
     assert any(row['literal']=="'github'" and row['disposition']=="UNKNOWN"
                and row['risk']=="HIGH" for row in matrix)
     assert all(row['review_status']=="SOURCE_TRIAGE_NOT_SIGNOFF" for row in matrix)
+
+
+def test_low_risk_scoped_review_never_masks_vendor_in_generic_core():
+    generic={'origin':'GENERIC_EG_CORE','category':'UNKNOWN_REVIEW'}
+    provider={'origin':'OPTIONAL_PROVIDER_ADAPTER','category':'UNKNOWN_REVIEW'}
+    assert semantic_disposition(generic)=='CONTRACT'
+    assert semantic_disposition(provider)=='APP_SPECIFIC'
+    assert semantic_disposition({**generic,'category':'APP_SPECIFIC'})=='UNKNOWN'
+    assert semantic_disposition({**generic,'category':'SECURITY_REVIEW'})=='SECURITY_INVARIANT'
