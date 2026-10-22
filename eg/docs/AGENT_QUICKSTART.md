@@ -1,6 +1,6 @@
 # Agent quickstart — production EG without false readiness
 
-**First read [root SKILL.md](../../SKILL.md).** This is an operational entry point, not an alternate evaluator or an override of the canonical executor contract.
+**First read [root SKILL.md](../../SKILL.md).** For all supported API routes, exact request/response fields, operator/agent responsibilities and receipt recovery, follow the [agent operations reference](AGENT_OPERATIONS_REFERENCE.md). This is an operational entry point, not an alternate evaluator or an override of the canonical executor contract.
 
 ## Four separate readiness questions
 
