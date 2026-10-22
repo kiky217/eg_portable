@@ -41,6 +41,25 @@ The operator must separately provision/activate the E3 worker and register
 the matching public HITL key with EG. No credentials, UID, private signing
 material or admission privileges are auto-created for the agent.
 
+For repeatable setup, the authorized root operator can create the signer identity
+files, ledger, and socket directory in **one installer command** once the
+independent Linux UIDs already exist. This is not run by the AI agent:
+
+```sh
+sudo python -m tools.provision_scoped_signer \
+  --root /var/lib/eg/standing-staging-cafe \
+  --signer-uid "$SIGNER_UID" --signer-gid "$SIGNER_GID" \
+  --agent-uid "$AGENT_UID" --agent-gid "$AGENT_GID" \
+  --adapter-id trusted-adapter-cafe --target-prefix /tasks/staging
+```
+
+The installer rejects existing target directories and insecure parents. Its JSON
+output contains the public root, protected config location, socket address and
+separate-UID start command; **never** the private key. The operator must still
+start that service under the signer UID and register its public root with EG.
+Use distinct, existing OS identities—do not invent common hardcoded UIDs on
+real hosts.
+
 ## Agent usage
 
 The agent asks the Unix socket for an approval containing only
