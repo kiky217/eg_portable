@@ -73,6 +73,9 @@ jobs:
       - name: External high-effect independent UID PRE execute POST
         working-directory: eg
         run: sudo env PYTHONPATH=.:tests "$(command -v python)" -m pytest -q tests/test_external_uid_roundtrip.py tests/test_process_external_e2e.py tests/test_github_pr_external_uid_e2e.py
+      - name: Bound E3 processes leave no live descendants
+        working-directory: eg
+        run: PYTHONPATH=.:tests python -m pytest -q tests/test_process_group_cleanup.py
       - name: Prepare isolated separate-UID test source
         run: |
           sudo install -d -m 0755 /tmp/eg-ci-source
