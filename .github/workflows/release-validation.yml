@@ -87,6 +87,9 @@ jobs:
       - name: Independent operator-scoped standing E3 signing policy
         working-directory: eg
         run: sudo env PYTHONPATH=.:tests EG_TEST_SOURCE=/tmp/eg-ci-source "$(command -v python)" -m pytest -q tests/test_operator_scoped_approval.py tests/test_provision_scoped_signer.py
+      - name: Root operator first-use signed worker provisioning and identity isolation
+        working-directory: eg
+        run: sudo env PYTHONPATH=.:tests EG_TEST_SOURCE=/tmp/eg-ci-source "$(command -v python)" -m pytest -q tests/test_operator_first_run.py
       - name: E2 independent unprivileged controller signed PRE POST
         working-directory: eg
         run: sudo env PYTHONPATH=.:tests EG_E2_TEST_SOURCE=/tmp/eg-ci-source "$(command -v python)" -m pytest -q tests/test_e2_controller_group.py
