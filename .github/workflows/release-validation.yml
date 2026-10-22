@@ -42,12 +42,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Generate source-pinned hardcode candidate inventory
-        run: python eg/tools/audit_hardcodes.py --output audit/hardcode-candidates.json
+        run: python eg/tools/audit_hardcodes.py --output audit/hardcode-candidates.json --matrix-output audit/literal-disposition-matrix.jsonl
       - name: Upload hardcode audit candidates
         uses: actions/upload-artifact@v4
         with:
           name: eg-hardcode-audit-${{ github.sha }}
-          path: audit/hardcode-candidates.json
+          path: |
+            audit/hardcode-candidates.json
+            audit/literal-disposition-matrix.jsonl
           if-no-files-found: error
           retention-days: 14
       - name: Install hash-locked runtime
