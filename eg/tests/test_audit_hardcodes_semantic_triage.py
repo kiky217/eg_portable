@@ -1,7 +1,7 @@
 """#104: all tracked text scanned; AST sites and risk carry explicit uncertainty."""
 import subprocess
 from pathlib import Path
-from tools.audit_hardcodes import _review, _literal_category, inventory
+from tools.audit_hardcodes import _review, _literal_category, inventory, semantic_matrix
 
 
 def test_provider_specific_token_in_core_is_high_risk_not_approved():
@@ -46,3 +46,22 @@ def test_readonly_full_tracked_source_and_ast_site_inventory(tmp_path):
     assert all(row['review_status'] == 'SEMANTIC_REVIEW_REQUIRED'
                for row in report['candidates'] + report['literal_sites'])
     assert subprocess.check_output(['git', '-C', str(root), 'status', '--porcelain']) == state_before
+
+
+
+def test_full_matrix_is_source_sha_pinned_and_unsafe_core_provider_is_unknown(tmp_path):
+    root=tmp_path/"project"
+    (root/"eg/app").mkdir(parents=True)
+    (root/"eg/app/main.py").write_text('VENDOR = "github"\nLIMIT = 64\n')
+    subprocess.run(['git','init','-q',str(root)],check=True)
+    subprocess.run(['git','-C',str(root),'add','.'],check=True)
+    subprocess.run(['git','-C',str(root),'-c','user.name=Audit',
+                    '-c','user.email=audit@example.invalid','commit','-qm','fixture'],check=True)
+    inventory_result=inventory(root)
+    matrix=semantic_matrix(inventory_result,root)
+    assert len(matrix)==inventory_result['literal_sites_total']
+    assert all(row['source_commit']==inventory_result['source_commit'] for row in matrix)
+    assert all(row['file_sha256']==inventory_result['files'][0]['sha256'] for row in matrix)
+    assert any(row['literal']=="'github'" and row['disposition']=="UNKNOWN"
+               and row['risk']=="HIGH" for row in matrix)
+    assert all(row['review_status']=="SOURCE_TRIAGE_NOT_SIGNOFF" for row in matrix)
