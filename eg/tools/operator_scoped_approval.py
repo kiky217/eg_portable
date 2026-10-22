@@ -17,6 +17,7 @@ import stat
 import struct
 import time
 from pathlib import Path
+from tools.private_unix_socket import private_socket_lease
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from tools.high_effect_admission import action_fingerprint
@@ -122,7 +123,7 @@ def serve(config):
     socket_path=Path(config['socket_path'])
     folder=socket_path.parent
     info=folder.stat()
-    if (socket_path.exists() or folder.is_symlink() or info.st_uid!=os.geteuid() or
+    if (folder.is_symlink() or info.st_uid!=os.geteuid() or
         info.st_gid!=config['controller_group_gid'] or
         stat.S_IMODE(info.st_mode)!=0o2710):
         raise PolicyDenied('INVALID_OPERATOR_SOCKET_DIRECTORY')
@@ -145,7 +146,7 @@ def serve(config):
 
     class Server(socketserver.ThreadingUnixStreamServer):
         daemon_threads=True
-    with Server(str(socket_path),Handler) as server:
+    with private_socket_lease(socket_path), Server(str(socket_path),Handler) as server:
         os.chmod(socket_path,0o660)
         server.serve_forever(poll_interval=.2)
 
