@@ -53,8 +53,10 @@ def _config(tmp,uid):
 
 
 def test_scoped_signatures_single_use_and_fail_closed(tmp_path,monkeypatch):
-    cfg,policy,pub=_config(tmp_path,1000)
-    monkeypatch.setattr(os,'geteuid',lambda:1000)
+    owner=os.geteuid() or 1000
+    cfg,policy,pub=_config(tmp_path,owner)
+    if os.geteuid()==0:
+        monkeypatch.setattr(os,'geteuid',lambda:owner)
     grants=Grants(configure(cfg))
     req=_scope()
     approval=grants.issue(req)
