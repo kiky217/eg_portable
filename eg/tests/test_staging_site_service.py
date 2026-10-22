@@ -60,6 +60,16 @@ def test_real_staging_persistence_and_rollback():
         rollback=execute(action('rollback',old))
         assert rollback.returncode==0,rollback.stderr
         assert urllib.request.urlopen(url,timeout=3).read()==old
+        stale_inode=Path(sock).stat().st_ino
+        process.kill();process.wait(timeout=3)
+        process=subprocess.Popen([sys.executable,'-m','tools.staging_site_service',str(config)],
+            cwd=source,env=env,preexec_fn=identity(OWNER),stderr=subprocess.PIPE)
+        for _ in range(100):
+            if Path(sock).is_socket() and Path(sock).stat().st_ino!=stale_inode:break
+            assert process.poll() is None,process.stderr.read()
+            time.sleep(.04)
+        assert process.poll() is None
+        assert urllib.request.urlopen(url,timeout=3).read()==old
         no_key=subprocess.run([sys.executable,'-c',
             'from pathlib import Path;import sys;Path(sys.argv[1]).read_bytes()',
             str(state/'active.json')],preexec_fn=identity(EXECUTOR),capture_output=True,timeout=5)
