@@ -108,7 +108,9 @@ The E3–E5 disposable adapters included for repository tests are **CI fixtures,
 | Start here | Covers |
 | --- | --- |
 | [Portable runbook](eg/docs/PORTABLE_RUNBOOK.md) | Installation, daily operation, staging, recovery, and rollback |
-| [Agent SKILL](SKILL.md) | Discover, register, PRE, dispatch once, recover, POST, and finalize |\n| [Agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) | Actual API, typed workers, recovery and common blockers |\n| [Agent quickstart](eg/docs/AGENT_QUICKSTART.md) | Readiness checks, admitted capabilities, and safe agent usage |
+| [Agent SKILL](SKILL.md) | Discover, register, PRE, dispatch once, recover, POST, and finalize |
+| [Agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) | Actual API, typed workers, recovery and common blockers |
+| [Agent quickstart](eg/docs/AGENT_QUICKSTART.md) | Readiness checks, admitted capabilities, and safe agent usage |
 | [Executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Exact PRE/POST contracts, evidence, and receipts |
 | [Independent E3 process worker](eg/docs/OPERATOR_PROCESS_SERVICE.md) | One-time operator provisioning for fixed build/test commands |
 | [Architecture](eg/docs/UNIFIED_ARCHITECTURE.md) | Components, isolation, and trust boundaries |
