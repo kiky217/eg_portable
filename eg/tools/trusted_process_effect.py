@@ -4,7 +4,7 @@ No agent-supplied executable, argv, shell, environment or working directory.
 Must be hosted behind the existing separate-UID Unix RPC dispatcher.
 """
 from __future__ import annotations
-import base64, hashlib, os, stat, subprocess, time
+import base64, hashlib, os, signal, stat, subprocess, time
 from datetime import datetime
 from pathlib import Path
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -15,6 +15,23 @@ from app.execution_receipts import body, sign
 from tools.typed_payload_contract import validate_document,TypedPayloadDenied
 
 class ProcessDenied(RuntimeError): pass
+
+def _bounded_process(executable, args, data, timeout):
+    """Terminate the entire action process group, including grandchildren."""
+    child = subprocess.Popen((executable, *args), stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        env={"PATH":"/usr/bin:/bin", "PYTHONNOUSERSITE":"1", "HOME":"/nonexistent"},
+        close_fds=True, start_new_session=True)
+    try:
+        stdout, stderr = child.communicate(data, timeout=timeout)
+        return subprocess.CompletedProcess(child.args, child.returncode, stdout, stderr)
+    finally:
+        # A successful or timed-out child may leave effects in its process group.
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        child.wait()
 
 class TrustedProcessEffect:
     def __init__(self, *, journal_dir, private_key, adapter_id, hitl_key_b64,
@@ -92,10 +109,7 @@ class TrustedProcessEffect:
             raise ProcessDenied("UNKNOWN_EFFECT_NO_REPLAY")
         self.ledger.consume(approval,self.hitl_key_b64,now=now,**scope)
         try:
-            child=subprocess.run((self.executable,*self.fixed_args),input=stdin,
-                stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=self.timeout,
-                env={"PATH":"/usr/bin:/bin","PYTHONNOUSERSITE":"1","HOME":"/nonexistent"},
-                close_fds=True,start_new_session=True)
+            child=_bounded_process(self.executable,self.fixed_args,stdin,self.timeout)
         except Exception as exc:
             raise ProcessDenied("EXECUTION_UNKNOWN_NO_REPLAY") from exc
         if child.returncode!=0 or not 0<len(child.stdout)<=self.max_stdout:
