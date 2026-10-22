@@ -114,6 +114,23 @@ print(json.dumps(request_scoped_approval(json.load(sys.stdin))))'''
             peer.connect(policy['socket_path']);peer.sendall(req.encode())
             response=json.loads(peer.recv(8192))
             assert response['status']=='DENIED' and 'UNAUTHORIZED_AGENT_IDENTITY' in response['reason']
+        stale_inode=Path(policy['socket_path']).stat().st_ino
+        child.kill();child.wait(timeout=3)  # Deliberately leave crashed Unix socket behind.
+        child=subprocess.Popen([sys.executable,'-m','tools.operator_scoped_approval',str(cfg)],
+                cwd=source,env={**os.environ,'PYTHONPATH':str(source)},
+                preexec_fn=user(SIGNER),stderr=subprocess.PIPE)
+        for _ in range(100):
+            if (Path(policy['socket_path']).is_socket()
+                and Path(policy['socket_path']).stat().st_ino!=stale_inode):break
+            assert child.poll() is None,child.stderr.read()
+            time.sleep(.04)
+        restored=subprocess.run([sys.executable,'-c',script],input=req.encode(),
+                preexec_fn=user(AGENT),capture_output=True,timeout=5,cwd=source,
+                env={**os.environ,'PYTHONPATH':str(source),
+                'EVALUATION_GATEWAY_STANDING_APPROVAL_SOCKET':policy['socket_path'],
+                'EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64':pub})
+        assert restored.returncode==0,restored.stderr
+        assert json.loads(restored.stdout)==proof  # Same sealed nonce, no new grant.
     finally:
         if child and child.poll() is None:
             child.terminate()
