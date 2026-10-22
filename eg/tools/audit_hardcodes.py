@@ -132,6 +132,14 @@ def semantic_disposition(site: dict) -> str:
         return "PORTABLE_DEFAULT"
     if category == "PORTABLE_DEFAULT_REVIEW":
         return "PORTABLE_DEFAULT"
+    # Low-risk schema fields and protocol strings are owned by their scoped
+    # producers; vendor terms are caught by APP_SPECIFIC before this fallback.
+    if scope in ("GENERIC_EG_CORE", "PORTABLE_OPERATIONS"):
+        return "CONTRACT"
+    if scope == "OPTIONAL_PROVIDER_ADAPTER":
+        return "APP_SPECIFIC"
+    if scope == "DOCUMENTATION_OR_CONFIG":
+        return "PORTABLE_DEFAULT"
     return "UNKNOWN"
 
 
