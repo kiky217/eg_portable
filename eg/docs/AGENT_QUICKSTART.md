@@ -32,6 +32,8 @@ For an independent non-root agent/controller to call the built-in E2 worker, the
 
 An authorized administrator can generate the separate non-AI worker/signer identities and signed operator binding with the [one-time staging bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md). This is not self-admission by the AI agent. For a reusable operator-pinned build/test process worker, see [one-time E3 process worker onboarding](OPERATOR_PROCESS_SERVICE.md). This requires an independent OS operator, not another AI agent. For repeated staging builds/tests under one preapproved scope, a separate [non-AI standing policy signer](SCOPED_STAGING_APPROVAL.md) can provide short-lived, exact-gate E3 approvals with a protected signer identity, durable nonce reuse and operator-defined limits; this never self-admits or approves production actions.
 
+The minimal [single-agent workflow](SINGLE_AGENT_WORKFLOW.md) reuses EG's original REGISTER → PRE → independently signed execution receipt → POST → task acceptance path without another AI agent and without blind retries.
+
 ## How to approach real development tasks
 
 Break a real goal into registered steps only if each physical operation has an independently approved transport. Running `cargo build`, Rust source modifications, Git push, shell and service control are **not** a generic E2 write via the built-in worker. Implement and independently audit typed adapters with bounded permissions, action fingerprints, pre-execution scope, journal/idempotency, signed receipts and POST verification. Until provisioned, surface a precise missing-adapter diagnostic. Do not silently downgrade to a logical step, escape to host-root shell, or use disposable CI adapters in production.
