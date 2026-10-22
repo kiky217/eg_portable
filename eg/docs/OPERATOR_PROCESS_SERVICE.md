@@ -47,6 +47,8 @@ The config contains the following operator-selected values:
 | `controller_uid`, optional `controller_group_gid` | Allowed distinct OS controller identity |
 | `executable`, `fixed_args`, `target` | The operator-approved, bounded process policy |
 
+The pinned executable and every ancestor directory must be owned by root or the independent worker, and must not be writable by unrelated users/groups. A binary under an attacker-replaceable temporary directory is rejected even when the binary itself has restrictive file permissions; inspect fixed arguments for scripts and other operator-controlled resources as well.
+
 An E3 action then follows **registered task → fresh PRE → separately signed
 HITL → active operator binding → UID-pinned worker → durable nonce claim →
 fixed process effect → signed receipt → canonical POST**. Receipt delivery is
