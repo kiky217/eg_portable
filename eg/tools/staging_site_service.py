@@ -10,11 +10,13 @@ import os
 import socket
 import socketserver
 import stat
+import secrets
 import struct
 import threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from tools.operator_process_service import _private_file
+from tools.private_unix_socket import private_socket_lease
 
 
 class SiteDenied(ValueError): pass
@@ -70,7 +72,7 @@ class Site:
                 if hashlib.sha256(prior).hexdigest()!=doc['content_sha256']:
                     raise SiteDenied('ROLLBACK_DIGEST_MISMATCH')
                 updated={'current':self.state['previous'],'previous':self.state['current']}
-            temporary=self.statefile.with_suffix('.new')
+            temporary=self.statefile.with_name('.active-'+secrets.token_hex(12)+'.new')
             fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
             try:
                 with os.fdopen(fd,'wb') as file:
@@ -94,7 +96,7 @@ def serve(config):
     info=directory.stat()
     if (directory.is_symlink() or info.st_uid!=os.geteuid() or
         info.st_gid!=config['controller_gid'] or
-        stat.S_IMODE(info.st_mode)!=0o2710 or Path(config['socket_path']).exists()):
+        stat.S_IMODE(info.st_mode)!=0o2710):
         raise SiteDenied('INVALID_SITE_SOCKET_DIRECTORY')
 
     class Pages(BaseHTTPRequestHandler):
@@ -125,7 +127,7 @@ def serve(config):
     class Unix(socketserver.ThreadingUnixStreamServer):daemon_threads=True
     with ThreadingHTTPServer(('127.0.0.1',config['http_port']),Pages) as http:
         threading.Thread(target=http.serve_forever,daemon=True).start()
-        with Unix(config['socket_path'],Control) as control:
+        with private_socket_lease(Path(config['socket_path'])), Unix(config['socket_path'],Control) as control:
             os.chmod(config['socket_path'],0o660)
             control.serve_forever(poll_interval=.2)
         http.shutdown()
