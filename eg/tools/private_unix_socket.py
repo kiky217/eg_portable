@@ -1,6 +1,5 @@
 """Recover crashed worker sockets only under a worker-owned exclusive lock."""
 from contextlib import contextmanager
-import errno
 import fcntl
 import os
 from pathlib import Path
