@@ -51,7 +51,7 @@ def test_typed_output_is_signed_only_when_valid(tmp_path,monkeypatch):
     class Result:returncode=0;stdout=args["stdin"];stderr=b""
     calls=[]
     def run(*a,**kw):calls.append("executed");return Result()
-    monkeypatch.setattr("tools.trusted_process_effect.subprocess.run",run)
+    monkeypatch.setattr("tools.trusted_process_effect._bounded_process",run)
     proof=worker.execute(**args)
     assert proof["status"]=="EXECUTED_POST_NOT_VERIFIED"
     assert proof["receipt"]["output_sha256"]==hashlib.sha256(Result.stdout).hexdigest()
@@ -63,7 +63,7 @@ def test_invalid_output_never_receives_valid_receipt(tmp_path,monkeypatch):
     class Result:returncode=0;stdout=b'{"unexpected":true}';stderr=b""
     calls=[]
     def run(*a,**kw):calls.append("executed");return Result()
-    monkeypatch.setattr("tools.trusted_process_effect.subprocess.run",run)
+    monkeypatch.setattr("tools.trusted_process_effect._bounded_process",run)
     with pytest.raises(ProcessDenied,match="OUTPUT_SCHEMA_DENIED_UNKNOWN_NO_REPLAY"):
         worker.execute(**args)
     with pytest.raises(ProcessDenied,match="NO_REPLAY"):worker.execute(**args)
