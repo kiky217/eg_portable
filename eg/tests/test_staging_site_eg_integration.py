@@ -93,6 +93,7 @@ def test_one_task_real_site_deploy_edit_and_rollback(monkeypatch):
         if pid==0:
             try:
                 identity(WORKER)()
+                os.chdir(source)  # Child must not inherit the inaccessible CI checkout cwd.
                 executable=next(str(p) for p in (Path('/usr/bin/python3.12'),
                     Path('/usr/bin/python3.13')) if p.exists())
                 w=TrustedProcessEffect(journal_dir=journal,private_key=worker,
