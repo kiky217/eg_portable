@@ -66,10 +66,16 @@ def _literal_category(value):
 
 def inventory(root: Path = ROOT) -> dict:
     sha = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    # Never label an uncommitted worktree snapshot as an immutable commit.
+    if subprocess.run(["git", "-C", str(root), "diff", "--quiet", "HEAD", "--"],
+                      check=False).returncode != 0:
+        raise ValueError("SOURCE_TREE_DIFFERS_FROM_PINNED_HEAD")
     names = subprocess.check_output(["git", "-C", str(root), "ls-files", "-z"]).split(b"\0")
     paths = sorted(n.decode("utf-8") for n in names if n)
     files, findings, literal_sites = [], [], []
     for name in paths:
+        if (root / name).is_symlink():
+            raise ValueError("TRACKED_SYMLINK_CANNOT_BE_SOURCE_PINNED")
         raw = (root / name).read_bytes()
         meta = {"path": name, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
         try:
