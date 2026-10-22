@@ -31,6 +31,8 @@ checks authenticated audit integrity. The test also confirms that an invalid
 PRE never calls the worker. Other independently typed consumers can supply
 their own action/worker callbacks **without editing EG core**.
 
+The independently signed **third consumer** (`staging_site_service`), which stays live between deploy, revise and rollback, now executes the exact same provider-neutral `run_step` orchestration as E2; `test_staging_site_eg_integration.py` verifies this with real separate OS identities, signed scoped standing approvals, physical HTTP readback and task-wide SATISFIED. This does not expand the authority of the AI agent.
+
 For full independent physical E3 and persistent staging site tests, see
 `tests/test_process_external_e2e.py` and
 `tests/test_staging_site_eg_integration.py`. Those assert real PRE,
