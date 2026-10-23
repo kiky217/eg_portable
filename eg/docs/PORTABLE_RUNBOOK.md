@@ -52,7 +52,7 @@ No staging action is exempt from this lifecycle.
 
 ## Cutover and rollback
 
-Current built-in worker supports bounded E0 reads and E2 file writes only;
+Current built-in worker supports bounded E0 reads, E2 new-file creation and SHA-256 compare-and-swap E2 replacement only;
 real-world service cutover/E3 and shell remain BLOCKED until a separately
 trusted, deployed executor adapter is admitted. The isolated disposable E3–E5
 CI-only adapters are regression fixtures, not production service transports. Replan into bounded steps only

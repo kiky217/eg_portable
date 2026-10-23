@@ -1,4 +1,4 @@
-# Evaluation Gateway (EG)
+| Discover, register, PRE, dispatch once, recover, POST, and finalize |\n|# Evaluation Gateway (EG)
 
 **Verify every step as work happens — not after a project is finished.**
 
@@ -76,7 +76,7 @@ These controls apply to each environment, including staging.
 - [Download a stable release](https://github.com/kiky217/eg_portable/releases/latest)
 - [Portable installation and operations runbook](eg/docs/PORTABLE_RUNBOOK.md)
 
-**2. Check what your environment can actually do.** For an agent integration, start with [SKILL.md](SKILL.md) and the [agent quickstart](eg/docs/AGENT_QUICKSTART.md). A local, read-only preflight can be run from the repository root:
+**2. Check what your environment can actually do.** For an agent integration, start with the complete [operational SKILL.md](SKILL.md), the [source-verified agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md), and the [agent quickstart](eg/docs/AGENT_QUICKSTART.md). A local, read-only preflight can be run from the repository root:
 
 ```sh
 python eg/tools/agent_readiness.py --effect E2 --action write
@@ -108,6 +108,8 @@ The E3–E5 disposable adapters included for repository tests are **CI fixtures,
 | Start here | Covers |
 | --- | --- |
 | [Portable runbook](eg/docs/PORTABLE_RUNBOOK.md) | Installation, daily operation, staging, recovery, and rollback |
+| [Agent SKILL](SKILL.md) | Discover, register, PRE, dispatch once, recover, POST, and finalize |
+| [Agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) | Actual API, typed workers, recovery and common blockers |
 | [Agent quickstart](eg/docs/AGENT_QUICKSTART.md) | Readiness checks, admitted capabilities, and safe agent usage |
 | [Executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Exact PRE/POST contracts, evidence, and receipts |
 | [Independent E3 process worker](eg/docs/OPERATOR_PROCESS_SERVICE.md) | One-time operator provisioning for fixed build/test commands |

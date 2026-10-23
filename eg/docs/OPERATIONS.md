@@ -111,7 +111,7 @@ For a completed cutover, provide the original cutover report: its archive and
 backup digests must still match and its recorded ledger head must survive at
 the corresponding historical audit sequence. This checks reported historical continuity, **not** independent archive
 provenance, a complete restore rehearsal, executor admission, or EG signed
-POST acceptance. Issue #14 remains open pending such evidence.
+POST acceptance. The Issue #14 reference is historical; consult GitHub for its current state\nrather than treating an archived operations note as a live issue tracker.
 It writes only a new report file (0600), refuses overwrites, and does not
 expose secrets. A result of `BLOCKED` is not an EG task mutation.
 

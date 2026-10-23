@@ -4,7 +4,7 @@ Evaluation Gateway (EG) checks work **one step at a time**. An agent registers i
 
 **Every step must be verified — including staging, testing, recovery, and cutover steps.** EG does not allow a supported physical action to be presented as verified merely because it was performed or reported afterward.
 
-For the project overview, see the [main README](../README.md).
+For the project overview, see the [main README](../README.md). For agent operations begin with the [complete SKILL](../SKILL.md) and [source-verified operation reference](docs/AGENT_OPERATIONS_REFERENCE.md).
 
 ## How a task progresses
 
