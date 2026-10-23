@@ -57,3 +57,12 @@ def test_documentation_links_refer_to_existing_paths():
     assert "AGENT_OPERATIONS_REFERENCE.md" in (ROOT / "README.md").read_text()
     assert "AGENT_OPERATIONS_REFERENCE.md" in (ROOT / "eg/README.md").read_text()
     assert "AGENT_OPERATIONS_REFERENCE.md" in (ROOT / "eg/docs/AGENT_QUICKSTART.md").read_text()
+
+
+def test_repository_readme_markdown_structure():
+    """The repository landing page must start with a real Markdown heading."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert readme.startswith("# Evaluation Gateway (EG)\n\n")
+    assert "\\n|" not in readme
+    assert readme.count("## Documentation") == 1
+    assert "| [Agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) |" in readme
