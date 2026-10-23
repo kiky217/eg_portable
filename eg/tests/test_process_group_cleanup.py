@@ -11,7 +11,7 @@ from tools.trusted_process_effect import _bounded_process
 def _not_running(pid):
     try:
         return Path(f"/proc/{pid}/stat").read_text().split(") ", 1)[1].split()[0] == "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return True
 
 
