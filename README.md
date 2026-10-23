@@ -1,4 +1,4 @@
-| Discover, register, PRE, dispatch once, recover, POST, and finalize |\n|# Evaluation Gateway (EG)
+# Evaluation Gateway (EG)
 
 **Verify every step as work happens — not after a project is finished.**
 
