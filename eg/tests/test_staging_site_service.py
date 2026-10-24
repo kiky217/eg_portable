@@ -70,6 +70,19 @@ def test_real_staging_persistence_and_rollback():
             time.sleep(.04)
         assert process.poll() is None
         assert urllib.request.urlopen(url,timeout=3).read()==old
+        # An authorized controller that disconnects mid-payload must never
+        # turn an incomplete request into a committed site change.
+        partial=subprocess.run([sys.executable,'-c',
+            'import socket,sys; s=socket.socket(socket.AF_UNIX); '
+            's.connect(sys.argv[1]); s.sendall(b"partial-request"); s.close()',
+            sock],preexec_fn=identity(EXECUTOR),capture_output=True,timeout=5)
+        assert partial.returncode==0,partial.stderr
+        assert process.poll() is None
+        assert urllib.request.urlopen(url,timeout=3).read()==old
+        # Replaying the active content is rejected, not silently deployed again.
+        replay=execute(action('deploy',old))
+        assert replay.returncode!=0
+        assert urllib.request.urlopen(url,timeout=3).read()==old
         no_key=subprocess.run([sys.executable,'-c',
             'from pathlib import Path;import sys;Path(sys.argv[1]).read_bytes()',
             str(state/'active.json')],preexec_fn=identity(EXECUTOR),capture_output=True,timeout=5)
