@@ -111,7 +111,10 @@ print(json.dumps(request_scoped_approval(json.load(sys.stdin))))'''
             gate_checkpoint_no=4,action_fingerprint=action_fingerprint(_scope()['action']),
             adapter_id=policy['adapter_id'])
         with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
-            peer.connect(policy['socket_path']);peer.sendall(req.encode())
+            peer.settimeout(2)
+            peer.connect(policy['socket_path'])
+            # Peer-UID denial occurs before request parsing. Sending a payload
+            # can race the server close and spuriously raise BrokenPipeError.
             response=json.loads(peer.recv(8192))
             assert response['status']=='DENIED' and 'UNAUTHORIZED_AGENT_IDENTITY' in response['reason']
         stale_inode=Path(policy['socket_path']).stat().st_ino
