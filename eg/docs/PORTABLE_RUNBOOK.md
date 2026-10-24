@@ -13,6 +13,14 @@ GET /health, /v1/audit/verify, /v1/tasks/{task_id}/state and task detail
 before any plan or mutation. Never log keys or infer a fresh instance from
 the previous Colab path. Missing database/signing roots are blockers.
 
+The source evaluator's default is `EVALUATION_GATEWAY_ADMISSION_MODE=enabled`
+when unset. This is **not** a worker-attestation or PRE authorization default:
+read `/v1/agent/capabilities` and the real worker before claiming any effect.
+Operators can explicitly select `disabled` for historical/audit-only service,
+but the current portable `init.sh` still demands both independently provided
+public roots for a fresh state. See [operations](OPERATIONS.md#safe-historical-task-migration)
+before attempting a no-executor first-run; never substitute a dummy signer.
+
 ## Software, protocol and receipts
 
 | Identity | Authoritative source | Rule |
@@ -84,7 +92,7 @@ remains BLOCKED.
 
 ## Historical examples and release verification
 
-Archive-only: [`ACCEPTANCE_POST_CUTOVER_20261016.md`](../artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md) and the [original JSON](../artifacts/acceptance-post-cutover-20261016.json)
+Archive-only: [`ACCEPTANCE_POST_CUTOVER_20261016.md`](https://github.com/kiky217/eg_portable/blob/main/eg/artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md) and the [original JSON](https://github.com/kiky217/eg_portable/blob/main/eg/artifacts/acceptance-post-cutover-20261016.json)
 record the previous Colab owner decision. Neither is a current task ID,
 live deployment checkpoint, or skip-verification policy for other installs.
 

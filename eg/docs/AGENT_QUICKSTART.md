@@ -11,7 +11,19 @@
 | Can EG admit a concrete operation? | Current `admission_mode`, trusted executor root and valid, fresh PRE |
 | Can the operation happen? | Independently deployed adapter with exact supported action, isolation, durable journal, original signed receipt and POST |
 
-`admission_mode=disabled` is explicitly a **historical/audit-only** mode for hosts without independently trusted execution. This is not equivalent to production execution. Enable admission only after the trust prerequisites are actually met. A public key without a separately protected private signer does not prove executor independence.
+The EG source default is `EVALUATION_GATEWAY_ADMISSION_MODE=enabled`.
+Do not treat this default as evidence that any effect is admitted. The live
+`/v1/agent/capabilities` response can report all built-in workers `UNAVAILABLE`
+when there is no executor output root or active independently verified worker.
+`admission_mode=disabled` is an **explicit historical/audit-only override**,
+not the generic installation default. Even when `enabled`, require fresh
+capability, signer and worker attestation, exact READY PRE and signed POST.
+A public key without a separately protected private signer does not prove
+executor independence. The current generated `init.sh` requires both executor
+and notary public keys for **fresh bootstrap** in either mode; see
+[operations](OPERATIONS.md#safe-historical-task-migration) for the documented
+audit-only bootstrap limitation. Never manufacture a dummy executor key.
+
 
 For an independently provisioned **E3–E5-only** instance, the built-in E0/E2 executor signing key is not required if no E0/E2 output root is configured. Read-only `adapter_onboarding.inspect_onboarding()` likewise only requires the independent notary, HITL, and external worker roots when no bundled E2 root is present. The external worker still needs its own distinct signing identity, approved capability, operator binding, separately signed HITL, and exact PRE/POST. When the built-in E0/E2 output root is configured, its own separate signing key remains mandatory; missing trust still fails closed.
 

@@ -57,6 +57,16 @@ def copy_eg_source(source,target):
             out.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(f,out)
 
+# Root documentation is public and referenced by eg/README.md and eg/docs.
+# Shipping only eg/ breaks the SKILL and main README links after relocation.
+PORTABLE_ROOT_DOCS=('README.md','SKILL.md','SECURITY.md','LICENSE')
+def copy_public_root_docs(source_root,target_root):
+    for name in PORTABLE_ROOT_DOCS:
+        f=source_root/name
+        if not f.is_file() or f.is_symlink():
+            raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_ROOT_DOC '+name)
+        shutil.copy2(f,target_root/name)
+
 def write_text(path,data):
     path.write_text(data);path.chmod(0o644)
 def filehash(path):
@@ -118,6 +128,16 @@ def main():
             if not destination.exists():
                 shutil.copy2(source.resolve(),destination)
     copy_eg_source(STAGE,root/'eg')
+    copy_public_root_docs(STAGE.parent,root)
+    # Include only explicitly reviewed public documentation artwork, never
+    # arbitrary SVG or private sidecars from the source tree.
+    for name in ('eg-step-review.svg','eg-workflow.svg'):
+        source=STAGE/'docs/assets'/name
+        if not source.is_file() or source.is_symlink():
+            raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_DOC_ASSET '+name)
+        destination=root/'eg/docs/assets'/name
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(source,destination)
     (root/'THIRD_PARTY_LICENSES').mkdir(exist_ok=True)
     license_candidates=[Path(os.getenv('EG_PYTHON_LICENSE_FILE','/nonexistent')),
                         STAGE/'docs/CPYTHON_LICENSE.md',
