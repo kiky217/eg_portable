@@ -67,6 +67,23 @@ def copy_public_root_docs(source_root,target_root):
             raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_ROOT_DOC '+name)
         shutil.copy2(f,target_root/name)
 
+# Normalize only the already-allowlisted, public distribution staging tree.
+# shutil.copy2/copytree preserve source modes, which can make a valid archive
+# unreadable to the required independent non-root runtime identity.
+PORTABLE_EXECUTABLES=frozenset({
+    'python/bin/python3.12','python.sh','run.sh','init.sh','start.sh'})
+def normalize_bundle_permissions(root):
+    for path in (root,*root.rglob('*')):
+        if path.is_symlink():
+            raise RuntimeError('UNSAFE_PORTABLE_STAGE_SYMLINK '+str(path.relative_to(root)))
+        if path.is_dir():
+            path.chmod(0o755)
+        elif path.is_file():
+            rel=path.relative_to(root).as_posix()
+            path.chmod(0o755 if rel in PORTABLE_EXECUTABLES else 0o644)
+        else:
+            raise RuntimeError('UNSAFE_PORTABLE_STAGE_ENTRY '+str(path.relative_to(root)))
+
 def write_text(path,data):
     path.write_text(data);path.chmod(0o644)
 def filehash(path):
@@ -273,6 +290,8 @@ on shell commands or a fully production-safe deployment.
 No secret/private-key/runtime data is included in the archive.
 '''
     write_text(root/'README_PORTABLE.md',doc)
+    # Explicit public modes must not depend on the builder's umask.
+    normalize_bundle_permissions(root)
     # Manifest only for contents actually inside bundle; no secrets.
     files=sorted(x for x in root.rglob('*') if x.is_file())
     manifest={str(x.relative_to(root)):filehash(x) for x in files}
@@ -281,6 +300,10 @@ No secret/private-key/runtime data is included in the archive.
     archive=WORK/(bundle.name+'.tar.gz')
     import gzip
     def deterministic_header(info):
+        if not (info.isdir() or info.isfile()):
+            raise RuntimeError('UNSAFE_PORTABLE_ARCHIVE_ENTRY '+info.name)
+        rel=info.name.split('/',1)[-1]
+        info.mode=0o755 if info.isdir() or rel in PORTABLE_EXECUTABLES else 0o644
         info.mtime=0
         info.uid=info.gid=0
         info.uname=info.gname=''

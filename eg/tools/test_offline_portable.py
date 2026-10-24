@@ -66,6 +66,14 @@ def main():
         check('no_runtime_data_in_archive',
               all(not (set(Path(m.name).parts) & forbidden) for m in tf.getmembers()))
         check('tar_metadata_normalized',all(item.mtime==0 and item.uid==0 and item.gid==0 and not item.uname and not item.gname for item in tf.getmembers()))
+        # Distribution permissions are a release contract: the build runner may
+        # have used umask 077, but an independent non-root UID must traverse
+        # every public directory and read every shipped runtime module.
+        executable_paths={'python/bin/python3.12','python.sh','run.sh','init.sh','start.sh'}
+        check('tar_public_permissions_nonroot',all(
+            (member.mode & 0o777)==(0o755 if member.isdir() or
+                 '/'.join(Path(member.name).parts[1:]) in executable_paths else 0o644)
+            for member in tf.getmembers()))
         for item in tf.getmembers():
             path=Path(item.name)
             check('archive_member_safe_'+str(path)[:48],
@@ -74,6 +82,10 @@ def main():
         tf.extractall(A,filter='data')
     extracted=next(A.glob('eg-portable-*-linux-amd64'))
     manifest=json.loads((extracted/'MANIFEST.json').read_text())
+    check('extracted_public_permissions_nonroot',all(
+        (path.stat().st_mode & 0o777)==(0o755 if path.is_dir() or
+            path.relative_to(extracted).as_posix() in executable_paths else 0o644)
+        for path in (extracted,*extracted.rglob('*'))))
     check('manifest_coverage',len(manifest['files'])>1000)
     project_license=extracted/'eg/LICENSE'
     check('project_license_present',project_license.is_file() and project_license.read_text(encoding='utf-8').startswith('MIT License\n'))

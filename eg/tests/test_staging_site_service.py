@@ -74,12 +74,19 @@ def test_real_staging_persistence_and_rollback():
             'from pathlib import Path;import sys;Path(sys.argv[1]).read_bytes()',
             str(state/'active.json')],preexec_fn=identity(EXECUTOR),capture_output=True,timeout=5)
         assert no_key.returncode!=0 and b'PermissionError' in no_key.stderr
-        with socket.socket(socket.AF_UNIX) as unauthorized:
-            unauthorized.connect(sock)
-            unauthorized.sendall(action('deploy',new))
-            denial=json.loads(unauthorized.recv(4096))
-        assert denial['status']=='DENIED'
-        assert 'UNAUTHORIZED_EXECUTOR_UID' in denial['reason']
+        # UID is checked before request parsing: an unauthorized write can
+        # race with the server's rejection/close and raise BrokenPipeError.
+        # Read the actual denial and verify the site never changes, repeatedly.
+        for _ in range(20):
+            with socket.socket(socket.AF_UNIX) as unauthorized:
+                unauthorized.settimeout(2)
+                unauthorized.connect(sock)
+                raw=unauthorized.recv(4096)
+                assert raw, 'UNAUTHORIZED_PEER_MUST_RECEIVE_DENIAL'
+                denial=json.loads(raw)
+            assert denial['status']=='DENIED'
+            assert 'UNAUTHORIZED_EXECUTOR_UID' in denial['reason']
+            assert urllib.request.urlopen(url,timeout=3).read()==old
     finally:
         if process and process.poll() is None:
             process.terminate()
