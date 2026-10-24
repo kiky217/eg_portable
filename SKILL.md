@@ -41,8 +41,10 @@ A deployment may register a typed external adapter without hardcoding its toolch
 - Retry only a safe, reconciled action without bypassing verification or security denial. A repeated claim/request does not establish execution.
 
 ## Admission diagnostic
-- `EVALUATION_GATEWAY_ADMISSION_MODE=disabled`: historical audit/reconciliation may function but **all concrete PRE/POST** are fail-closed, regardless of service health.
-- `enabled` is only a configuration condition; it does not provision the executor, signers, capability, root isolation, authenticated effect RPC or a live valid PRE.
+- **Source default:** unset `EVALUATION_GATEWAY_ADMISSION_MODE` means `enabled` in `eg/app/main.py`. Preserve that default unless an operator deliberately selects audit-only mode; do not infer live worker availability from this flag.
+- `EVALUATION_GATEWAY_ADMISSION_MODE=disabled`: explicitly selected historical audit/reconciliation mode; **all concrete PRE/POST** are fail-closed, regardless of service health.
+- `enabled` is only a configuration condition; it does not provision the executor, signers, capability, root isolation, authenticated effect RPC or a live valid PRE. With no worker output root, `/v1/agent/capabilities` still reports built-in effects `UNAVAILABLE`.
+- Current portable `init.sh` requires an independently supplied executor **public** root and notary public root at fresh initialization even if `disabled` is selected. If either is missing, do not invent one; see [operator/audit-only bootstrap limitation](eg/docs/OPERATIONS.md#safe-historical-task-migration).
 - Run `python eg/tools/agent_readiness.py --effect E2 --action write` from the repo root for a **local, read-only configuration preflight**. It prints a diagnostic, not proof of live authorization. For Rust build/Git or unsupported effects, diagnostics must identify the missing production adapter rather than claim success.
 - Never set admission enabled merely to clear a blocker. Provision and independently verify trusted worker and key isolation first.
 

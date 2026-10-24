@@ -2,6 +2,17 @@
 
 **One EG registry, one protocol, one runtime.**
 
+**Actual admission default:** `eg/app/main.py` uses
+`EVALUATION_GATEWAY_ADMISSION_MODE=enabled` when the variable is unset.
+Preserve this default unless the operator explicitly selects an audit-only
+instance. `enabled` alone is **not** physical execution readiness: the E0/E2
+worker also needs an operator-provisioned output root, distinct protected signer,
+active trusted RPC transport, original READY PRE and signed POST. Without these,
+`GET /v1/agent/capabilities` can correctly return `UNAVAILABLE` while
+`GET /health` and authenticated `/v1/audit/verify` return `PASS` with
+`admission_mode=enabled`. Do not enable an untrusted worker to change that status.
+
+
 - Install or extract the Linux/amd64 offline artifact from the single eg/
   source tree. No auxiliary `portable/bin` scripts are required.
 - Require a nonroot identity, durable external `EG_STATE_DIR`, owner-protected
@@ -35,14 +46,19 @@ checks the protocol hash originally authenticated in the TASK_INTAKE event
 and applies CURRENT receipt and audit validations without dispatching any
 previous evaluator. New registrations must use the current protocol hash.
 
-On a host with no independently administered trusted executor, set
-`EVALUATION_GATEWAY_ADMISSION_MODE=disabled` and leave the executor public
-key unset. The service can verify historical ledgers, but EVERY concrete
-PRE/POST action is denied with
-`TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED`. This is not production-ready
-execution. Move signing/execution to a separate root-privilege domain before
-allowing `ADMISSION_MODE=enabled`; never generate a dummy public key to
-pretend a remote executor is configured.
+For a separately designated **historical/audit-only** instance with no trusted
+executor, the operator may explicitly set
+`EVALUATION_GATEWAY_ADMISSION_MODE=disabled` and omit the executor public key
+from the evaluator configuration. This is an exception to the source default;
+all concrete PRE/POST actions remain denied. The current generated portable
+`init.sh` nevertheless requires **both** `EG_EXECUTOR_PUBLIC_KEY_B64` and
+`EG_NOTARY_PUBLIC_KEY_B64` even for `disabled` initialization. Therefore fresh
+bootstrap without an independent executor public root is currently **blocked**
+by the installer; this must not be worked around by inventing a dummy key.
+An existing, independently initialized historical state can still be verified
+in audit-only mode with no executor key. Operator provisioning and key isolation
+are needed to enable actual effect execution, regardless of the mode flag.
+
 
 ## Rehearse migration without cutover
 
@@ -85,7 +101,7 @@ BLOCKED without a separately verified capable worker; direct shell is not a
 fallback.
 
 The dated Colab 2026-10-15 owner-accepted cutover is documented in
-[ACCEPTANCE_POST_CUTOVER_20261016.md](../artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md).
+[ACCEPTANCE_POST_CUTOVER_20261016.md](https://github.com/kiky217/eg_portable/blob/main/eg/artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md).
 That historical addendum is retained, not an order to skip new cutover steps,
 and never changes its original 12/16 VERIFIED canonical task ledger.
 

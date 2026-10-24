@@ -76,13 +76,24 @@ These controls apply to each environment, including staging.
 - [Download a stable release](https://github.com/kiky217/eg_portable/releases/latest)
 - [Portable installation and operations runbook](eg/docs/PORTABLE_RUNBOOK.md)
 
+The offline distribution also bundles the root `SKILL.md`, README, security
+policy, license and referenced workflow diagrams; linked historical archives
+remain available from the canonical GitHub repository.
+
 **2. Check what your environment can actually do.** For an agent integration, start with the complete [operational SKILL.md](SKILL.md), the [source-verified agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md), and the [agent quickstart](eg/docs/AGENT_QUICKSTART.md). A local, read-only preflight can be run from the repository root:
 
 ```sh
 python eg/tools/agent_readiness.py --effect E2 --action write
 ```
 
-This preflight is **not** execution authorization. Production readiness requires fresh, authenticated live state and a separately trusted executor.
+This preflight is **not** execution authorization. The evaluator defaults to
+`EVALUATION_GATEWAY_ADMISSION_MODE=enabled` when unset; this flag does not
+provision any worker. A live instance can have health and audit `PASS` while
+all effects are `UNAVAILABLE` until an independently trusted executor is
+admitted. For audit-only exceptions and bootstrap restrictions, see the
+[operations guide](eg/docs/OPERATIONS.md#safe-historical-task-migration).
+Production readiness requires fresh, authenticated live state and a separately
+trusted executor.
 
 **3. Learn the contracts before admitting effects.** The [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) describes PRE, signed receipts, POST, and evidence requirements. For development and isolated regression testing, see the [application and developer guide](eg/README.md#build-and-test).
 

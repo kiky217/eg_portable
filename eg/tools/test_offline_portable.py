@@ -78,6 +78,15 @@ def main():
     project_license=extracted/'eg/LICENSE'
     check('project_license_present',project_license.is_file() and project_license.read_text(encoding='utf-8').startswith('MIT License\n'))
     check('project_license_hash',manifest['files'].get('eg/LICENSE')==hexhash(project_license))
+    public_docs=('README.md','SKILL.md','SECURITY.md','LICENSE')
+    check('root_operational_docs_bundled',all(
+        (extracted/name).is_file() and manifest['files'].get(name)==hexhash(extracted/name)
+        for name in public_docs))
+    public_artwork=('eg-step-review.svg','eg-workflow.svg')
+    check('linked_public_diagrams_bundled',all(
+        (extracted/'eg/docs/assets'/name).is_file() and
+        manifest['files'].get('eg/docs/assets/'+name)==hexhash(extracted/'eg/docs/assets'/name)
+        for name in public_artwork))
     for rel,expected in manifest['files'].items():
         p=extracted/rel
         if not p.is_file() or hexhash(p)!=expected:
