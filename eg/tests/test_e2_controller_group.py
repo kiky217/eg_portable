@@ -102,8 +102,11 @@ def test_real_unprivileged_agent_creates_file_through_eg_pre_and_signed_post(mon
         assert post.json()['verdict']=='VERIFIED_PASS',post.text
         assert H.CLIENT.get('/v1/audit/verify',headers=H.HEAD).json()['status']=='PASS'
         with socket.socket(socket.AF_UNIX) as bad:
+            bad.settimeout(2)
             bad.connect(config['socket_path']) # Root bypasses DAC but fails SO_PEERCRED.
-            bad.sendall(b'{}\n')
+            # The worker verifies peer UID before reading an RPC payload and may
+            # close the socket immediately. Sending after that close races with
+            # the denial response and can spuriously raise BrokenPipeError.
             denied=json.loads(bad.recv(8192))
         assert denied['status']=='DENIED'
         assert 'UNAUTHORIZED_CONTROLLER_UID' in denied['reason']
