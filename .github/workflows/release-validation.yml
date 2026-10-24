@@ -127,7 +127,11 @@ jobs:
       - name: Build portable archive against Debian Bookworm glibc
         run: |
           docker run --rm -v "$PWD:/source" -w /source/eg python:3.12.15-slim-bookworm /bin/sh -ec '
+            umask 077
             python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.lock
+            # Reproduce a private build environment; published modules must
+            # still work for a separate, non-root service identity.
+            chmod -R go-rwx /usr/local/lib/python3.12/site-packages
             python tools/build_portable_bundle.py
           '
           version="$(cat eg/VERSION)"
