@@ -66,10 +66,9 @@ provide trust. Only the independently notarized manifest and original
 signed gate can authorize evidence/operations. See [SKILL operational
 cookbook](../../SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work).
 
-## Scope of the generic E3 catalog
+## Scope of the reusable generic E3–E5 catalog
 
-The built-in multi-target process catalog implements only E3
-`bounded_process_run`, not E4/E5 privileged operations or vendor APIs.
+The same `TrustedProcessCatalog` and `TrustedProcessEffect` implement bounded operator-approved processes for **E3, E4 and E5**. The operator-pinned policy selects one `effect_class` (default E3) and `action_type` (default `bounded_process_run`) per signed worker identity; 1–32 exact target profiles reuse that identity, journal and socket. Different classes may use the **same source implementation** but require their own independently authorized typed capability/binding. E4 actions must be reversible; E5 actions must be marked irreversible, are not compensatable and must never be replayed. A missing privilege or capability must not be fabricated from a configured descriptor.
 The **dispatcher** is generic across E0–E5; actual executable capabilities
 remain whatever has been independently admitted. Do not claim a missing E4/E5
 capability can be executed by an E3 profile. Moving to a new Linux host needs
