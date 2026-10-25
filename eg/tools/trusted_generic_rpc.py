@@ -35,7 +35,7 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
         raise TrustedRpcDenied("INVALID_RPC_SCHEMA")
     task,step=request["task_id"],request["step_key"]
     action,approval=request["action"],request["approval"]
-    if (request["operation"] not in ("execute","recover_receipt") or not isinstance(action,dict)
+    if (request["operation"] not in ("execute","recover_receipt","no_effect") or not isinstance(action,dict)
         or not isinstance(approval,dict) or not isinstance(step,str)
         or not 1<=len(step)<=18 or not isinstance(request["data_b64"],str)
         or action.get("effect_class") not in ("E3","E4","E5")):
@@ -45,14 +45,14 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
     if ((request["operation"]=="execute" and
          (not data or len(data)>524288 or action.get("payload_bytes")!=len(data) or
           action.get("payload_sha256")!=hashlib.sha256(data).hexdigest()))
-        or (request["operation"]=="recover_receipt" and data)):
+        or (request["operation"] in ("recover_receipt","no_effect") and data)):
         raise TrustedRpcDenied("EFFECT_PAYLOAD_NOT_BOUND")
     state=_get(eg_url,eg_key,task,"/state")
     detail=_get(eg_url,eg_key,task,"")
     gate=state.get("pending_execution_gate")
     latest=state.get("latest_checkpoint")
     fp=action_fingerprint(action)
-    if (state.get("status") not in (("IN_PROGRESS","RECOVERY_PENDING") if request["operation"]=="recover_receipt" else ("IN_PROGRESS",)) or state.get("current_step")!=step
+    if (state.get("status") not in (("IN_PROGRESS","RECOVERY_PENDING") if request["operation"] in ("recover_receipt","no_effect") else ("IN_PROGRESS",)) or state.get("current_step")!=step
         or detail.get("task",{}).get("contract_status")!="OPEN"
         or not isinstance(gate,dict) or not isinstance(latest,dict)
         or gate.get("task_id")!=task or gate.get("step_key")!=step
@@ -80,11 +80,17 @@ def dispatch_once(request,*,adapter,eg_url,eg_key,hitl_public_key_b64):
         raise TrustedRpcDenied("PRE_LEASE_INVALID")
     # Recovery is read-only: verify the original signed approval's time window,
     # not the current time, then require the original durable sealed receipt.
-    approval_time=(approval.get("issued_at") if request["operation"]=="recover_receipt"
+    approval_time=(approval.get("issued_at") if request["operation"] in ("recover_receipt","no_effect")
                    else None)
     verify_approval(approval,hitl_public_key_b64,task_id=task,step_key=step,
                     gate_checkpoint_no=cp,action_fingerprint=fp,
                     adapter_id=adapter.adapter_id,now=approval_time)
+    if request["operation"]=="no_effect":
+        if not hasattr(adapter,"reconcile_no_effect"):
+            raise TrustedRpcDenied("NO_EFFECT_WORKER_UNSUPPORTED")
+        proof=adapter.reconcile_no_effect(task_id=task,step_key=step,
+            action=action,approval=approval,gate=gate)
+        return {"status":"SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED","proof":proof}
     if request["operation"]=="recover_receipt":
         journal=getattr(adapter,"ledger",None)
         if journal is None or not hasattr(journal,"read_sealed_receipt"):
