@@ -182,7 +182,7 @@ authorize or execute a physical effect:
 }
 ```
 
-The canonical evidence-source contract is **producer-neutral**: a bounded
+The canonical `Evidence.source_type` contract is **producer-neutral**: a bounded
 lowercase label ending in `_task` (for example `trusted_task` or
 `external_task`) denotes a proposed signed evidence producer.
 Historical labels matching the same grammar remain readable **without data
