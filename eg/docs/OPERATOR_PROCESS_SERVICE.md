@@ -84,11 +84,11 @@ production worker.
   independent controller UID, signed liveness, wrong UID denial and protected
   key/config denial.
 - `tests/test_process_external_e2e.py`: real signed generic E3 PRE/POST,
-  receipt, checkpoint and audit. Its additional café case compiles Python,
-  validates a menu and requests the HTTP endpoint under a pinned test process.
+  receipt, checkpoint and audit. Its additional generic HTTP case compiles Python,
+  validates a sample object and requests a loopback endpoint under a pinned process.
 - `tests/test_external_uid_roundtrip.py` and
-  `tests/test_github_pr_external_uid_e2e.py`: other separately authenticated
-  typed adapters and negative tests.
+  `tests/test_trusted_process_catalog.py`: separately authenticated generic
+  process workers, reusable target catalog and negative tests.
 
 These are isolated tests, **not a certificate of production installation**.
 The local/staging engineering acceptance of [Issue #104](https://github.com/kiky217/eg_portable/issues/104) was completed and closed in v3.1.115. Production operator authorization, service cutover, rollback and destination-specific E2E remain separate prerequisites.

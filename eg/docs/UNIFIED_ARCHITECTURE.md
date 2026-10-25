@@ -66,3 +66,7 @@ The versioned `AdapterCapability` schema explicitly marks repository high-effect
 entries `ci_only=True` and rejects unsupported schema versions. A production high-effect descriptor requires an actual independently
 provisioned transport, kernel UID isolation, scoped signed HITL, live
 attestation, immutable PRE, signed receipt and canonical POST.
+
+## Reusable generic E3 execution catalog
+
+One operator-provisioned `TrustedProcessCatalog` allows up to 32 exact action targets under a single signed E3 adapter, worker UID, socket, signing key and durable nonce journal. The canonical gateway and dispatcher remain provider-neutral: targets select only operator-pinned executables and arguments, never commands from agent-supplied stdin. A new project or language does not require a bespoke Python executor. Where OS permissions or an exact operation are genuinely unavailable, add an approved profile through the independent operator, not a hardcoded project adapter. Read [Generic execution model](GENERIC_EXECUTION_MODEL.md).

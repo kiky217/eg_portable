@@ -32,3 +32,7 @@ a live server is deployed or a historic task is retrospectively VERIFIED.
 The archived 2026-10-15 Colab case had 12/16 VERIFIED at checkpoint 26;
 this historical state is not inherited by new deployments or retroactively
 made SATISFIED by a software release.
+
+## Generic worker promotion
+
+A release ships one provider-neutral evaluator and reusable operator-pinned E3 process catalog. Promotion must verify multi-target routing, unapproved-target denial, original signed PRE, durable nonce, independently signed receipt, canonical POST and separated OS identities. Installing a new application does not demand a code release or bespoke executor; new permissions, if genuinely absent, are controlled by independently authorized environment policy. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
