@@ -1,4 +1,4 @@
-"""Operator-pinned bounded subprocess adapter for an independently controlled E3 worker.
+"""Operator-pinned, bounded capability execution for independently controlled E3–E5 workers.
 
 No agent-supplied executable, argv, shell, environment or working directory.
 Must be hosted behind the existing separate-UID Unix RPC dispatcher.
@@ -37,8 +37,11 @@ class TrustedProcessEffect:
     def __init__(self, *, journal_dir, private_key, adapter_id, hitl_key_b64,
                  executable, fixed_args, target, timeout=20, max_stdout=262144,
                  input_schema=None, input_schema_sha256=None,
-                 output_schema=None, output_schema_sha256=None):
-        if (not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")
+                 output_schema=None, output_schema_sha256=None,
+                 effect_class="E3", action_type="bounded_process_run"):
+        if (effect_class not in ("E3","E4","E5") or
+            not isinstance(action_type,str) or not action_type or len(action_type)>200 or
+            not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")
             or not isinstance(executable,str) or not Path(executable).is_absolute()
             or not isinstance(fixed_args,tuple) or not all(isinstance(a,str) for a in fixed_args)
             or not isinstance(target,str) or not target.startswith("/")):
@@ -67,6 +70,8 @@ class TrustedProcessEffect:
         self.ledger=ApprovalLedger(journal_dir)
         self.private=private_key
         self.adapter_id=adapter_id
+        self.effect_class=effect_class
+        self.action_type=action_type
         self.hitl_key_b64=hitl_key_b64
         self.executable=executable
         self.fixed_args=fixed_args
@@ -76,8 +81,10 @@ class TrustedProcessEffect:
 
     def execute(self, *, task_id, step_key, action, approval, gate, gate_created_at, stdin):
         if (not isinstance(stdin,bytes) or not stdin or len(stdin)>524288
-            or not isinstance(action,dict) or action.get("action_type")!="bounded_process_run"
-            or action.get("effect_class")!="E3" or action.get("real_world_effect") is not True
+            or not isinstance(action,dict) or action.get("action_type")!=self.action_type
+            or action.get("effect_class")!=self.effect_class or action.get("real_world_effect") is not True
+            or (self.effect_class=="E5" and action.get("reversible") is not False)
+            or (self.effect_class=="E4" and action.get("reversible") is not True)
             or action.get("target")!=self.target
             or action.get("payload_bytes")!=len(stdin)
             or action.get("payload_sha256")!=hashlib.sha256(stdin).hexdigest()):
