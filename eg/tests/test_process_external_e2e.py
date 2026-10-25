@@ -31,9 +31,10 @@ from tools.governed_agent_dispatcher import dispatch_action
 pytestmark=pytest.mark.skipif(os.getuid()!=0,reason="distinct-UID CI only")
 
 
-@pytest.mark.parametrize("example", ("echo", "generic_http_check", "generic_catalog", "generic_e4", "generic_e5"))
+@pytest.mark.parametrize("example", ("echo", "generic_http_check", "generic_catalog", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"))
 def test_third_process_consumer_signed_registry_physical_post(monkeypatch,example):
-    effect = {"generic_e4": "E4", "generic_e5": "E5"}.get(example, "E3")
+    effect = {"generic_e4": "E4", "generic_e5": "E5",
+              "generic_no_effect_e4": "E4", "generic_no_effect_e5": "E5"}.get(example, "E3")
     uid=65532
     base=Path(tempfile.mkdtemp(prefix="eg-process-",dir="/tmp"))
     base.chmod(0o755)
@@ -127,7 +128,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             os.setgid(uid);os.setuid(uid)
             common=dict(journal_dir=journal,private_key=worker,
                 adapter_id=adapter,hitl_key_b64=pub(human))
-            if example in ("generic_catalog", "generic_e4", "generic_e5"):
+            if example in ("generic_catalog", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"):
                 script_mode=example in ("generic_e4","generic_e5")
                 process=TrustedProcessCatalog(**common,effect_class=effect,profiles=[
                     {"target":target,
@@ -179,7 +180,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(reg_dir))
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",
                            pub(operator))
-        if example in ("generic_http_check", "generic_e4", "generic_e5"):
+        if example in ("generic_http_check", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"):
             # Operator grants bounded staging authority once; no second AI
             # agent, and the E3 worker still enforces the exact signed PRE.
             from tools.operator_scoped_approval import Grants
@@ -198,6 +199,15 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
                      claims=[high_pre_claim(high_pre_ref(task,0))],
                      phase="PRE_EXECUTION",action=action,hitl_approval=approval)
         assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+        if example.startswith("generic_no_effect_"):
+            neutral=dispatch_action(
+                request={"task_id":task,"step_key":"01.01","action":action,"data_b64":""},
+                eg_url=url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
+                hitl_public_key_b64=pub(human),hitl_approval=approval,operation="no_effect")
+            assert neutral["status"]=="SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED"
+            assert neutral["no_effect_proof"]["status"]=="NOT_EXECUTED"
+            assert not (project/"state.json").exists()
+            return
         result=dispatch_action(
             request={"task_id":task,"step_key":"01.01","action":action,
                      "data_b64":base64.b64encode(payload).decode()},
