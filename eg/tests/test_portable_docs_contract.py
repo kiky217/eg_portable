@@ -28,11 +28,8 @@ def test_current_protocol_identity_is_stable_and_sha_bound():
     assert "4.0 candidate" not in (ROOT/"app/execution_receipts.py").read_text()
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
 
-def test_historical_reports_live_outside_runtime_docs():
-    archives=ROOT/"artifacts"
-    for name in ("ACCEPTANCE_POST_CUTOVER_20261016.md",
-                 "acceptance-post-cutover-20261016.json",
-                 "KNOWN_ISSUES_20261016.md"):
-        assert (archives/name).is_file()
-        assert not (ROOT/"docs"/name).exists()
-    assert "historical" in (archives/"README.md").read_text().lower()
+def test_obsolete_repo_snapshots_are_not_runtime_documentation():
+    assert not (ROOT/"artifacts").exists()
+    assert not (ROOT/"docs/HARDCODE_REVIEW_20261022.md").exists()
+    current=(ROOT/"docs/PORTABLE_RUNBOOK.md").read_text()
+    assert "eg/artifacts/" not in current
