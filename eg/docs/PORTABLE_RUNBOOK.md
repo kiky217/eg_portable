@@ -92,9 +92,7 @@ remains BLOCKED.
 
 ## Historical examples and release verification
 
-Archive-only: [`ACCEPTANCE_POST_CUTOVER_20261016.md`](https://github.com/kiky217/eg_portable/blob/main/eg/artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md) and the [original JSON](https://github.com/kiky217/eg_portable/blob/main/eg/artifacts/acceptance-post-cutover-20261016.json)
-record the previous Colab owner decision. Neither is a current task ID,
-live deployment checkpoint, or skip-verification policy for other installs.
+Historical cutover snapshots are available through Git commit history, not active release files. Neither an old report nor a prior operator decision is a current task ID, live deployment checkpoint, or permission to skip verification on another installation.
 
 A validated GitHub release requires regressions, signed worker E2E, remedial
 E2E, SHA-256 archive build, offline relocation and clean Debian startup on
