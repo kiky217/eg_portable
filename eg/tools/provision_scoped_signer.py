@@ -1,4 +1,4 @@
-"""One-time operator installer for independently owned generic E3 scoped-approval service.
+"""One-time operator installer for independently owned generic E3–E5 typed approval service.
 
 Requires a root operator and pre-existing signer/agent OS IDs; never runs as the
 agent. Creates keys and policy atomically in a new trusted private directory.
@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,
 
 def provision(path, *, signer_uid, signer_gid, agent_uid, agent_gid,
               adapter_id, target_prefix, seconds=3600, max_grants=50,
-              max_payload_bytes=8192):
+              max_payload_bytes=8192, effect_class='E3', action_type='bounded_process_run'):
     if os.geteuid()!=0:
         raise ValueError('ROOT_OPERATOR_REQUIRED')
     if (not all(type(x) is int and x>0 for x in (signer_uid,signer_gid,agent_uid,agent_gid))
@@ -27,7 +27,9 @@ def provision(path, *, signer_uid, signer_gid, agent_uid, agent_gid,
         or not target_prefix.startswith('/tasks/') or '..' in target_prefix.split('/')
         or type(seconds) is not int or not 30<=seconds<=86400
         or type(max_grants) is not int or not 1<=max_grants<=100
-        or type(max_payload_bytes) is not int or not 1<=max_payload_bytes<=524288):
+        or type(max_payload_bytes) is not int or not 1<=max_payload_bytes<=524288
+        or effect_class not in ('E3','E4','E5') or not isinstance(action_type,str)
+        or not action_type or len(action_type)>200):
         raise ValueError('INVALID_OPERATOR_SCOPE')
     root=Path(path)
     parent=root.parent
@@ -58,6 +60,8 @@ def provision(path, *, signer_uid, signer_gid, agent_uid, agent_gid,
          'adapter_id':adapter_id,'target_prefix':target_prefix,
          'expires_at':int(time.time())+seconds,'max_grants':max_grants,
          'max_payload_bytes':max_payload_bytes}
+    if effect_class!='E3' or action_type!='bounded_process_run':
+        doc.update(effect_class=effect_class,action_type=action_type)
     fd=os.open(conf,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     with os.fdopen(fd,'w') as stream:
         json.dump(doc,stream,sort_keys=True);stream.write('\n')
