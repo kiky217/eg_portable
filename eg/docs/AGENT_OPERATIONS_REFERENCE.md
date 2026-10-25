@@ -1,3 +1,5 @@
+Generic-first: use one approved catalog process worker for all matching actions, regardless of project or environment. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
+
 # EG Agent Operations Reference — current executable contract
 
 Read [root SKILL](../../SKILL.md) first. This operational index is grounded in `eg/app/main.py`, `tools/governed_agent_dispatcher.py`, the supported E0/E2 worker and `docs/EXECUTOR_PROTOCOL.md`. It is guidance, **not** authority to execute, deploy, sign HITL, or operate an unprovisioned system. The actual target EG runtime and its original signed task always win over sample paths and a GitHub release.
@@ -40,7 +42,7 @@ E2 is bounded to 512 KiB per payload and suffix allowlists (default `.txt`, vali
 
 Preferred executor entrypoint: `tools.governed_agent_dispatcher.dispatch_action(request, *, eg_url, api_key, ...)`; request fields are `task_id`, `step_key`, exact `action`, and `data_b64`. An E0/E2 route can reuse operator-set `EVALUATION_GATEWAY_WORKER_SOCKET` and `EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64`. E3–E5 can reuse `EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR` and `EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64`: when adapter ID is omitted, the dispatcher selects **exactly one** active signed typed match, otherwise fails closed. An operator-provided explicit route is also supported, but never mix manual external UID/socket/key with registry routing. External dispatch still requires **separate signed `hitl_approval`** and pinned HITL public key. `request_scoped_approval` queries an independently administered signer; it is not AI self-approval. CI-only disposable adapters are not production workers.
 
-For provisioning: [operator staging bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md), [E3 service](OPERATOR_PROCESS_SERVICE.md), [standing signer](SCOPED_STAGING_APPROVAL.md), [persistent staging site](PERSISTENT_STAGING_SITE.md), [operator operations](OPERATIONS.md). None is a universal arbitrary-shell authority.
+For provisioning: [operator staging bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md), [E3 service](OPERATOR_PROCESS_SERVICE.md), [standing signer](SCOPED_STAGING_APPROVAL.md), [generic execution model](GENERIC_EXECUTION_MODEL.md), [operator operations](OPERATIONS.md). None is a universal arbitrary-shell authority.
 
 ## 3. Mutating routes and exact task progression
 
@@ -57,7 +59,7 @@ The `/v1/evaluate` request has `event_id`, `task_id`, `contract_hash`, `protocol
 
 **Canonical sequence**: REGISTER → DISCOVER exact typed capability → RESOLVE independently trusted worker → ADMIT → notarized PRE `READY_TO_EXECUTE` → original worker EXECUTE **once** → `RECEIPT_VERIFIED_POST_REQUIRED` → independent target readback and POST evidence → canonical `VERIFIED_PASS` → next step → task-wide `SATISFIED` + authenticated audit `PASS`. A command exit, output file, healthy server or valid signed receipt alone does not finish a task.
 
-Prefer reusable `tools.single_agent_workflow.run_step`/`run_task`: callbacks provide the original `pre_request`, real `dispatch_once` and independent `post_evidence`; the `finalize` callback must separately submit task-wide acceptance. The helper **does not** mint its own approval or receipt. See [one-agent workflow](SINGLE_AGENT_WORKFLOW.md) and the exact physical request examples in `tools/local_project_e2e.py`, `tests/test_single_agent_workflow.py` and `tests/test_process_external_e2e.py`.
+Prefer reusable `tools.single_agent_workflow.run_step`/`run_task`: callbacks provide the original `pre_request`, real `dispatch_once` and independent `post_evidence`; the `finalize` callback must separately submit task-wide acceptance. The helper **does not** mint its own approval or receipt. See [one-agent workflow](SINGLE_AGENT_WORKFLOW.md) and the provider-neutral request examples in `tests/test_single_agent_workflow.py`, `tests/test_trusted_process_catalog.py` and `tests/test_process_external_e2e.py`.
 
 ## 4. Timeout, unknown effect and no replay
 
@@ -83,6 +85,6 @@ For read-only diagnosis see `tools/generic_recovery.py`, `tools/recovery_inspect
 
 ## 6. Safe acceptance and diagnostics
 
-From `eg/`: `python -m pytest -q tests`. Additional isolated regressions: `PYTHONPATH=. python tools/run_trusted_e2e.py`, `PYTHONPATH=. python tools/run_remedial_e2e.py`, `python tests/live_e2e.py`. A disposable local website example: `python eg/tools/local_project_e2e.py eg/examples/cafe-website.json` **from the repository root**, only if an authorized Linux operator permits privileged setup of distinct testing UIDs. It is not a production agent bootstrap. GitHub CI additionally checks separate-UID workers, independent signatures, portable archive relocation and staging rollback; it does **not** prove a particular live production installation.
+From `eg/`: `python -m pytest -q tests`. Additional isolated regressions: `PYTHONPATH=. python tools/run_trusted_e2e.py`, `PYTHONPATH=. python tools/run_remedial_e2e.py`, `python tests/live_e2e.py`. Use the reusable E3 catalog and signed process tests (`tests/test_trusted_process_catalog.py`, `tests/test_process_external_e2e.py`) for an isolated operator-approved workflow. Tests do not authorize live effects. GitHub CI additionally checks separate-UID workers, independent signatures, portable archive relocation and staging rollback; it does **not** prove a particular live production installation.
 
 Production requires independently operated persistent state, database/anchor/evidence backup and restore rehearsal, verified external worker liveness, authorized cutover, rollback and **fresh canonical POST**. See [portable runbook](PORTABLE_RUNBOOK.md) and [production promotion](PRODUCTION_PROMOTION.md). A task report should show timestamp/zone, actual runtime/source SHA, task/step/checkpoint and original event, signed worker result, target readback, PRE/POST, task-wide acceptance, audit, regression and rollback; label SOURCE, BUILD, RUNTIME and CANONICAL separately. Do not call it PASS without the required evidence.

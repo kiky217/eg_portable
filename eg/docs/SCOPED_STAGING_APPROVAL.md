@@ -1,3 +1,5 @@
+Operator standing approval is generic and targets a signed scope, not a provider. One standing policy can cover many already-provisioned process catalog profiles; it never permits arbitrary shell. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
+
 # One agent, bounded standing E3 staging approval
 
 A task does **not** need a second AI agent to supply every signed HITL envelope.
@@ -47,10 +49,10 @@ independent Linux UIDs already exist. This is not run by the AI agent:
 
 ```sh
 sudo python -m tools.provision_scoped_signer \
-  --root /var/lib/eg/standing-staging-cafe \
+  --root /var/lib/eg/standing-generic \
   --signer-uid "$SIGNER_UID" --signer-gid "$SIGNER_GID" \
   --agent-uid "$AGENT_UID" --agent-gid "$AGENT_GID" \
-  --adapter-id trusted-adapter-cafe --target-prefix /tasks/staging
+  --adapter-id trusted-adapter-workflow --target-prefix /tasks/workflow
 ```
 
 The installer rejects existing target directories and insecure parents. Its JSON

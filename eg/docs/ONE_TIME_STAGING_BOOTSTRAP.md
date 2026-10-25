@@ -1,3 +1,5 @@
+Operator first-run provisions reusable generic worker identity, not a project executor. A single `profiles` array (1–32 operator-pinned targets/executables) is an alternative to legacy `target` + `executable` + `fixed_args`. Other mandatory root-owned policy fields remain unchanged. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
+
 # One-time operator staging setup for a single AI agent
 
 This tool reduces first-use credential/worker assembly. **An independent
