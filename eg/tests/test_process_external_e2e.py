@@ -40,7 +40,7 @@ def test_third_process_consumer_signed_registry_physical_post(monkeypatch,exampl
     journal=base/"journal";journal.mkdir(mode=0o700)
     project=base/"project";project.mkdir(mode=0o700)
     if example=="generic_http_check":
-        # Operator-owned pinned verifier: compile, validate a menu and serve an
+        # Operator-owned pinned verifier: compile, validate a generic object and serve an
         # actual loopback API; it is never an agent-controlled shell command.
         checker=project/"verify_app.py"
         checker.write_text('''import json,sys,threading,urllib.request
@@ -59,7 +59,7 @@ class Api(BaseHTTPRequestHandler):
 server=HTTPServer(('127.0.0.1',0),Api)
 thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
 try:
- with urllib.request.urlopen('http://127.0.0.1:%s/menu'%server.server_port,timeout=3) as response:
+ with urllib.request.urlopen('http://127.0.0.1:%s/items'%server.server_port,timeout=3) as response:
   assert response.status==200 and json.loads(response.read())==expected
 finally:
  server.shutdown();server.server_close();thread.join(timeout=3)
