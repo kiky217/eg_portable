@@ -48,6 +48,24 @@ Verification: `cd eg && python -m pytest -q tests`. Focused: `pytest -q tests/te
 
 The operator bootstrap accepts optional `environment`, `grant_seconds` and `max_grants`, with enforced bounds, in both legacy and catalog modes. Source code remains identical across hosts and projects; only the independent trust roots, filesystem privileges and preapproved catalog differ. Approval expiry/revocation still applies. This does not make runtime privileges transferable across hosts.
 
+## Same engine, independent target domains
+
+The same worker **implementation** applies to unrelated projects and
+toolchains. Within one independently trusted host, a single E3 catalog
+can route approved actions for source verification, bounded application
+tests and database checking using three distinct exact targets without a
+new EG adapter module. Reuse does **not** expand Linux permissions, approve
+new commands, allow dynamic shell strings, or transfer a signing root to
+another host. Each target remains a separately approved immutable
+executable/argument profile. Missing permissions are a policy/authority
+matter, not evidence that an application-specific executor is required.
+
+A producer's evidence `source_type` is also generic: bounded `*_task`
+labels remain archival-compatible, but labels do not select workers or
+provide trust. Only the independently notarized manifest and original
+signed gate can authorize evidence/operations. See [SKILL operational
+cookbook](../../SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work).
+
 ## Scope of the generic E3 catalog
 
 The built-in multi-target process catalog implements only E3

@@ -99,3 +99,212 @@ Never confuse CREATED, SUBMITTED, RUNNING, COMPLETED, VERIFIED or UNKNOWN. Befor
 State exactly: target instance, software/version, timestamp, task/step/checkpoint, source state, admission, claimed capability, worker state, execution state, canonical verdict, unresolved blocker. Separate `SOURCE PASS`, `BUILD PASS`, `RUNTIME PASS`, `CANONICAL VERIFIED`. Cite actual logs/receipts/checkpoints; never infer them.
 
 References: [complete API/operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md), [agent onboarding](eg/docs/AGENT_QUICKSTART.md), [operations](eg/docs/OPERATIONS.md), [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md).
+
+## Provider-neutral operational cookbook (normative for new work)
+
+This section is an **agent procedure**, not a new executor. It applies to unrelated
+applications without changing `eg/app/`, the signed dispatcher or the original
+task contract. Always prefer a capability already admitted on the **target**
+deployment. Do not confuse cross-project reuse with cross-host authority:
+separate machines and signers retain separate security domains.
+
+### Zero-assumption environment checklist
+
+1. **Identify** the target EG URL, deployed source SHA/version, runtime
+   `GET /v1/protocol` hash, exact task ID, and operator-provided credentials.
+   A GitHub release, a local checkout and a running EG process are distinct.
+2. **Discover** `/health`, authenticated `/v1/audit/verify`,
+   `/v1/agent/capabilities` and exact `/v1/agent/capability-match`.
+   For an existing task also fetch `/v1/tasks/{task_id}` and `/state`.
+   Missing task or deployment identity is a discovery blocker, never a reason
+   to register a replacement task.
+3. **Determine** the exact requested physical effect, class E0–E5, typed
+   action, destination, least privilege, input schema, independent readback,
+   recovery strategy and rollback requirements.
+4. **Select** one already admitted, live, exact-scope worker from the signed
+   registry. If absent, request operator onboarding of a bounded policy/profile.
+   Never add project-name branches to the evaluator or dispatch through an
+   ungoverned host shell. A new project does not imply a new executor module.
+5. **Register or resume** the original immutable task; bind original
+   acceptance/preconditions separately and store returned `contract_hash`.
+6. **PRE** with fresh, independently notarized criteria and immutable
+   action/payload. Require actionable `READY_TO_EXECUTE` and, for high effects,
+   a separately signed, scoped approval. Admission diagnostics are not PRE.
+7. **Dispatch once**, preserve original nonce/journal and signed receipt.
+   Inspect the actual process/target after execution; do not infer outcome
+   from command exit or RPC acknowledgement alone.
+8. **POST** with fresh independently notarized physical readback and the
+   **same** gate/action/receipt. Verify each canonical checkpoint and finally
+   task-wide `SATISFIED` plus authenticated audit PASS.
+9. **Regression and reporting**: rerun impacted capabilities/legacy scenarios,
+   verify rollback readiness and distinguish SOURCE, BUILD, RUNTIME and
+   CANONICAL evidence. If one gate remains unavailable, report BLOCKED,
+   not a percentage-based PASS.
+
+Read-only HTTP discovery (shell syntax is illustrative; the AI agent is not
+granted a shell by this documentation):
+
+```sh
+# The authorized operator supplies both values outside the repository.
+curl -fsS "$EG_URL/health"
+curl -fsS -H "X-Evaluation-Key: $EVALUATION_GATEWAY_API_KEY" "$EG_URL/v1/protocol"
+curl -fsS -H "X-Evaluation-Key: $EVALUATION_GATEWAY_API_KEY" "$EG_URL/v1/audit/verify"
+curl -fsS -H "X-Evaluation-Key: $EVALUATION_GATEWAY_API_KEY" "$EG_URL/v1/agent/capabilities"
+```
+
+Never log, print, embed in a URL, commit or synthesize the API key, HITL key
+or private signing key. Loopback HTTP is valid only in an approved local
+environment; external endpoints must use trusted HTTPS.
+
+### Generic request shape and producer-neutral evidence
+
+The following JSON illustrates **registration schema only**; the IDs,
+criteria and protocol hash must be replaced with actual task-specific values
+obtained from the live target. Submitting this illustration does **not**
+authorize or execute a physical effect:
+
+```json
+{
+  "event_id": "register-demo-001",
+  "task_id": "task-demo-001",
+  "protocol_hash": "REPLACE_WITH_LIVE_PROTOCOL_HASH",
+  "agent": "authorized-agent",
+  "original_instruction": "Verify one bounded operation against its acceptance criteria",
+  "acceptance_criteria": ["All required steps independently verified"],
+  "steps": [
+    {"step_key": "01", "title": "Overall acceptance",
+     "acceptance_criteria": ["Overall outcome verified"], "execution_required": false},
+    {"step_key": "01.01", "title": "Authorized physical operation",
+     "preconditions": ["Target and rollback prerequisites verified"],
+     "acceptance_criteria": ["Target readback matches original desired state"],
+     "execution_required": true}
+  ]
+}
+```
+
+The canonical `Evidence.source_type` contract is **producer-neutral**: a bounded
+lowercase label ending in `_task` (for example `trusted_task` or
+`external_task`) denotes a proposed signed evidence producer.
+Historical labels matching the same grammar remain readable **without data
+rewriting**. Neither an unfamiliar label nor any source name grants trust:
+EG still checks the independently notarized manifest-v4 signature,
+trusted ownership/path, fresh phase/checkpoint binding, exact criterion and
+matcher. `manual` is accepted as an untrusted label but never authoritative.
+Malformed labels are rejected by request schema validation. Do not transform
+signed or audited historical records merely to rename a producer.
+
+An E3 example **action** (illustrative, not an executable PRE or approval):
+
+```json
+{
+  "action_type": "bounded_process_run",
+  "target": "/tasks/workflow/check",
+  "effect_class": "E3",
+  "reversible": false,
+  "real_world_effect": true,
+  "payload_sha256": "REPLACE_WITH_64_HEX_SHA256",
+  "payload_bytes": 128
+}
+```
+
+For `POST /v1/evaluate`, use the same original `event_id` on idempotent
+request replay and a **new** event ID for a genuinely new PRE/POST. Required
+fields are `task_id`, `contract_hash`, `protocol_hash`,
+`checkpoint_no`, `step_key`, `agent`, `phase`, and criterion-indexed
+`claims`. POST for physical work also requires the original `action` and
+`execution_receipt`; for the final step use `finalize_task` and
+independently notarized `task_claims`. The signer, evidence references,
+action fingerprints and receipts must come from actual operations.
+See `eg/app/main.py` request models and the
+[agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) before
+forming a mutating request.
+
+The dispatcher's common request is exactly
+`{"task_id":"...","step_key":"...","action":{...},"data_b64":"..."}`.
+Use `tools.governed_agent_dispatcher.dispatch_action`; never supply
+runtime executable/argv through the agent request. E0/E2 require their
+independent signed worker and socket. E3–E5 require a matching authorized
+external binding **plus** a distinct scoped HITL approval and exact PRE.
+
+### Reusable operator bootstrap: new environment, not new project
+
+The supported packaged runtime is Linux x86-64 with CPython 3.12-compatible
+glibc. Do not infer Windows/macOS/other-architecture support from the generic
+action model. For a new Linux installation, an authorized independent
+operator first provisions durable state, protected public/private roots,
+existing distinct non-root OS identities, authenticated EG and a pinned
+worker/signer. `operator_first_run.py` uses a root-owned mode-0600 policy,
+does not create OS users automatically and refuses to overwrite an existing
+installation. Root on the **same host** can still control all such accounts:
+a root-capable agent must not claim its signer is independent solely by
+dropping UID.
+
+The multi-target policy has common fields `root`, `worker_uid`,
+`signer_uid`, `agent_uid`, `adapter_id`, `target_prefix`, `eg_url`,
+`gateway_key_file`, and `profiles` (1–32 unique `/tasks/...` targets).
+Each profile pins an independently controlled absolute executable, immutable
+fixed args and optional bounds. The alternative single-target form is only
+a backward-compatible policy input, not the recommended new layout. See
+[operator bootstrap](eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md).
+Provisioning files is not live admission: the operator must start the
+separate services, prove worker UID/socket/key independence, activate the
+signed registry and test a matching PRE. No capability or independent
+signing authority is fabricated by the agent.
+
+| Class | Actual bundled capability | Required when absent |
+| --- | --- | --- |
+| E0 | Restricted admitted reads via signed bundled worker | Existing target/scope and worker; otherwise approved capability |
+| E1 | No blanket network read permission | Independently admitted typed worker |
+| E2 | Worker-owned restricted create/compare-and-swap replace (512 KiB limit) | Matching allowed suffix/root, PRE proofs and independent worker |
+| E3 | Bounded `bounded_process_run` via 1–32 operator-pinned profiles | New **operator-approved profile/policy**, not bespoke source module |
+| E4 | Generic dispatcher only; no E4 process-catalog implementation | Independently governed E4 typed worker, compensation as applicable |
+| E5 | Generic dispatcher only; no E5 process-catalog implementation | Independently governed E5 worker/HITL; compensation prohibited |
+
+A profile cannot issue arbitrary agent-selected commands or escape its
+configured OS permissions, fixed argv, bounded stdin/output and 1–30-second
+timeout. `trusted_process_catalog.py` shares one adapter signer, socket
+and durable nonce ledger across the profiles. Reuse the **same live policy**
+for source checks, application tests, and database checks only if all three
+actions were actually approved there. A different host/security domain
+requires its own legitimate trust provisioning, not a new EG implementation.
+
+### Failure matrix, runtime verification and regression
+
+| Observed state | Required behavior |
+| --- | --- |
+| No installed/matched capability | `CAPABILITY_UNPROVISIONED`; inspect operator policy, do not execute |
+| Typed match, no fresh signed PRE | Capability is **diagnostic only**; obtain exact PRE before dispatch |
+| Expired/denied HITL | Do not route, retry with changed identity or self-sign |
+| Dispatch pending or timeout | Reconcile **original** nonce/journal/target before any retry |
+| Signed receipt and actual effect already present | Recover original receipt; submit POST, **never replay** effect |
+| Independent `NOT_EXECUTED` proof | Use canonical reconciliation; only then obtain fresh PRE |
+| POST evidence invalid after real effect | Repair evidence/remedial under original gate; no second execution |
+| Step `VERIFIED_PASS`, task unfinished | Continue current canonical next step and required global acceptance |
+| Task `SATISFIED`, audit PASS | Verify affected regressions and rollback; then report task VERIFIED |
+
+On any failure distinguish file/source changes from command/runtime effects,
+check the *same* original task and job, and bound retries. For E3 run independent
+signed PRE→worker→POST and an unapproved-target rejection through the same
+catalog. For cross-UID behavior run privileged isolated tests under legitimate
+test-root; SKIP in an unprivileged suite is not PASS and must be covered by a
+separate actually executed CI job. CI cannot certify a deployed production
+worker or a particular destination's external effects.
+
+### Concrete acceptance for a provider-neutral release
+
+- Source contains no project/provider-dependent **execution branches** in
+  evaluator, dispatcher or worker catalog. Diagnostics, historical archives
+  and example *data* are not runtime dispatch contracts.
+- Three or more unrelated approved target profiles execute through the same
+  catalog class/worker identity and durable journal; unknown target fails
+  before physical execution.
+- New deployment reuses operator bootstrap; new project reuses active typed
+  profiles unless a genuinely new permission is requested.
+- Evidence labels cannot bypass notarization; historical valid source labels
+  remain verifiable. No signed historical audit/data is rewritten.
+- Docs, `SKILL.md`, schemas, examples and runnable integration tests agree.
+  All required isolation/regression tests are actually executed in eligible CI.
+- Release is pinned to an exact HEAD that passed source tests and isolated
+  worker runtime E2E. **Production** requires additional authorized live
+  validation, full restoration and rollback evidence. Do not call CI PASS a
+  production VERIFIED outcome.

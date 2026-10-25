@@ -66,3 +66,33 @@ def test_repository_readme_markdown_structure():
     assert "\\n|" not in readme
     assert readme.count("## Documentation") == 1
     assert "| [Agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) |" in readme
+
+def test_generic_skill_json_examples_parse_and_match_actual_runtime_models():
+    import json
+    import re
+    from harness import gw
+
+    appendix = SKILL.split("## Provider-neutral operational cookbook", 1)[1]
+    examples = re.findall(r"```json\n(.*?)\n```", appendix, re.S)
+    assert len(examples) == 2
+    registration = json.loads(examples[0])
+    registration["protocol_hash"] = gw.protocol_hash()
+    parsed = gw.RegisterRequest.model_validate(registration)
+    assert parsed.steps[1].execution_required is True
+    assert parsed.steps[1].preconditions
+
+    action = json.loads(examples[1])
+    action["payload_sha256"] = "a" * 64
+    checked = gw.Action.model_validate(action)
+    assert checked.effect_class == "E3"
+    assert checked.action_type == "bounded_process_run"
+
+
+def test_skill_and_core_have_provider_neutral_evidence_contract():
+    from harness import gw
+    appendix = SKILL.split("## Provider-neutral operational cookbook", 1)[1]
+    assert "source_type" in appendix and "independently notarized" in appendix
+    assert "E4" in appendix and "E5" in appendix and "NOT_EXECUTED" in appendix
+    assert "knid_task" not in SOURCE
+    for producer in ("trusted_task", "external_task", "pipeline_task", "historic_task"):
+        assert gw.Evidence(source_type=producer, reference="signed-ref").source_type == producer

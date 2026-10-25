@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 CORE = Path(__file__).resolve().parents[1] / 'app'
-PROVIDERS = re.compile(r'\b(?:solana|rustc|cargo|scanner|github|cafe|espresso|browser|chrome|shopify|wordpress)\b', re.I)
+PROVIDERS = re.compile(r'\b(?:knid|solana|rustc|cargo|scanner|github|cafe|espresso|browser|chrome|shopify|wordpress)\b', re.I)
 PRIVATE_PATHS = ('/root/', '/content/', 'C:\\', '/home/ubuntu/')
 
 

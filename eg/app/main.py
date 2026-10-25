@@ -214,7 +214,7 @@ class Verdict(str, Enum):
 
 class Evidence(Strict):
     """Pointer to producer-notarized evidence. Freshness, matcher and criterion binding are NOT client-controlled."""
-    source_type: Literal["trusted_task", "knid_task", "manual"]
+    source_type: str = Field(pattern=r"^(?:manual|[a-z][a-z0-9_]{0,63}_task)$", max_length=69)
     reference: str | None = None
 
 
@@ -736,7 +736,8 @@ def verify_evidence(ev: Evidence, identity: dict[str, Any], not_before: float | 
     (task, step, criterion text, phase, checkpoint/gate reference). The assertion applied to stdout.log is the
     matcher carried inside that signed binding; nothing about it is client-controlled.
     """
-    if ev.source_type not in ("trusted_task", "knid_task"):
+    # Source labels identify producers only; signature, UID and binding establish trust.
+    if ev.source_type == "manual":
         return _reject("manual/self-declared evidence is non-authoritative")
     if not ev.reference or not ID_RE.fullmatch(ev.reference):
         return _reject("missing trusted reference")
@@ -1361,7 +1362,7 @@ def verify_claim_set(task_id: str, step_key: str, criteria: list[str], claims: l
         else:
             identity = task_identity(task_id, cl.criterion_index, criteria[cl.criterion_index], ctx.phase, ctx.checkpoint_ref)
         for ev in cl.evidence:
-            if ev.source_type in ("trusted_task", "knid_task"):
+            if ev.source_type != "manual":
                 trusted_seen = True
             res = verify_evidence(ev, identity, ctx.not_before)
             notes.append({"scope": scope, "criterion": cl.criterion_index, "reference": ev.reference, "note": res.note})
