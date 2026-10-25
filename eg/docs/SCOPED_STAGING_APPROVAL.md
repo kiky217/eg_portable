@@ -89,3 +89,7 @@ the same kind of grant, independent physical worker, signed PRE/POST).
 **Not authorized automatically:** production changes, unrestricted shell commands,
 service deployment or signing privileges outside the operator policy. A
 valid scoped approval does not prove a live production executor or deployment. Issue #104 closed on local/staging engineering acceptance. Its closure does not authorize production deployment or remove the independent operator prerequisite.
+
+## Typed E4/E5 signed policy scope
+
+The same independent standing signer implementation accepts paired operator-provisioned `effect_class` (E3/E4/E5) and `action_type`; absent both it retains E3 `bounded_process_run` compatibility. Every requested action must exactly match both typed fields, the pinned adapter/target scope, payload digest/size, expiration and quota. E4 requires `reversible=true`. E5 requires `reversible=false`, has no compensation and must never be replayed. Signed approval remains an **operator-authorized and independently protected** boundary; an agent cannot mint signing keys or raise its own grants. Real-world irreversible operations require legitimately authorized operator policy appropriate to their risk.
