@@ -20,6 +20,7 @@ from tools.adapter_liveness import canon
 from tools.high_effect_admission import AdapterCapability
 from tools.operator_adapter_binding import canonical as binding_canon
 from tools.operator_process_service import load_config
+from tools.trusted_process_catalog import validate_profiles
 from tools.provision_scoped_signer import provision as provision_signer
 
 
@@ -45,32 +46,37 @@ def provision(policy):
         raise ValueError('TRUSTED_ROOT_INSTALLER_REQUIRED')
     required={'root','worker_uid','signer_uid','agent_uid','adapter_id','target_prefix',
               'target','executable','fixed_args','eg_url','gateway_key_file'}
-    if not isinstance(policy,dict) or set(policy)!=required:
+    catalog_required=(required-{'target','executable','fixed_args'})|{'profiles'}
+    if not isinstance(policy,dict) or set(policy) not in (required,catalog_required):
         raise ValueError('INVALID_OPERATOR_POLICY')
+    catalog_mode='profiles' in policy
+    profiles=validate_profiles(policy['profiles']) if catalog_mode else ({
+        'target':policy['target'], 'executable':policy['executable'],
+        'fixed_args':tuple(policy['fixed_args'])},)
     worker,signer,agent=(policy[x] for x in ('worker_uid','signer_uid','agent_uid'))
     if (any(type(x) is not int or x<=0 for x in (worker,signer,agent))
         or len({worker,signer,agent})!=3
-        or not isinstance(policy['fixed_args'],list) or len(policy['fixed_args'])>24
-        or any(not isinstance(x,str) or len(x)>1024 for x in policy['fixed_args'])
-        or not isinstance(policy['executable'],str) or not Path(policy['executable']).is_absolute()
-        or not isinstance(policy['target'],str) or not policy['target'].startswith('/tasks/')
         or not isinstance(policy['target_prefix'],str) or not policy['target_prefix'].startswith('/tasks/')
-        or not policy['target'].startswith(policy['target_prefix'].rstrip('/')+'/')
-        or '..' in policy['target_prefix'].split('/') or '..' in policy['target'].split('/')
+        or '..' in policy['target_prefix'].split('/') or any(
+            not x['target'].startswith(policy['target_prefix'].rstrip('/')+'/')
+            or '..' in x['target'].split('/') for x in profiles)
         or not policy['adapter_id'].startswith('trusted-adapter-')
         or not (policy['eg_url'].startswith('https://') or policy['eg_url'].startswith(('http://127.0.0.1:', 'http://localhost:')))):
         raise ValueError('OUT_OF_SCOPE_OPERATOR_POLICY')
-    # A pinned command must not be replaceable by the AI agent after approval.
-    executable=Path(policy['executable'])
-    binary=executable.lstat()
-    if (not stat.S_ISREG(binary.st_mode) or binary.st_uid not in (0,worker)
-        or binary.st_mode & 0o022 or not binary.st_mode & 0o111):
-        raise ValueError('UNTRUSTED_OPERATOR_EXECUTABLE')
-    for ancestor in executable.parents:
-        info=ancestor.lstat()
-        if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0,worker)
-            or info.st_mode & 0o022):
-            raise ValueError('UNTRUSTED_EXECUTABLE_PATH')
+    # All catalog entries are pinned before creating any privileged identity.
+    for profile in profiles:
+        executable=Path(profile['executable'])
+        if not executable.is_absolute():
+            raise ValueError('UNTRUSTED_OPERATOR_EXECUTABLE')
+        binary=executable.lstat()
+        if (not stat.S_ISREG(binary.st_mode) or binary.st_uid not in (0,worker)
+            or binary.st_mode & 0o022 or not binary.st_mode & 0o111):
+            raise ValueError('UNTRUSTED_OPERATOR_EXECUTABLE')
+        for ancestor in executable.parents:
+            info=ancestor.lstat()
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0,worker)
+                or info.st_mode & 0o022):
+                raise ValueError('UNTRUSTED_EXECUTABLE_PATH')
     original=Path(policy['gateway_key_file']);src=os.open(original,os.O_RDONLY|os.O_NOFOLLOW)
     try:
         info=os.fstat(src)
@@ -111,9 +117,12 @@ def provision(policy):
         'private_key_path':str(worker_dir/'worker.pem'),'eg_url':policy['eg_url'],
         'eg_api_key_path':str(worker_dir/'gateway.key'),
         'hitl_public_key_b64':signer_result['signer_public_key_b64'],
-        'controller_uid':agent,'controller_group_gid':agent,
-        'executable':policy['executable'],'fixed_args':policy['fixed_args'],
-        'target':policy['target']}
+        'controller_uid':agent,'controller_group_gid':agent}
+    if catalog_mode:
+        worker_config['profiles']=[dict(p, fixed_args=list(p['fixed_args'])) for p in profiles]
+    else:
+        worker_config.update(executable=policy['executable'],
+                             fixed_args=policy['fixed_args'],target=policy['target'])
     _write(worker_dir/'config.json',canon(worker_config)+b'\n',worker,worker)
     now=int(time.time())
     binding={'version':1,'adapter_id':capability.adapter_id,'capability_sha256':capsha,
