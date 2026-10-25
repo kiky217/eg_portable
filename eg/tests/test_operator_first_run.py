@@ -97,3 +97,41 @@ assert a['status']=='ACTIVE_CONFIG_ONLY',a
             try:worker.wait(timeout=3)
             except subprocess.TimeoutExpired:worker.kill();worker.wait()
         shutil.rmtree(parent,ignore_errors=True)
+
+
+@pytest.mark.skipif(os.geteuid()!=0,reason='independent-UID operator bootstrap fixture')
+def test_one_generic_catalog_bootstraps_multiple_tasks_in_named_environment():
+    base=Path(tempfile.mkdtemp(prefix='eg-catalog-install-',dir='/tmp'))
+    try:
+        base.chmod(0o755)
+        credential=base/'gateway.key'
+        credential.write_text('isolated-gateway-fixture-only\n')
+        credential.chmod(0o600)
+        policy={'root':str(base/'worker-install'),'worker_uid':WORKER,
+                'signer_uid':SIGNER,'agent_uid':AGENT,
+                'adapter_id':'trusted-adapter-shared-workflow',
+                'target_prefix':'/tasks/workflow',
+                'profiles':[
+                    {'target':'/tasks/workflow/inspect','executable':'/usr/bin/cat',
+                     'fixed_args':[]},
+                    {'target':'/tasks/workflow/check','executable':'/usr/bin/cat',
+                     'fixed_args':[], 'timeout':8}],
+                'environment':'isolated','grant_seconds':90,'max_grants':3,
+                'eg_url':'http://127.0.0.1:18766','gateway_key_file':str(credential)}
+        with pytest.raises(ValueError,match='INVALID_GENERIC_OPERATOR_LIFETIME'):
+            provision({**policy,'grant_seconds':90000})
+        result=provision(policy)
+        root=Path(policy['root'])
+        config=json.loads((root/'worker/config.json').read_text())
+        assert 'profiles' in config and len(config['profiles'])==2
+        assert not any(x in config for x in ('target','executable','fixed_args'))
+        assert config['profiles'][1]['timeout']==8
+        binding=json.loads((root/'registry/binding.json').read_text())
+        assert binding['environment']=='isolated'
+        assert binding['expires_at']-binding['issued_at']<=91
+        signer=json.loads((root/'signer/config.json').read_text())
+        assert signer['max_grants']==3
+        assert signer['target_prefix']=='/tasks/workflow'
+        assert result['adapter_id']==policy['adapter_id']
+    finally:
+        shutil.rmtree(base,ignore_errors=True)

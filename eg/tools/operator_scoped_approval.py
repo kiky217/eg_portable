@@ -1,7 +1,7 @@
-"""Operator-preapproved E3 staging policy: independent, scoped one-time HITL signatures.
+"""Operator-preapproved generic E3 scope: independent, limited signed HITL grants.
 
 This is an OPTIONAL separate-UID signer, not a way for agents to approve themselves.
-No production scope, no arbitrary shell, no HITL key shared with the agent.
+No automatic production authority, no arbitrary shell, and no HITL key shared with the agent.
 """
 from __future__ import annotations
 

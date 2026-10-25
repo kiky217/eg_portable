@@ -1,4 +1,4 @@
-"""One-time operator installer for independently owned E3 staging approval service.
+"""One-time operator installer for independently owned generic E3 scoped-approval service.
 
 Requires a root operator and pre-existing signer/agent OS IDs; never runs as the
 agent. Creates keys and policy atomically in a new trusted private directory.
