@@ -9,6 +9,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import time
@@ -47,8 +48,17 @@ def provision(policy):
     required={'root','worker_uid','signer_uid','agent_uid','adapter_id','target_prefix',
               'target','executable','fixed_args','eg_url','gateway_key_file'}
     catalog_required=(required-{'target','executable','fixed_args'})|{'profiles'}
-    if not isinstance(policy,dict) or set(policy) not in (required,catalog_required):
+    optional={'environment','grant_seconds','max_grants'}
+    if not isinstance(policy,dict) or set(policy)-optional not in (required,catalog_required):
         raise ValueError('INVALID_OPERATOR_POLICY')
+    environment=policy.get('environment','staging')
+    seconds=policy.get('grant_seconds',3600)
+    grants=policy.get('max_grants',50)
+    if (not isinstance(environment,str) or
+        not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}',environment) or
+        type(seconds) is not int or not 30<=seconds<=86400 or
+        type(grants) is not int or not 1<=grants<=100):
+        raise ValueError('INVALID_GENERIC_OPERATOR_LIFETIME')
     catalog_mode='profiles' in policy
     profiles=validate_profiles(policy['profiles']) if catalog_mode else ({
         'target':policy['target'], 'executable':policy['executable'],
@@ -103,7 +113,7 @@ def provision(policy):
     signer_dir=root/'signer'
     signer_result=provision_signer(signer_dir,signer_uid=signer,signer_gid=signer,
         agent_uid=agent,agent_gid=agent,adapter_id=policy['adapter_id'],
-        target_prefix=policy['target_prefix'],max_grants=50,seconds=3600)
+        target_prefix=policy['target_prefix'],max_grants=grants,seconds=seconds)
     operator_key,worker_key=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
     _write(operator_dir/'operator.pem',_private_pem(operator_key),0,0)
     _write(worker_dir/'worker.pem',_private_pem(worker_key),worker,worker)
@@ -128,7 +138,7 @@ def provision(policy):
     binding={'version':1,'adapter_id':capability.adapter_id,'capability_sha256':capsha,
         'worker_uid':worker,'socket_path':str(socket_dir/'worker.sock'),
         'worker_public_key_b64':_public(worker_key), 'issued_at':now-1,
-        'expires_at':now+3600,'environment':'staging',
+        'expires_at':now+seconds,'environment':environment,
         'operator_nonce':secrets.token_urlsafe(24)}
     binding['signature_b64']=base64.b64encode(operator_key.sign(binding_canon(binding))).decode()
     _write(registry/'binding.json',canon(binding)+b'\n',agent,agent)

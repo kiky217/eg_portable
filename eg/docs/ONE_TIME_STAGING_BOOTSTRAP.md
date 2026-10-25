@@ -55,3 +55,7 @@ This currently proves **one-time staging provisioning**, not unattended
 production service installation, persistent systemd management, revocation
 automation, or a right for the agent to provision its own authority. Missing
 administrator approval remains a legitimate fail-closed prerequisite.
+
+## Any independently authorized environment
+
+The same installer works for different independently trusted environments. Optional root-owned policy keys are `environment` (short ASCII label), `grant_seconds` (30–86400), and `max_grants` (1–100). Defaults preserve existing staging deployments. These fields only constrain operator-signed expiry and grant quota; they never grant a task permissions or turn an agent into the signer. One configured multi-profile worker serves many approved tasks. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).

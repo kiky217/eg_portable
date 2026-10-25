@@ -43,3 +43,7 @@ After provisioning, `operator_process_service.py` accepts a private `profiles` a
 **Generic does not mean an unrestricted remote root shell.** The purpose of EG is to separate agent intent from independently administered, narrowly approved physical effects. Existing profiles can be reused autonomously. New permissions still require legitimate operator authorization, not a new provider-specific codebase.
 
 Verification: `cd eg && python -m pytest -q tests`. Focused: `pytest -q tests/test_trusted_process_catalog.py tests/test_process_external_e2e.py tests/test_operator_process_service.py`. Scratch E2E is not proof of production deployment.
+
+## Reuse across hosts and time windows
+
+The operator bootstrap accepts optional `environment`, `grant_seconds` and `max_grants`, with enforced bounds, in both legacy and catalog modes. Source code remains identical across hosts and projects; only the independent trust roots, filesystem privileges and preapproved catalog differ. Approval expiry/revocation still applies. This does not make runtime privileges transferable across hosts.
