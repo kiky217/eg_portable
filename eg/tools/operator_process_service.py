@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run an operator-pinned E3 process worker with a separate OS identity.
+"""Run an operator-pinned typed E3–E5 process worker with a separate OS identity.
 
 The operator supplies a private, immutable config and protected keys; the agent
 cannot select executables, arguments, UIDs, or sign its own approvals.
@@ -43,8 +43,10 @@ def load_config(path: Path) -> dict:
               "private_key_path", "eg_url", "eg_api_key_path", "hitl_public_key_b64",
               "controller_uid", "executable", "fixed_args", "target"}
     catalog_fields = (fields - {"executable", "fixed_args", "target"}) | {"profiles"}
-    if (not isinstance(value, dict) or set(value) not in (fields, fields | {"controller_group_gid"},
-                                                        catalog_fields, catalog_fields | {"controller_group_gid"})
+    typed = {"effect_class", "action_type"}
+    allowed = (fields, fields | {"controller_group_gid"},
+               catalog_fields, catalog_fields | {"controller_group_gid"})
+    if (not isinstance(value, dict) or set(value) not in (*allowed, *(x|typed for x in allowed))
             or type(value.get("controller_uid")) is not int
             or value["controller_uid"] in (0, os.geteuid())
             or ("fixed_args" in value and (
@@ -55,6 +57,11 @@ def load_config(path: Path) -> dict:
     if (not isinstance(value["eg_url"], str) or not value["eg_url"].startswith("https://")
         ) and not value["eg_url"].startswith(("http://127.0.0.1:", "http://localhost:")):
         raise ConfigurationDenied("UNTRUSTED_EG_ENDPOINT")
+    if (value.get("effect_class","E3") not in ("E3","E4","E5") or
+        not isinstance(value.get("action_type","bounded_process_run"),str) or
+        not value.get("action_type","bounded_process_run") or
+        len(value.get("action_type","bounded_process_run"))>200):
+        raise ConfigurationDenied("INVALID_TYPED_OPERATOR_CAPABILITY")
     cap_hash = value["capability_sha256"]
     if not isinstance(cap_hash, str) or len(cap_hash) != 64 or any(c not in "0123456789abcdef" for c in cap_hash):
         raise ConfigurationDenied("INVALID_CAPABILITY_DIGEST")
@@ -81,7 +88,9 @@ def main(argv=None):
     config = load_config(args.config)
     common = dict(journal_dir=config["journal_dir"],
         private_key=config["private_key"], adapter_id=config["adapter_id"],
-        hitl_key_b64=config["hitl_public_key_b64"])
+        hitl_key_b64=config["hitl_public_key_b64"],
+        effect_class=config.get("effect_class","E3"),
+        action_type=config.get("action_type","bounded_process_run"))
     if "profiles" in config:
         worker = TrustedProcessCatalog(**common, profiles=config["profiles"])
     else:
