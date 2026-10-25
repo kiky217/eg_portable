@@ -1,4 +1,4 @@
-"""Provision an independent reusable E3 catalog worker and scoped signer.
+"""Provision an independent reusable typed E3–E5 catalog worker and scoped signer.
 
 Root-owned one-time install; never a tool that can be invoked by the AI agent.
 The operator still chooses exact executable/arguments, UIDs, and capability scope.
@@ -48,9 +48,15 @@ def provision(policy):
     required={'root','worker_uid','signer_uid','agent_uid','adapter_id','target_prefix',
               'target','executable','fixed_args','eg_url','gateway_key_file'}
     catalog_required=(required-{'target','executable','fixed_args'})|{'profiles'}
-    optional={'environment','grant_seconds','max_grants'}
+    optional={'environment','grant_seconds','max_grants','effect_class','action_type'}
     if not isinstance(policy,dict) or set(policy)-optional not in (required,catalog_required):
         raise ValueError('INVALID_OPERATOR_POLICY')
+    effect=policy.get('effect_class','E3')
+    action_type=policy.get('action_type','bounded_process_run')
+    if ((('effect_class' in policy)!=('action_type' in policy)) or
+        effect not in ('E3','E4','E5') or not isinstance(action_type,str) or
+        not re.fullmatch(r'[a-z][a-z0-9_]{0,63}',action_type)):
+        raise ValueError('INVALID_TYPED_OPERATOR_CAPABILITY')
     environment=policy.get('environment','staging')
     seconds=policy.get('grant_seconds',3600)
     grants=policy.get('max_grants',50)
@@ -113,13 +119,14 @@ def provision(policy):
     signer_dir=root/'signer'
     signer_result=provision_signer(signer_dir,signer_uid=signer,signer_gid=signer,
         agent_uid=agent,agent_gid=agent,adapter_id=policy['adapter_id'],
-        target_prefix=policy['target_prefix'],max_grants=grants,seconds=seconds)
+        target_prefix=policy['target_prefix'],max_grants=grants,seconds=seconds,
+        effect_class=effect,action_type=action_type)
     operator_key,worker_key=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
     _write(operator_dir/'operator.pem',_private_pem(operator_key),0,0)
     _write(worker_dir/'worker.pem',_private_pem(worker_key),worker,worker)
     _write(worker_dir/'gateway.key',token+b'\n',worker,worker)
-    capability=AdapterCapability(adapter_id=policy['adapter_id'],effect_class='E3',
-        action_type='bounded_process_run',target_prefix=policy['target_prefix'],
+    capability=AdapterCapability(adapter_id=policy['adapter_id'],effect_class=effect,
+        action_type=action_type,target_prefix=policy['target_prefix'],
         maximum_payload_bytes=4096,isolated=True,public_key_b64=_public(worker_key),ci_only=False)
     capsha=hashlib.sha256(canon(asdict(capability))).hexdigest()
     worker_config={'adapter_id':policy['adapter_id'],'capability_sha256':capsha,
@@ -128,6 +135,8 @@ def provision(policy):
         'eg_api_key_path':str(worker_dir/'gateway.key'),
         'hitl_public_key_b64':signer_result['signer_public_key_b64'],
         'controller_uid':agent,'controller_group_gid':agent}
+    if effect!='E3' or action_type!='bounded_process_run':
+        worker_config.update(effect_class=effect,action_type=action_type)
     if catalog_mode:
         worker_config['profiles']=[dict(p, fixed_args=list(p['fixed_args'])) for p in profiles]
     else:
