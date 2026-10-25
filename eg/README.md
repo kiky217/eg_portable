@@ -30,6 +30,15 @@ The built-in worker admits only restricted **E0 reads** and reversible **E2 excl
 
 A production instance requires external durable state, protected signing keys, and worker privileges isolated from the agent. Neither a GitHub release nor local tests prove that a specific external instance is production-ready.
 
+Evidence provenance is independent of project identity. Bounded
+`*_task` producer labels (including historical records) are not
+provider-specific executors and confer **no** evidence authority without the
+unchanged manifest-v4 independent signature, path/UID, checkpoint and
+criterion checks. New tasks use the same provider-neutral source contract.
+The [root SKILL operational cookbook](../SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work)
+includes registration examples, bootstrap, E0–E5 capability limits, dispatcher
+inputs, recovery and acceptance.
+
 ## Environment and operations
 
 The supported portable offline target is **Linux x86-64 with CPython 3.12-compatible glibc**. No particular Colab runtime or workspace path is required. Other platforms need independently tested adapters.
