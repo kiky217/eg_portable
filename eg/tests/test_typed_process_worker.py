@@ -22,6 +22,7 @@ def setup(tmp_path):
     root=tmp_path/"ledger";root.mkdir(mode=0o700)
     w=object.__new__(TrustedProcessEffect)
     w.ledger=ApprovalLedger(root);w.private=priv;w.adapter_id="trusted-adapter-typed"
+    w.effect_class="E3";w.action_type="bounded_process_run"
     w.hitl_key_b64=pub(human);w.executable="/operator/pinned"
     w.fixed_args=();w.target="/tasks/typed/test"
     w.timeout=3;w.max_stdout=2048
