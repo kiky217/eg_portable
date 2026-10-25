@@ -245,10 +245,15 @@ The bundled execution worker remains E0/E2-only. EG now exposes a generic,
 Cargo, Git, Rust, Python or arbitrary shell permissions. For external work,
 provision independent worker UID/socket/key, typed effect capability and
 separate signed HITL authority; pin every original PRE, signed live
-challenge, action fingerprint, scope, immutable receipt and POST. Use the
-unified `dispatch_action` explicit external-worker arguments. No built-in
-production high-effect worker is shipped: the CI-only disposable fixture is
-not eligible for production promotion. Authentication, worker isolation,
+challenge, action fingerprint, scope, immutable receipt and POST. Use the unified `dispatch_action` and operator-signed worker registry; the
+registry can select exactly one active matching adapter without per-task
+socket/UID parameters. Explicit external-worker routing remains available for
+independently provisioned policy. The reusable bounded process catalog
+(`trusted_process_catalog.py`) implements **E3 only**, with up to 32 pinned
+actions, shared identity/socket/journal, and no project-specific module.
+**E4/E5 require their own approved typed worker**. No external production
+permission is bundled: the CI-only disposable fixture is not eligible for
+production promotion. Authentication, worker isolation,
 durable journals, real effects, recovery and independent readback remain
 operator-adapter obligations.
 
