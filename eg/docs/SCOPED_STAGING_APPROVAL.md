@@ -1,4 +1,4 @@
-# Generic E3 scoped standing approval
+# Generic typed E3–E5 scoped standing approval
 
 One independently provisioned, non-AI signer can issue bounded approvals for
 many already-approved process profiles under the same typed scope.
@@ -69,7 +69,7 @@ real hosts.
 The agent asks the Unix socket for an approval containing only
 `task_id`, `step_key`, `gate_checkpoint_no`, and the *complete intended action*.
 The signer independently derives the canonical action fingerprint. Only
-`E3/bounded_process_run`, targets within the preapproved target prefix,
+the exact operator-pinned `effect_class`/`action_type` (E3, E4 or E5), targets within the preapproved target prefix,
 payloads below the operator's limit and unexpired grants receive a short-lived
 Ed25519 signature.
 
@@ -83,7 +83,7 @@ If a request falls outside the signed standing authority, the result is
 Run the checks through
 `tests/test_operator_scoped_approval.py` (non-root signer/agent, key denial,
 identity pinning, scope and quota), and
-`tests/test_process_external_e2e.py` (actual generic E3 HTTP fixture with
+`tests/test_process_external_e2e.py` (actual generic E3 HTTP and E4/E5 physical fixtures with
 the same kind of grant, independent physical worker, signed PRE/POST).
 
 **Not authorized automatically:** production changes, unrestricted shell commands,
