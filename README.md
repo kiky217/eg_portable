@@ -113,6 +113,14 @@ EG is a **generic, provider-neutral work governance system**, not a remote root 
 
 The E3–E5 disposable adapters included for repository tests are **CI fixtures, not production executors**. Human approval alone cannot create a missing execution capability. EG also cannot enforce actions performed entirely outside its trusted boundary.
 
+**Generic evidence provenance:** Evidence producer names are validated as
+bounded `*_task` labels; an unfamiliar or historical label is not a
+capability or trust grant. Only an independently signed manifest-v4 with
+matching criterion, phase, checkpoint, timestamp and trusted root can
+establish evidence. The user-defined task/provider does not select executor
+code. See [the SKILL operational cookbook](SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work)
+and [generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
+
 **A passing release workflow proves source validation, not a live production deployment.** See [production promotion](eg/docs/PRODUCTION_PROMOTION.md) for the additional runtime and cutover gates.
 
 ## Documentation
