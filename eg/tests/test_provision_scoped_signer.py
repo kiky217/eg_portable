@@ -16,7 +16,8 @@ def test_provision_once_protected_key_and_separate_nonroot_start():
         root=parent/'site'
         out=provision(root,signer_uid=65531,signer_gid=65531,
             agent_uid=65534,agent_gid=65534,
-            adapter_id='trusted-adapter-cafe',target_prefix='/tasks/staging',max_grants=1)
+            adapter_id='trusted-adapter-cafe',target_prefix='/tasks/staging',max_grants=1,
+            effect_class='E3',action_type='bounded_process_run')
         assert out['socket']==str(root/'socket/approve.sock')
         assert stat.S_IMODE((root/'config.json').stat().st_mode)==0o600
         assert stat.S_IMODE(root.stat().st_mode)==0o710
@@ -24,7 +25,8 @@ def test_provision_once_protected_key_and_separate_nonroot_start():
         with pytest.raises(ValueError,match='TRUSTED_NEW_OPERATOR_ROOT_REQUIRED'):
             provision(root,signer_uid=65531,signer_gid=65531,
                 agent_uid=65534,agent_gid=65534,
-                adapter_id='trusted-adapter-cafe',target_prefix='/tasks/staging')
+                adapter_id='trusted-adapter-cafe',target_prefix='/tasks/staging',
+                effect_class='E3',action_type='bounded_process_run')
         # The parent is operator-owned and non-writable by other users.
         parent.chmod(0o755);os.chown(parent,0,0)
         def user(uid):
