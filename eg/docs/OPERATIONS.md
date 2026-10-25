@@ -100,10 +100,7 @@ authorized execution → signed POST → VERIFIED. Unsupported E3 cutover remain
 BLOCKED without a separately verified capable worker; direct shell is not a
 fallback.
 
-The dated Colab 2026-10-15 owner-accepted cutover is documented in
-[ACCEPTANCE_POST_CUTOVER_20261016.md](https://github.com/kiky217/eg_portable/blob/main/eg/artifacts/ACCEPTANCE_POST_CUTOVER_20261016.md).
-That historical addendum is retained, not an order to skip new cutover steps,
-and never changes its original 12/16 VERIFIED canonical task ledger.
+Historical acceptance snapshots have been removed from the active source tree; Git commit history retains provenance. No previous cutover report or partial historical task acceptance authorizes a new deployment. Reconcile the actual target's signed task ledger.
 
 ## Read-only canonical cutover blocker check
 
@@ -127,7 +124,7 @@ For a completed cutover, provide the original cutover report: its archive and
 backup digests must still match and its recorded ledger head must survive at
 the corresponding historical audit sequence. This checks reported historical continuity, **not** independent archive
 provenance, a complete restore rehearsal, executor admission, or EG signed
-POST acceptance. The Issue #14 reference is historical; consult GitHub for its current state\nrather than treating an archived operations note as a live issue tracker.
+POST acceptance. Issue references and closed historical reports are not a substitute for live task state.
 It writes only a new report file (0600), refuses overwrites, and does not
 expose secrets. A result of `BLOCKED` is not an EG task mutation.
 
