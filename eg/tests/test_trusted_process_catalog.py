@@ -16,12 +16,14 @@ PROFILES = [
     {"target": "/tasks/workflow/inspect", "executable": "/usr/bin/cat", "fixed_args": []},
     {"target": "/tasks/workflow/validate", "executable": "/usr/bin/cat", "fixed_args": [],
      "timeout": 7, "max_stdout": 4096},
+    {"target": "/tasks/workflow/build", "executable": "/usr/bin/cat", "fixed_args": []},
+    {"target": "/tasks/workflow/database", "executable": "/usr/bin/cat", "fixed_args": []},
 ]
 
 
 def test_catalog_admits_several_pinned_targets_without_new_adapter_code():
     profiles = validate_profiles(PROFILES)
-    assert len(profiles) == 2
+    assert len(profiles) == 4
     assert profiles[0]["target"] == "/tasks/workflow/inspect"
     assert profiles[1]["timeout"] == 7
     assert profiles[0]["fixed_args"] == ()
@@ -59,6 +61,7 @@ def test_catalog_target_denied_before_any_physical_dispatch(monkeypatch):
         adapter_id="trusted-adapter-generic", hitl_key_b64="unused", profiles=PROFILES)
     assert catalog.workers["/tasks/workflow/inspect"].ledger is catalog.ledger
     assert catalog.workers["/tasks/workflow/validate"].ledger is catalog.ledger
+    assert all(worker.ledger is catalog.ledger for worker in catalog.workers.values())
     with pytest.raises(ProcessDenied, match="TARGET_NOT_IN_OPERATOR_PROFILE_CATALOG"):
         catalog.execute(task_id="t", step_key="01.01",
             action={"target": "/tasks/workflow/unapproved"}, approval={},
@@ -69,6 +72,13 @@ def test_catalog_target_denied_before_any_physical_dispatch(monkeypatch):
         gate={}, gate_created_at="", stdin=b"test")
     assert result["target"] == "/tasks/workflow/validate"
     assert catalog.workers["/tasks/workflow/validate"].execute_calls == 1
+    for target in ("/tasks/workflow/build", "/tasks/workflow/database"):
+        accepted = catalog.execute(task_id="t", step_key="01.01",
+            action={"target": target}, approval={}, gate={},
+            gate_created_at="", stdin=b"test")
+        assert accepted["target"] == target
+        assert catalog.workers[target].execute_calls == 1
+    assert catalog.workers["/tasks/workflow/inspect"].execute_calls == 0
 
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="isolated nonroot fixture")
