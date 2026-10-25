@@ -59,6 +59,15 @@ class TrustedProcessCatalog:
                 worker.ledger = self.ledger
             self.workers[spec["target"]] = worker
 
+    def reconcile_no_effect(self, *, task_id, step_key, action, approval, gate):
+        if not isinstance(action,dict):
+            raise ProcessDenied("INVALID_OPERATOR_ACTION")
+        worker=self.workers.get(action.get("target"))
+        if worker is None:
+            raise ProcessDenied("TARGET_NOT_IN_OPERATOR_PROFILE_CATALOG")
+        return worker.reconcile_no_effect(task_id=task_id,step_key=step_key,
+            action=action,approval=approval,gate=gate)
+
     def execute(self, *, task_id, step_key, action, approval,
                 gate, gate_created_at, stdin):
         if not isinstance(action, dict):
