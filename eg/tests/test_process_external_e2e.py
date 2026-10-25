@@ -200,6 +200,15 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
                      phase="PRE_EXECUTION",action=action,hitl_approval=approval)
         assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
         if example.startswith("generic_no_effect_"):
+            cp=pre.json()["checkpoint_no"]
+            control={"contract_hash":contract,"protocol_hash":H.gw.protocol_hash(),
+                     "checkpoint_no":cp,"reason":"isolate uncertain worker result"}
+            paused=H.CLIENT.post("/v1/tasks/"+task+"/pause",headers=H.HEAD,
+                json={"event_id":H.eid("pause"),**control})
+            assert paused.status_code==200,paused.text
+            resumed=H.CLIENT.post("/v1/tasks/"+task+"/resume",headers=H.HEAD,
+                json={"event_id":H.eid("resume"),**control})
+            assert resumed.status_code==200 and resumed.json()["status"]=="RECOVERY_PENDING"
             neutral=dispatch_action(
                 request={"task_id":task,"step_key":"01.01","action":action,"data_b64":""},
                 eg_url=url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
@@ -207,6 +216,15 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             assert neutral["status"]=="SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED"
             assert neutral["no_effect_proof"]["status"]=="NOT_EXECUTED"
             assert not (project/"state.json").exists()
+            reconciled=H.CLIENT.post("/v1/tasks/"+task+"/reconcile",headers=H.HEAD,
+                json={"event_id":H.eid("reconcile"),"contract_hash":contract,
+                      "protocol_hash":H.gw.protocol_hash(),"checkpoint_no":cp,
+                      "step_key":"01.01","action":action,
+                      "proof":neutral["no_effect_proof"],
+                      "executor_public_key_b64":pub(worker)})
+            assert reconciled.status_code==200,reconciled.text
+            assert reconciled.json()["reconciled_effect"]=="NOT_EXECUTED"
+            assert reconciled.json()["checkpoint_no"]==cp
             return
         result=dispatch_action(
             request={"task_id":task,"step_key":"01.01","action":action,
