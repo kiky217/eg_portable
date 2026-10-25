@@ -1,5 +1,12 @@
 # EG v3.1.74 — isolated local regression evidence
 
+**ARCHIVED — historical source evidence only.** This document describes an
+older source revision and may refer to executor modules or commands no longer
+present in EG Portable. **Do not use it for current runtime or operator setup.**
+For the current generic capability and worker model use
+[Generic execution model](../docs/GENERIC_EXECUTION_MODEL.md) and
+[Agent operations reference](../docs/AGENT_OPERATIONS_REFERENCE.md).
+
 - Date: 2026-10-20 UTC
 - Canonical source: `882a1eb331b7db9ca90b3b4a0d8210232d0f95e8`; official `v3.1.74` source artifact from CI run `39505667528`, SHA-matched to main Git tree.
 - Runtime: isolated local Python 3.13, `PYTHONPATH=.:tests`, full source archive (not reduced portable subset); no RD MCP/KNID-PC.

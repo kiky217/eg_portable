@@ -1,5 +1,12 @@
 # Owner acceptance revision — EG 3.1 after completed Colab cutover
 
+**ARCHIVED — historical source evidence only.** This document describes an
+older source revision and may refer to executor modules or commands no longer
+present in EG Portable. **Do not use it for current runtime or operator setup.**
+For the current generic capability and worker model use
+[Generic execution model](../docs/GENERIC_EXECUTION_MODEL.md) and
+[Agent operations reference](../docs/AGENT_OPERATIONS_REFERENCE.md).
+
 **Effective revision:** 2026-10-16-v2
 
 **Scope:** Operational/release acceptance of the completed EG 3.0.1 → 3.1 migration in Google Colab.

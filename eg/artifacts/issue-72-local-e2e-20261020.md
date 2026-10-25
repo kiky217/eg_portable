@@ -1,5 +1,12 @@
 # Issue #72 — Local live EG v3.1.71 E2E evidence (2026-10-20)
 
+**ARCHIVED — historical source evidence only.** This document describes an
+older source revision and may refer to executor modules or commands no longer
+present in EG Portable. **Do not use it for current runtime or operator setup.**
+For the current generic capability and worker model use
+[Generic execution model](../docs/GENERIC_EXECUTION_MODEL.md) and
+[Agent operations reference](../docs/AGENT_OPERATIONS_REFERENCE.md).
+
 ## Proven (local isolated runtime)
 - Source: v3.1.71, GitHub main `5a77133a7925c2c27b7ed5b4ecebf0f72eb14cb6`
 - CI release artifact from run `39379267780`, successful.

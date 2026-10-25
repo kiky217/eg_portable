@@ -1,5 +1,12 @@
 # EG Portable hardcode audit manifest — READ-ONLY scan
 
+**ARCHIVED — historical source evidence only.** This document describes an
+older source revision and may refer to executor modules or commands no longer
+present in EG Portable. **Do not use it for current runtime or operator setup.**
+For the current generic capability and worker model use
+[Generic execution model](../docs/GENERIC_EXECUTION_MODEL.md) and
+[Agent operations reference](../docs/AGENT_OPERATIONS_REFERENCE.md).
+
 Baseline `3a1fa0e31315f049085a390b5704c6c7c210a5f6` (2026-10-20 UTC). All 147 blobs retrieved successfully across nine batches via GitHub connector; lexical pattern scan executed. **Semantic hardcode audit NOT COMPLETE**; statuses here are retrieval/scan only. Avoid treating this file as production acceptance. Findings tracked in issue #104. No source change.
 
 | # | File | Git blob SHA | Bytes | Status |

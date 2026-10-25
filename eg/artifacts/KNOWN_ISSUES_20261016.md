@@ -1,5 +1,12 @@
 # Remediation history and current boundaries
 
+**ARCHIVED — historical source evidence only.** This document describes an
+older source revision and may refer to executor modules or commands no longer
+present in EG Portable. **Do not use it for current runtime or operator setup.**
+For the current generic capability and worker model use
+[Generic execution model](../docs/GENERIC_EXECUTION_MODEL.md) and
+[Agent operations reference](../docs/AGENT_OPERATIONS_REFERENCE.md).
+
 This file is a **historical issue snapshot**, originally written on 2026-10-16 before completion of issues #2–#18. Do not treat its original "remaining" statements as current instructions. The authoritative current issue state is [GitHub Issues](https://github.com/kiky217/eg_portable/issues).
 
 ## Completed repository remediation (historical issues)
