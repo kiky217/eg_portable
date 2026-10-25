@@ -24,8 +24,6 @@ PATTERNS = {
 def _scope(name):
     if name.startswith("eg/app/"):
         return "GENERIC_EG_CORE", "HTTP_API_AND_CANONICAL_LEDGER"
-    if name.startswith("eg/tools/github_") or name.endswith("/trusted_github_effect.py"):
-        return "OPTIONAL_PROVIDER_ADAPTER", "INDEPENDENT_GITHUB_WORKER"
     if name.startswith("eg/tests/"):
         return "TEST_FIXTURE", "PYTEST_AND_CI"
     if name.startswith("eg/artifacts/"):
@@ -142,8 +140,6 @@ def semantic_disposition(site: dict) -> str:
     # producers; vendor terms are caught by APP_SPECIFIC before this fallback.
     if scope in ("GENERIC_EG_CORE", "PORTABLE_OPERATIONS"):
         return "CONTRACT"
-    if scope == "OPTIONAL_PROVIDER_ADAPTER":
-        return "APP_SPECIFIC"
     if scope == "DOCUMENTATION_OR_CONFIG":
         return "PORTABLE_DEFAULT"
     return "UNKNOWN"
