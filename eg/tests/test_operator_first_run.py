@@ -33,7 +33,8 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
     root=parent/'operator-workspace'
     policy={'root':str(root),'worker_uid':WORKER,'signer_uid':SIGNER,'agent_uid':AGENT,
             'adapter_id':'trusted-adapter-first-project','target_prefix':'/tasks/projects',
-            'target':'/tasks/projects/build','executable':'/usr/bin/cat','fixed_args':[],
+            'effect_class':'E3','action_type':'bounded_process_run',
+            'profiles':[{'target':'/tasks/projects/build','executable':'/usr/bin/cat','fixed_args':[]}],
             'eg_url':'http://127.0.0.1:18766','gateway_key_file':str(eg_key)}
     worker=None
     try:
@@ -42,9 +43,15 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
         untrusted.chmod(0o755)
         os.chown(untrusted,AGENT,AGENT)
         with pytest.raises(ValueError,match='UNTRUSTED_OPERATOR_EXECUTABLE'):
-            provision({**policy,'executable':str(untrusted)})
+            provision({**policy,'profiles':[dict(policy['profiles'][0],executable=str(untrusted))]})
         with pytest.raises(ValueError,match='OUT_OF_SCOPE_OPERATOR_POLICY'):
-            provision({**policy,'target_prefix':'/tasks/../escape','target':'/tasks/../escape/build'})
+            provision({**policy,'target_prefix':'/tasks/../escape'})
+        with pytest.raises(ValueError,match='INVALID_OPERATOR_POLICY'):
+            provision({**policy,'target':'/tasks/projects/build'})
+        implicit=dict(policy)
+        implicit.pop('effect_class')
+        with pytest.raises(ValueError,match='INVALID_OPERATOR_POLICY'):
+            provision(implicit)
         result=provision(policy)
         assert result['adapter_id']==policy['adapter_id']
         assert len({result['operator_public_key_b64'],result['hitl_public_key_b64'],
@@ -111,6 +118,7 @@ def test_one_generic_catalog_bootstraps_multiple_tasks_in_named_environment():
                 'signer_uid':SIGNER,'agent_uid':AGENT,
                 'adapter_id':'trusted-adapter-shared-workflow',
                 'target_prefix':'/tasks/workflow',
+                'effect_class':'E3','action_type':'bounded_process_run',
                 'profiles':[
                     {'target':'/tasks/workflow/inspect','executable':'/usr/bin/cat',
                      'fixed_args':[]},

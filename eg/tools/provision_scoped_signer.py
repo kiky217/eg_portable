@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,
 
 def provision(path, *, signer_uid, signer_gid, agent_uid, agent_gid,
               adapter_id, target_prefix, seconds=3600, max_grants=50,
-              max_payload_bytes=8192, effect_class='E3', action_type='bounded_process_run'):
+              max_payload_bytes=8192, effect_class, action_type):
     if os.geteuid()!=0:
         raise ValueError('ROOT_OPERATOR_REQUIRED')
     if (not all(type(x) is int and x>0 for x in (signer_uid,signer_gid,agent_uid,agent_gid))
@@ -60,8 +60,7 @@ def provision(path, *, signer_uid, signer_gid, agent_uid, agent_gid,
          'adapter_id':adapter_id,'target_prefix':target_prefix,
          'expires_at':int(time.time())+seconds,'max_grants':max_grants,
          'max_payload_bytes':max_payload_bytes}
-    if effect_class!='E3' or action_type!='bounded_process_run':
-        doc.update(effect_class=effect_class,action_type=action_type)
+    doc.update(effect_class=effect_class,action_type=action_type)
     fd=os.open(conf,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     with os.fdopen(fd,'w') as stream:
         json.dump(doc,stream,sort_keys=True);stream.write('\n')
@@ -82,10 +81,13 @@ def main():
     p.add_argument('--target-prefix',required=True)
     p.add_argument('--seconds',type=int,default=3600)
     p.add_argument('--max-grants',type=int,default=50)
+    p.add_argument('--effect-class',required=True,choices=('E3','E4','E5'))
+    p.add_argument('--action-type',required=True)
     args=p.parse_args()
     result=provision(args.root,signer_uid=args.signer_uid,signer_gid=args.signer_gid,
         agent_uid=args.agent_uid,agent_gid=args.agent_gid,adapter_id=args.adapter_id,
-        target_prefix=args.target_prefix,seconds=args.seconds,max_grants=args.max_grants)
+        target_prefix=args.target_prefix,seconds=args.seconds,max_grants=args.max_grants,
+        effect_class=args.effect_class,action_type=args.action_type)
     print(json.dumps(result,sort_keys=True))
 
 

@@ -2,7 +2,7 @@
 
 The operator provisions **one reusable worker** for many tasks through a
 protected `profiles` catalog (1–32 exact target-to-executable mappings).
-The legacy single-target policy remains supported. See
+Use one canonical typed `profiles` policy. See
 [Generic execution model](GENERIC_EXECUTION_MODEL.md).
 
 This tool reduces first-use credential/worker assembly. **An independent
@@ -11,8 +11,7 @@ The agent then uses EG's existing discovery and dispatch paths without
 repeating worker identities or approval keys for every task.
 
 `tools/operator_first_run.py` accepts a root-owned `0600` JSON policy with
-a bounded policy. Mandatory common fields and the two mutually exclusive
-operation modes are:
+a bounded policy. Required fields are:
 
 | Field | Source |
 | --- | --- |
@@ -20,9 +19,8 @@ operation modes are:
 | `worker_uid`, `signer_uid`, `agent_uid` | Three existing distinct **non-root** OS identities |
 | `adapter_id` | Operator-chosen ID beginning `trusted-adapter-` |
 | `target_prefix` | Bounded permitted `/tasks/...` scope; required in both modes |
-| `effect_class`, `action_type` | Optional paired operator selection of E3/E4/E5 and typed action; defaults E3 / `bounded_process_run` | 
-| `profiles` | Generic mode: 1–32 unique exact target, executable, fixed_args, optional timeout/max_stdout |
-| `target`, `executable`, `fixed_args` | Legacy mode only; use **instead** of `profiles` |
+| `effect_class`, `action_type` | **Required** explicit operator-selected E3/E4/E5 class and exact typed action |
+| `profiles` | **Required** 1–32 unique exact target/executable/fixed-argument profiles with optional timeout/max_stdout |
 | `eg_url` | HTTPS gateway or local loopback gateway |
 | `gateway_key_file` | Existing private root-owned `0600` gateway API credential file |
 

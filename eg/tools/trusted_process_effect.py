@@ -39,7 +39,7 @@ class TrustedProcessEffect:
                  executable, fixed_args, target, timeout=20, max_stdout=262144,
                  input_schema=None, input_schema_sha256=None,
                  output_schema=None, output_schema_sha256=None,
-                 effect_class="E3", action_type="bounded_process_run"):
+                 effect_class, action_type):
         if (effect_class not in ("E3","E4","E5") or
             not isinstance(action_type,str) or not action_type or len(action_type)>200 or
             not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")

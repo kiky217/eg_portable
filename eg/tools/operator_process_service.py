@@ -13,7 +13,6 @@ import stat
 from pathlib import Path
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from tools.trusted_process_effect import TrustedProcessEffect
 from tools.trusted_process_catalog import TrustedProcessCatalog, validate_profiles, ProcessDenied
 from tools.trusted_generic_rpc import serve
 
@@ -41,26 +40,17 @@ def load_config(path: Path) -> dict:
     value = json.loads(_private_file(path))
     fields = {"adapter_id", "capability_sha256", "socket_path", "journal_dir",
               "private_key_path", "eg_url", "eg_api_key_path", "hitl_public_key_b64",
-              "controller_uid", "executable", "fixed_args", "target"}
-    catalog_fields = (fields - {"executable", "fixed_args", "target"}) | {"profiles"}
-    typed = {"effect_class", "action_type"}
-    allowed = (fields, fields | {"controller_group_gid"},
-               catalog_fields, catalog_fields | {"controller_group_gid"})
-    if (not isinstance(value, dict) or set(value) not in (*allowed, *(x|typed for x in allowed))
+              "controller_uid", "effect_class", "action_type", "profiles"}
+    if (not isinstance(value,dict) or set(value) not in (fields,fields|{"controller_group_gid"})
             or type(value.get("controller_uid")) is not int
-            or value["controller_uid"] in (0, os.geteuid())
-            or ("fixed_args" in value and (
-                not isinstance(value["fixed_args"], list)
-                or len(value["fixed_args"]) > 24
-                or any(not isinstance(item, str) or len(item) > 1024 for item in value["fixed_args"])))):
+            or value["controller_uid"] in (0, os.geteuid())):
         raise ConfigurationDenied("INVALID_OPERATOR_WORKER_CONFIGURATION")
     if (not isinstance(value["eg_url"], str) or not value["eg_url"].startswith("https://")
         ) and not value["eg_url"].startswith(("http://127.0.0.1:", "http://localhost:")):
         raise ConfigurationDenied("UNTRUSTED_EG_ENDPOINT")
-    if (value.get("effect_class","E3") not in ("E3","E4","E5") or
-        not isinstance(value.get("action_type","bounded_process_run"),str) or
-        not value.get("action_type","bounded_process_run") or
-        len(value.get("action_type","bounded_process_run"))>200):
+    if (value["effect_class"] not in ("E3","E4","E5") or
+        not isinstance(value["action_type"],str) or
+        not value["action_type"] or len(value["action_type"])>200):
         raise ConfigurationDenied("INVALID_TYPED_OPERATOR_CAPABILITY")
     cap_hash = value["capability_sha256"]
     if not isinstance(cap_hash, str) or len(cap_hash) != 64 or any(c not in "0123456789abcdef" for c in cap_hash):
@@ -71,11 +61,10 @@ def load_config(path: Path) -> dict:
     token = _private_file(Path(value["eg_api_key_path"])).decode("ascii").strip()
     if not token or len(token) > 512:
         raise ConfigurationDenied("INVALID_WORKER_GATEWAY_CREDENTIAL")
-    if "profiles" in value:
-        try:
-            value["profiles"] = validate_profiles(value["profiles"])
-        except ProcessDenied as exc:
-            raise ConfigurationDenied("INVALID_OPERATOR_PROFILE_CATALOG") from exc
+    try:
+        value["profiles"] = validate_profiles(value["profiles"])
+    except ProcessDenied as exc:
+        raise ConfigurationDenied("INVALID_OPERATOR_PROFILE_CATALOG") from exc
     value["private_key"] = key
     value["eg_api_key"] = token
     return value
@@ -89,14 +78,8 @@ def main(argv=None):
     common = dict(journal_dir=config["journal_dir"],
         private_key=config["private_key"], adapter_id=config["adapter_id"],
         hitl_key_b64=config["hitl_public_key_b64"],
-        effect_class=config.get("effect_class","E3"),
-        action_type=config.get("action_type","bounded_process_run"))
-    if "profiles" in config:
-        worker = TrustedProcessCatalog(**common, profiles=config["profiles"])
-    else:
-        worker = TrustedProcessEffect(**common,
-            executable=config["executable"], fixed_args=tuple(config["fixed_args"]),
-            target=config["target"])
+        effect_class=config["effect_class"], action_type=config["action_type"])
+    worker = TrustedProcessCatalog(**common, profiles=config["profiles"])
     serve(socket_path=config["socket_path"], adapter=worker,
           capability_sha256=config["capability_sha256"],
           eg_url=config["eg_url"], eg_key=config["eg_api_key"],

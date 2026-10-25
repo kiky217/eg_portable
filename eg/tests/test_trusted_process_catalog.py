@@ -58,7 +58,8 @@ def test_catalog_target_denied_before_any_physical_dispatch(monkeypatch):
 
     monkeypatch.setattr("tools.trusted_process_catalog.TrustedProcessEffect", StubProcess)
     catalog = TrustedProcessCatalog(journal_dir="/unused", private_key=object(),
-        adapter_id="trusted-adapter-generic", hitl_key_b64="unused", profiles=PROFILES)
+        adapter_id="trusted-adapter-generic", hitl_key_b64="unused", profiles=PROFILES,
+        effect_class="E3", action_type="bounded_process_run")
     assert catalog.workers["/tasks/workflow/inspect"].ledger is catalog.ledger
     assert catalog.workers["/tasks/workflow/validate"].ledger is catalog.ledger
     assert all(worker.ledger is catalog.ledger for worker in catalog.workers.values())
@@ -87,9 +88,6 @@ def test_one_private_service_config_supports_a_generic_catalog():
     base = Path(tempfile.mkdtemp(prefix="eg-generic-catalog-", dir="/tmp"))
     try:
         config, settings, _, _ = _layout(base)
-        del settings["target"]
-        del settings["executable"]
-        del settings["fixed_args"]
         settings["profiles"] = PROFILES
         config.write_text(json.dumps(settings))
         script = ("import json;from pathlib import Path;"

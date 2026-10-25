@@ -259,8 +259,9 @@ privilege escalation. E4 requires `reversible=true`; E5 requires
 
 An independent operator may provision 1–32 exact, unique `/tasks/...` targets
 under one signed class-bound E3/E4/E5 process adapter with one worker identity, one Unix socket
-and one durable nonce ledger. The protected worker config chooses either
-`profiles` or legacy `executable`/`fixed_args`/`target`, not both.
+and one durable nonce ledger. The protected worker configuration requires
+explicit `effect_class`, `action_type` and `profiles` and rejects the removed
+single-target format.
 Each profile pins executable, fixed arguments and bounded runtime/output. The
 agent supplies only the originally bound action payload over stdin; it cannot
 change executable or arguments. No per-project worker implementation is

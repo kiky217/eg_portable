@@ -43,7 +43,7 @@ def validate_profiles(profiles):
 class TrustedProcessCatalog:
     """One signer and durable nonce ledger reused by each pinned process profile."""
     def __init__(self, *, journal_dir, private_key, adapter_id, hitl_key_b64, profiles,
-                 effect_class="E3", action_type="bounded_process_run"):
+                 effect_class, action_type):
         self.private = private_key
         self.adapter_id = adapter_id
         self.workers = {}

@@ -26,8 +26,6 @@ def _scope(name):
         return "GENERIC_EG_CORE", "HTTP_API_AND_CANONICAL_LEDGER"
     if name.startswith("eg/tests/"):
         return "TEST_FIXTURE", "PYTEST_AND_CI"
-    if name.startswith("eg/artifacts/"):
-        return "HISTORICAL_EVIDENCE", "HUMAN_AUDIT"
     if name.startswith("eg/tools/"):
         return "PORTABLE_OPERATIONS", "OPERATOR_OR_INDEPENDENT_WORKER"
     if name.startswith(".github/") or "Dockerfile" in name or "compose" in name:
@@ -40,7 +38,7 @@ def _review(name, line, category, literal):
     if category == "APP_SPECIFIC" and scope == "GENERIC_EG_CORE":
         risk, action = "HIGH", "REVIEW_PROVIDER_COUPLING_IN_CORE"
     elif category in ("SECURITY_REVIEW", "SECURITY_INVARIANT") and scope not in (
-            "TEST_FIXTURE", "HISTORICAL_EVIDENCE", "DOCUMENTATION_OR_CONFIG"):
+            "TEST_FIXTURE", "DOCUMENTATION_OR_CONFIG"):
         risk, action = "HIGH", "CHECK_SECURITY_CONTRACT_AND_NEGATIVE_TESTS"
     elif category == "ENVIRONMENT_CONFIG" and scope not in ("TEST_FIXTURE", "DOCUMENTATION_OR_CONFIG"):
         risk, action = "MEDIUM", "CHECK_ENVIRONMENT_OVERRIDE_AND_PORTABILITY"
@@ -132,7 +130,7 @@ def semantic_disposition(site: dict) -> str:
         return "ENVIRONMENT_CONFIG"
     if category == "CONTRACT":
         return "CONTRACT"
-    if scope in ("TEST_FIXTURE", "PACKAGING_AND_CI", "HISTORICAL_EVIDENCE"):
+    if scope in ("TEST_FIXTURE", "PACKAGING_AND_CI"):
         return "PORTABLE_DEFAULT"
     if category == "PORTABLE_DEFAULT_REVIEW":
         return "PORTABLE_DEFAULT"

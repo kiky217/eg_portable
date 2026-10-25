@@ -130,14 +130,16 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
                 adapter_id=adapter,hitl_key_b64=pub(human))
             if example in ("generic_catalog", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"):
                 script_mode=example in ("generic_e4","generic_e5")
-                process=TrustedProcessCatalog(**common,effect_class=effect,profiles=[
+                process=TrustedProcessCatalog(**common,effect_class=effect,
+                    action_type="bounded_process_run",profiles=[
                     {"target":target,
                      "executable":str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if script_mode else "/usr/bin/cat",
                      "fixed_args":[str(checker),effect] if script_mode else []},
                     {"target":"/tasks/process/another","executable":"/usr/bin/cat",
                      "fixed_args":[],"timeout":5}])
             else:
-                process=TrustedProcessEffect(**common,
+                process=TrustedProcessEffect(**common,effect_class=effect,
+                    action_type="bounded_process_run",
                     executable=str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if example=="generic_http_check" else "/usr/bin/cat",
                     fixed_args=(str(checker),) if example=="generic_http_check" else (),
                     target=target,timeout=5,max_stdout=4096,

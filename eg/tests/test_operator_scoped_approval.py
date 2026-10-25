@@ -43,7 +43,8 @@ def _config(tmp,uid):
     policy={'key_file':str(secret),'ledger_dir':str(work),'socket_path':str(socket_dir/'approve.sock'),
            'controller_uid':AGENT,'controller_group_gid':AGENT,'adapter_id':'trusted-adapter-cafe',
            'target_prefix':'/tasks/staging','expires_at':int(time.time())+180,
-           'max_grants':1,'max_payload_bytes':8192}
+           'max_grants':1,'max_payload_bytes':8192,
+           'effect_class':'E3','action_type':'bounded_process_run'}
     config=directory/'config.json';config.write_text(json.dumps(policy))
     for path in (secret,config):
         if os.geteuid()==0:os.chown(path,uid,uid)

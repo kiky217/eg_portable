@@ -239,12 +239,11 @@ installation. Root on the **same host** can still control all such accounts:
 a root-capable agent must not claim its signer is independent solely by
 dropping UID.
 
-The multi-target policy accepts optional **paired** `effect_class` (E3/E4/E5) and `action_type` (operator-pinned typed name); absent both it preserves E3 `bounded_process_run` compatibility. Its common fields are `root`, `worker_uid`,
+The multi-target policy **requires** explicit `effect_class` (E3/E4/E5) and `action_type` (operator-pinned typed name); there is no implicit E3 default or top-level single-target configuration. Its common fields are `root`, `worker_uid`,
 `signer_uid`, `agent_uid`, `adapter_id`, `target_prefix`, `eg_url`,
 `gateway_key_file`, and `profiles` (1–32 unique `/tasks/...` targets).
 Each profile pins an independently controlled absolute executable, immutable
-fixed args and optional bounds. The alternative single-target form is only
-a backward-compatible policy input, not the recommended new layout. See
+fixed args and optional bounds. The only accepted operator process policy uses the typed `profiles` catalog. See
 [operator bootstrap](eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md).
 Provisioning files is not live admission: the operator must start the
 separate services, prove worker UID/socket/key independence, activate the

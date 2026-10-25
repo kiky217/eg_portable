@@ -56,7 +56,8 @@ def _layout(tmp):
               "private_key_path":str(secret),"eg_url":"http://127.0.0.1:18766",
               "eg_api_key_path":str(token),"hitl_public_key_b64":pub,
               "controller_uid":CONTROLLER_UID,"controller_group_gid":CONTROLLER_UID,
-              "executable":"/usr/bin/cat","fixed_args":[],"target":"/tasks/app/build"}
+              "effect_class":"E3","action_type":"bounded_process_run",
+              "profiles":[{"target":"/tasks/app/build","executable":"/usr/bin/cat","fixed_args":[]}]}
     config.write_text(json.dumps(settings))
     for path in (secret,token,config):
         os.chown(path,WORKER_UID,WORKER_UID)
@@ -119,5 +120,30 @@ def test_root_or_world_readable_worker_config_denied():
             cwd=ROOT,env={**os.environ,"PYTHONPATH":str(ROOT)},
             preexec_fn=_identity(WORKER_UID),capture_output=True,timeout=5)
         assert probe.returncode!=0 and b"PRIVATE_WORKER_FILE_REQUIRED" in probe.stderr
+    finally:
+        shutil.rmtree(base,ignore_errors=True)
+
+
+def test_worker_denies_removed_config_schema_and_missing_class():
+    base=Path(tempfile.mkdtemp(prefix="eg-typed-policy-",dir="/tmp"))
+    try:
+        config,settings,_,_=_layout(base)
+        def run(config_payload):
+            config.write_text(json.dumps(config_payload))
+            return subprocess.run(
+                [sys.executable,"-m","tools.operator_process_service",str(config)],
+                cwd=ROOT,env={**os.environ,"PYTHONPATH":str(ROOT)},
+                preexec_fn=_identity(WORKER_UID),capture_output=True,timeout=5)
+        without_type=dict(settings)
+        without_type.pop("effect_class")
+        denied=run(without_type)
+        assert denied.returncode!=0 and b"INVALID_OPERATOR_WORKER_CONFIGURATION" in denied.stderr
+        obsolete=dict(settings)
+        obsolete.pop("effect_class")
+        obsolete.pop("action_type")
+        obsolete.pop("profiles")
+        obsolete.update(target="/tasks/app/build", executable="/usr/bin/cat", fixed_args=[])
+        denied=run(obsolete)
+        assert denied.returncode!=0 and b"INVALID_OPERATOR_WORKER_CONFIGURATION" in denied.stderr
     finally:
         shutil.rmtree(base,ignore_errors=True)

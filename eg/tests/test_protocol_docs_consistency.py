@@ -14,10 +14,8 @@ def test_actionable_gate_cannot_be_normatively_superseded():
     assert ("fresh PRE" in runbook or "new PRE" in runbook) and "UNKNOWN" in runbook
 
 
-def test_remediation_snapshot_identified_as_historical():
-    snapshot=(ROOT/"artifacts/KNOWN_ISSUES_20261016.md").read_text()
-    assert "**historical issue snapshot**" in snapshot
-    assert "#19" in snapshot and "#20" in snapshot
-    assert "#21" in snapshot and "#25" in snapshot
-    assert "including staging" in snapshot
-    assert "not** a live production" in snapshot
+def test_recovery_protocol_not_shadowed_by_obsolete_snapshot():
+    docs=ROOT/"docs"
+    assert not (ROOT/"artifacts").exists()
+    assert "UNKNOWN effect remains BLOCKED" in (docs/"EXECUTOR_PROTOCOL.md").read_text()
+    assert "NOT_EXECUTED" in (docs/"PORTABLE_RUNBOOK.md").read_text()
