@@ -10,7 +10,8 @@ from pathlib import Path
 import pytest
 from tools.trusted_process_catalog import validate_profiles, TrustedProcessCatalog, ProcessDenied
 
-ROOT = Path(__file__).resolve().parents[1]
+# Cross-UID subprocesses must import from an independently readable test source.
+ROOT = Path(os.environ.get("EG_TEST_SOURCE", Path(__file__).resolve().parents[1]))
 PROFILES = [
     {"target": "/tasks/workflow/inspect", "executable": "/usr/bin/cat", "fixed_args": []},
     {"target": "/tasks/workflow/validate", "executable": "/usr/bin/cat", "fixed_args": [],

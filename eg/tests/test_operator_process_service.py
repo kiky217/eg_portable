@@ -18,7 +18,8 @@ from tools.adapter_liveness import canon
 from tools.high_effect_admission import AdapterCapability
 
 pytestmark=pytest.mark.skipif(os.geteuid()!=0,reason="isolated cross-UID integration requires root fixture")
-ROOT=Path(__file__).resolve().parents[1]
+# Cross-UID subprocesses must import from an independently readable test source.
+ROOT = Path(os.environ.get("EG_TEST_SOURCE", Path(__file__).resolve().parents[1]))
 WORKER_UID=65533
 CONTROLLER_UID=65534
 
