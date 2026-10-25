@@ -1,4 +1,4 @@
-"""Reusable operator-pinned E3 process worker for multiple typed targets.
+"""Reusable operator-pinned E3–E5 worker for multiple typed targets.
 
 One signed adapter and one journal across many allowed process profiles.
 No provider-specific routing branches and no agent-selected shell commands.
@@ -42,7 +42,8 @@ def validate_profiles(profiles):
 
 class TrustedProcessCatalog:
     """One signer and durable nonce ledger reused by each pinned process profile."""
-    def __init__(self, *, journal_dir, private_key, adapter_id, hitl_key_b64, profiles):
+    def __init__(self, *, journal_dir, private_key, adapter_id, hitl_key_b64, profiles,
+                 effect_class="E3", action_type="bounded_process_run"):
         self.private = private_key
         self.adapter_id = adapter_id
         self.workers = {}
@@ -50,7 +51,8 @@ class TrustedProcessCatalog:
         for spec in validate_profiles(profiles):
             worker = TrustedProcessEffect(journal_dir=journal_dir,
                 private_key=private_key, adapter_id=adapter_id,
-                hitl_key_b64=hitl_key_b64, **spec)
+                hitl_key_b64=hitl_key_b64, effect_class=effect_class,
+                action_type=action_type, **spec)
             if self.ledger is None:
                 self.ledger = worker.ledger
             else:
