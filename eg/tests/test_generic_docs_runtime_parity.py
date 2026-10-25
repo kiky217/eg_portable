@@ -40,13 +40,14 @@ def test_runtime_and_documentation_are_same_generic_contract():
     host = (ROOT / "eg/tools/operator_process_service.py").read_text(encoding="utf-8")
     catalog = (ROOT / "eg/tools/trusted_process_catalog.py").read_text(encoding="utf-8")
     process = (ROOT / "eg/tools/trusted_process_effect.py").read_text(encoding="utf-8")
-    assert "catalog_required" in first and "profiles" in first
+    assert "profiles=validate_profiles" in first
+    assert "catalog_mode" not in first and "catalog_required" not in first
     assert "TrustedProcessCatalog" in host and "validate_profiles" in host
     assert "class TrustedProcessCatalog:" in catalog and "len(profiles)" in catalog
     assert 'action.get("effect_class")!=self.effect_class' in process
     assert "E3–E5 typed process catalog" in OPS and "E3, E4 and E5" in OPS
     assert "**E4/E5 bounded typed operations**" in ROOT_README and "E3–E5" in GENERIC
-    assert "profiles" in BOOTSTRAP and "legacy" in BOOTSTRAP.lower()
+    assert "profiles" in BOOTSTRAP and "single-target" not in BOOTSTRAP
     assert "E3" in SCOPED and "target scope" in SCOPED
     for stale in (
         "existing independent GitHub worker",
@@ -61,10 +62,13 @@ def test_runtime_and_documentation_are_same_generic_contract():
             assert stale not in content, (path, stale)
 
 
-def test_archived_operational_evidence_is_explicitly_non_current():
-    for file in (ROOT / "eg/artifacts").glob("*.md"):
-        if file.name == "README.md":
-            continue
-        first = file.read_text(encoding="utf-8").splitlines()[:8]
-        assert any("ARCHIVED" in line or "historical" in line.lower()
-                   for line in first), file.name
+def test_one_typed_operator_contract_without_single_target_mode():
+    first=(ROOT/"eg/tools/operator_first_run.py").read_text()
+    host=(ROOT/"eg/tools/operator_process_service.py").read_text()
+    signer=(ROOT/"eg/tools/operator_scoped_approval.py").read_text()
+    assert "profiles=validate_profiles" in first
+    assert "catalog_mode" not in first
+    assert "TrustedProcessCatalog(**common, profiles=config" in host
+    assert "TrustedProcessEffect(**common" not in host
+    assert "config['effect_class']" in signer
+    assert not (ROOT/"eg/artifacts").exists()
