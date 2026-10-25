@@ -9,8 +9,8 @@ its own trust root, approve itself, or substitute a local shell for EG.
 
 The packaged `tools/operator_process_service.py` starts an existing, bounded
 `TrustedProcessEffect` behind the generic UID-pinned Unix RPC service. It
-supports an **operator-fixed executable, fixed arguments, target, and execution
-limit**. It does not support agent-supplied shell strings, arbitrary commands,
+supports **one or many operator-fixed executable/argument/target profiles**
+under one independently signed identity, socket and durable journal. It does not support agent-supplied shell strings, arbitrary commands,
 remote process control, or persistent server management. This worker can be
 reused across tasks until the operator binding expires or is revoked.
 
@@ -45,7 +45,9 @@ The config contains the following operator-selected values:
 | `private_key_path`, `eg_api_key_path` | Owner-only files, not secret strings in JSON |
 | `eg_url`, `hitl_public_key_b64` | Authenticated gateway and independent HITL authority |
 | `controller_uid`, optional `controller_group_gid` | Allowed distinct OS controller identity |
-| `executable`, `fixed_args`, `target` | The operator-approved, bounded process policy |
+| `executable`, `fixed_args`, `target` | Legacy single-target process policy |
+| `profiles` | Alternative catalog (1–32 unique exact targets with fixed executable/args); reusable across projects |
+| `profiles[].timeout`, `profiles[].max_stdout` | Bounded per-profile runtime (1–30 s) and output (max 512 KiB) |
 
 The pinned executable and every ancestor directory must be owned by root or the independent worker, and must not be writable by unrelated users/groups. A binary under an attacker-replaceable temporary directory is rejected even when the binary itself has restrictive file permissions; inspect fixed arguments for scripts and other operator-controlled resources as well.
 
@@ -90,3 +92,7 @@ production worker.
 
 These are isolated tests, **not a certificate of production installation**.
 The local/staging engineering acceptance of [Issue #104](https://github.com/kiky217/eg_portable/issues/104) was completed and closed in v3.1.115. Production operator authorization, service cutover, rollback and destination-specific E2E remain separate prerequisites.
+
+## Reusable catalog, no per-project executor
+
+Use [Generic execution model](GENERIC_EXECUTION_MODEL.md). The private worker configuration accepts either legacy `target`/`executable`/`fixed_args`, or a `profiles` array, never both. Each profile is an immutable operator-pinned mapping of an exact `/tasks/...` target to an executable and fixed arguments. `operator_first_run.py` supports the same catalog for one-time independent installation. A new task uses existing compatible profiles; when a new permission is genuinely needed, the operator updates a bounded catalog and trust binding rather than the agent writing provider-specific executable code. This does not permit agent-supplied shell strings or generate HITL approval.

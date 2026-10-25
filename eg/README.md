@@ -20,7 +20,9 @@ REGISTER → PRE → trusted worker → signed receipt → POST → VERIFIED →
 
 If POST fails, EG does not authorize repeating the physical action. An interruption triggers recovery: prove the effect happened and reuse its receipt, prove it did not happen and request a fresh PRE, or remain blocked if the effect is unknown.
 
-## Current capabilities and boundaries
+## Generic capabilities and runtime boundaries
+
+A new project does **not** require a project-specific executor. The generic E3 service supports a reusable multi-target process catalog with one worker identity, one signed adapter, one nonce ledger and exact preapproved actions. See [Generic execution model](docs/GENERIC_EXECUTION_MODEL.md).
 
 EG provides a task registry, hierarchical step ordering, evidence validation, explicit PRE/POST checkpoints, authenticated audit history, pause/resume, failure escalation, linked remediation, and controlled recovery. A separate cutover checker can verify signed provenance and rehearse restoration, but this does **not** by itself certify a production service cutover.
 

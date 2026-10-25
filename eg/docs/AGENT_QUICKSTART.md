@@ -1,3 +1,5 @@
+See [Generic execution model](GENERIC_EXECUTION_MODEL.md). One independently installed catalog executor can serve many approved task targets; the application/provider name is never a prerequisite.
+
 # Agent quickstart — production EG without false readiness
 
 **First read [root SKILL.md](../../SKILL.md).** For all supported API routes, exact request/response fields, operator/agent responsibilities and receipt recovery, follow the [agent operations reference](AGENT_OPERATIONS_REFERENCE.md). This is an operational entry point, not an alternate evaluator or an override of the canonical executor contract.
@@ -48,7 +50,7 @@ The minimal [single-agent workflow](SINGLE_AGENT_WORKFLOW.md) reuses EG's origin
 
 ## How to approach real development tasks
 
-Break a real goal into registered steps only if each physical operation has an independently approved transport. Running `cargo build`, Rust source modifications, Git push, shell and service control are **not** a generic E2 write via the built-in worker. Implement and independently audit typed adapters with bounded permissions, action fingerprints, pre-execution scope, journal/idempotency, signed receipts and POST verification. Until provisioned, surface a precise missing-adapter diagnostic. Do not silently downgrade to a logical step, escape to host-root shell, or use disposable CI adapters in production.
+Break a real goal into registered steps only if each physical operation has an independently approved transport. Running `cargo build`, Rust source modifications, Git push, shell and service control are **not** a generic E2 write via the built-in worker. First reuse the generic E3 process catalog and independent worker already authorized for the target. For a genuinely new operation, install an operator-approved bounded profile; do not add provider-specific Python adapters to core. Until provisioned, surface a precise missing-adapter diagnostic. Do not silently downgrade to a logical step, escape to host-root shell, or use disposable CI adapters in production.
 
 ## Portable execution architecture
 EG is a portable governance/evidence engine; execution capabilities belong to independently governed adapters supplied by the target environment. The agent discovers available typed operations, matches action requirements and effect class, and chooses a trusted transport. Rust, Git, build systems and service APIs are examples, **not** capability names that EG should hardcode. Built-in E0/E2 behavior is a packaged baseline, not a universal ceiling. Missing operations require approved capability onboarding with scoped permissions, attestation, durable receipts, readback, and rollback as appropriate; no untrusted self-registration grants permission. The local static preflight evaluates only this package's bundled worker and cannot conclude that all external adapters are unavailable.

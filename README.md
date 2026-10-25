@@ -97,18 +97,18 @@ trusted executor.
 
 **3. Learn the contracts before admitting effects.** The [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) describes PRE, signed receipts, POST, and evidence requirements. For development and isolated regression testing, see the [application and developer guide](eg/README.md#build-and-test).
 
-For a **real single-agent local website exercise** (four independently receipted file creations, a separately verified revision, and HTTP asset smoke testing), see [the cafe project E2E](eg/docs/SINGLE_AGENT_LOCAL_E2E.md). This is an isolated staging integration test, **not** an unrestricted agent runner or production deployment.
+For a signed provider-neutral process example, see `eg/tests/test_process_external_e2e.py` and [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md). One generic worker can serve many independently approved task targets.
 
 ## Current boundaries
 
-EG governs execution; it is **not** a general-purpose remote shell.
+EG is a **generic, provider-neutral work governance system**, not a remote root shell. Preapproved catalog profiles can serve many projects without adding code for each tool or provider.
 
 | Execution scope | Current support |
 | --- | --- |
 | **E0** bounded reads | Bundled trusted worker |
 | **E2** reversible file creation and SHA-256-bound replacement | Bundled trusted worker, restricted output directory and allowlisted suffixes |
 | **E3–E5** higher-effect operations | Generic typed-adapter path only when an independently provisioned, authenticated external worker is admitted |
-| Arbitrary shell and real service cutover | **Not available** through the bundled worker; remain blocked without an appropriately deployed and verified trusted transport |
+| Service control and higher-effect operations | Reuse a signed, operator-approved generic process profile under E3–E5; no bespoke provider module is required |
 
 The E3–E5 disposable adapters included for repository tests are **CI fixtures, not production executors**. Human approval alone cannot create a missing execution capability. EG also cannot enforce actions performed entirely outside its trusted boundary.
 
@@ -123,7 +123,8 @@ The E3–E5 disposable adapters included for repository tests are **CI fixtures,
 | [Agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) | Actual API, typed workers, recovery and common blockers |
 | [Agent quickstart](eg/docs/AGENT_QUICKSTART.md) | Readiness checks, admitted capabilities, and safe agent usage |
 | [Executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Exact PRE/POST contracts, evidence, and receipts |
-| [Independent E3 process worker](eg/docs/OPERATOR_PROCESS_SERVICE.md) | One-time operator provisioning for fixed build/test commands |
+| [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md) | One multi-target process catalog shared across projects and environments |
+| [Independent E3 process worker](eg/docs/OPERATOR_PROCESS_SERVICE.md) | One-time operator provisioning for reusable fixed-operation profiles |
 | [Architecture](eg/docs/UNIFIED_ARCHITECTURE.md) | Components, isolation, and trust boundaries |
 | [Remediation protocol](eg/docs/REMEDIAL_PROTOCOL.md) | Failure handling and controlled repair |
 | [Production promotion](eg/docs/PRODUCTION_PROMOTION.md) | Software release versus live production readiness |
