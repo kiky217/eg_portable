@@ -24,13 +24,14 @@ from tools.operator_runtime_registry import OperatorAdapterRegistry
 from tools.high_effect_admission import AdapterCapability
 from tools.trusted_generic_rpc import serve
 from tools.trusted_process_effect import TrustedProcessEffect
+from tools.trusted_process_catalog import TrustedProcessCatalog
 from tools.typed_payload_contract import canonical as json_canonical
 from tools.governed_agent_dispatcher import dispatch_action
 
 pytestmark=pytest.mark.skipif(os.getuid()!=0,reason="distinct-UID CI only")
 
 
-@pytest.mark.parametrize("example", ("echo", "cafe_build_test_http"))
+@pytest.mark.parametrize("example", ("echo", "generic_http_check", "generic_catalog"))
 def test_third_process_consumer_signed_registry_physical_post(monkeypatch,example):
     uid=65532
     base=Path(tempfile.mkdtemp(prefix="eg-process-",dir="/tmp"))
@@ -38,21 +39,21 @@ def test_third_process_consumer_signed_registry_physical_post(monkeypatch,exampl
     socket_dir=base/"socket";socket_dir.mkdir(mode=0o700)
     journal=base/"journal";journal.mkdir(mode=0o700)
     project=base/"project";project.mkdir(mode=0o700)
-    if example=="cafe_build_test_http":
+    if example=="generic_http_check":
         # Operator-owned pinned verifier: compile, validate a menu and serve an
         # actual loopback API; it is never an agent-controlled shell command.
         checker=project/"verify_app.py"
         checker.write_text('''import json,sys,threading,urllib.request
 from http.server import BaseHTTPRequestHandler,HTTPServer
-source='def menu(): return [{"name": "Espresso", "price": 19000}]'
+source='def items(): return [{"name": "Sample", "value": 19}]'
 namespace={}
-exec(compile(source,'cafe_api.py','exec'),namespace)
-expected=namespace['menu']()
-assert expected[0]['price']==19000
+exec(compile(source,'generic_api.py','exec'),namespace)
+expected=namespace['items']()
+assert expected[0]['value']==19
 class Api(BaseHTTPRequestHandler):
  def do_GET(self):
   data=json.dumps(expected).encode()
-  self.send_response(200 if self.path=='/menu' else 404)
+  self.send_response(200 if self.path=='/items' else 404)
   self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
  def log_message(self,*args): pass
 server=HTTPServer(('127.0.0.1',0),Api)
@@ -105,13 +106,20 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
         try:
             os.setgroups([])
             os.setgid(uid);os.setuid(uid)
-            process=TrustedProcessEffect(journal_dir=journal,private_key=worker,
-                adapter_id=adapter,hitl_key_b64=pub(human),
-                executable=str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if example=="cafe_build_test_http" else "/usr/bin/cat",
-                fixed_args=(str(checker),) if example=="cafe_build_test_http" else (),
-                target=target,timeout=5,max_stdout=4096,
-                input_schema=input_schema,input_schema_sha256=schema_hash,
-                output_schema=input_schema,output_schema_sha256=schema_hash)
+            common=dict(journal_dir=journal,private_key=worker,
+                adapter_id=adapter,hitl_key_b64=pub(human))
+            if example=="generic_catalog":
+                process=TrustedProcessCatalog(**common,profiles=[
+                    {"target":target,"executable":"/usr/bin/cat","fixed_args":[]},
+                    {"target":"/tasks/process/another","executable":"/usr/bin/cat",
+                     "fixed_args":[],"timeout":5}])
+            else:
+                process=TrustedProcessEffect(**common,
+                    executable=str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if example=="generic_http_check" else "/usr/bin/cat",
+                    fixed_args=(str(checker),) if example=="generic_http_check" else (),
+                    target=target,timeout=5,max_stdout=4096,
+                    input_schema=input_schema,input_schema_sha256=schema_hash,
+                    output_schema=input_schema,output_schema_sha256=schema_hash)
             serve(socket_path=sock,adapter=process,capability_sha256=capsha,
                   eg_url=url,eg_key=H.API_KEY,hitl_public_key_b64=pub(human),
                   controller_uid=0,max_requests=3)
@@ -149,7 +157,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(reg_dir))
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",
                            pub(operator))
-        if example=="cafe_build_test_http":
+        if example=="generic_http_check":
             # Operator grants bounded staging authority once; no second AI
             # agent, and the E3 worker still enforces the exact signed PRE.
             from tools.operator_scoped_approval import Grants
