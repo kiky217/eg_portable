@@ -46,6 +46,26 @@ Preferred executor entrypoint: `tools.governed_agent_dispatcher.dispatch_action(
 
 For provisioning: [operator staging bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md), [E3 service](OPERATOR_PROCESS_SERVICE.md), [standing signer](SCOPED_STAGING_APPROVAL.md), [generic execution model](GENERIC_EXECUTION_MODEL.md), [operator operations](OPERATIONS.md). None is a universal arbitrary-shell authority.
 
+### Producer-neutral source labels (runtime contract)
+
+`Evidence.source_type` is a bounded lowercase producer label ending in
+`_task`, or `manual` for non-authoritative claims. Valid examples:
+`trusted_task`, `external_task`, `pipeline_task`. It is **not** a
+provider enum or permission list. Existing historical `*_task` source
+labels remain readable as-is without modifying any signed journal.
+Every authoritative label must pass the **same** independent notary
+manifest-v4 verification, owner/path safeguards, exact criterion/phase/
+checkpoint binding and freshness tests. Unknown-but-well-formed labels
+cannot sign their own evidence, and `manual` never verifies an authoritative
+claim. See `app/main.py` and `tests/test_generic_evidence_provenance.py`.
+
+No executor is chosen by a producer label. The only physical dispatch inputs
+are the original typed `action`, live worker/registry policy, PRE gate,
+independent signer and scoped capability match. The documented generic
+`/tasks/...` catalog is **E3 bounded_process_run only**. E4/E5 require
+their own independently approved typed worker; E1 is not a blanket network
+permission.
+
 ## 3. Mutating routes and exact task progression
 
 | Method and route | Constraints |
