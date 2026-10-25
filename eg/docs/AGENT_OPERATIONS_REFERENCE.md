@@ -1,7 +1,8 @@
 # EG Agent Operations Reference — current executable contract
 
-Use one approved E3 process catalog for all matching actions. E4/E5 still
-require independently provisioned typed workers. See
+Use the same generic bounded-process catalog implementation for independently
+provisioned **E3, E4 or E5** typed actions. Every class still requires
+its own operator-pinned worker/binding and signed HITL. See
 [Generic execution model](GENERIC_EXECUTION_MODEL.md).
 
 Read [root SKILL](../../SKILL.md) first. This operational index is grounded in `eg/app/main.py`, `tools/governed_agent_dispatcher.py`, the supported E0/E2 worker and `docs/EXECUTOR_PROTOCOL.md`. It is guidance, **not** authority to execute, deploy, sign HITL, or operate an unprovisioned system. The actual target EG runtime and its original signed task always win over sample paths and a GitHub release.
@@ -62,9 +63,12 @@ claim. See `app/main.py` and `tests/test_generic_evidence_provenance.py`.
 No executor is chosen by a producer label. The only physical dispatch inputs
 are the original typed `action`, live worker/registry policy, PRE gate,
 independent signer and scoped capability match. The documented generic
-`/tasks/...` catalog is **E3 bounded_process_run only**. E4/E5 require
-their own independently approved typed worker; E1 is not a blanket network
-permission.
+`/tasks/...` process catalog now supports **E3/E4/E5** through the
+same worker code with separate class-bound effect/action policy, independent
+signature, 1–32 fixed target profiles and original PRE/POST. E4 requires
+`reversible=true` and a separate governed corrective action when needed;
+E5 is deliberately irreversible. An unavailable authorized capability
+cannot be synthesized. E1 is not blanket network permission.
 
 ## 3. Mutating routes and exact task progression
 

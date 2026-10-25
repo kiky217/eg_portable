@@ -135,3 +135,37 @@ def test_one_generic_catalog_bootstraps_multiple_tasks_in_named_environment():
         assert result['adapter_id']==policy['adapter_id']
     finally:
         shutil.rmtree(base,ignore_errors=True)
+
+
+@pytest.mark.parametrize("effect", ["E4", "E5"])
+@pytest.mark.skipif(os.geteuid()!=0,reason="independent-UID operator bootstrap fixture")
+def test_high_effect_generic_worker_provisions_without_new_executor_module(effect):
+    base=Path(tempfile.mkdtemp(prefix="eg-generic-high-",dir="/tmp"))
+    try:
+        base.chmod(0o755)
+        credential=base/"gateway.key"
+        credential.write_text("isolated-high-effect-gateway-fixture\n")
+        credential.chmod(0o600)
+        policy={"root":str(base/"worker-install"),"worker_uid":WORKER,
+                "signer_uid":SIGNER,"agent_uid":AGENT,
+                "adapter_id":"trusted-adapter-high-"+effect.lower(),
+                "target_prefix":"/tasks/workflow",
+                "effect_class":effect,"action_type":"bounded_process_run",
+                "profiles":[
+                    {"target":"/tasks/workflow/app","executable":"/usr/bin/cat","fixed_args":[]},
+                    {"target":"/tasks/workflow/database","executable":"/usr/bin/cat","fixed_args":[]}],
+                "eg_url":"http://127.0.0.1:18766",
+                "gateway_key_file":str(credential)}
+        with pytest.raises(ValueError,match="INVALID_TYPED_OPERATOR_CAPABILITY"):
+            provision({**policy,"effect_class":"E9"})
+        result=provision(policy)
+        assert result["capability"]["effect_class"]==effect
+        assert result["capability"]["action_type"]=="bounded_process_run"
+        worker=json.loads((Path(policy["root"])/"worker/config.json").read_text())
+        signer=json.loads((Path(policy["root"])/"signer/config.json").read_text())
+        assert worker["effect_class"]==signer["effect_class"]==effect
+        assert worker["action_type"]==signer["action_type"]=="bounded_process_run"
+        assert len(worker["profiles"])==2
+        assert result["capability"]["ci_only"] is False
+    finally:
+        shutil.rmtree(base,ignore_errors=True)

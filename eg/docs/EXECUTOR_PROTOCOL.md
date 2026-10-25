@@ -249,12 +249,16 @@ not proof of a real-world production cutover.
 
 The single provider-neutral `governed_agent_dispatcher.dispatch_action` routes
 E0/E2 to the restricted file worker and E3–E5 to independently admitted typed
-external workers. The **bundled multi-profile process catalog implements E3
-`bounded_process_run` only**; it does not implement E4/E5, arbitrary
-provider API calls, dynamic shell commands or privilege escalation.
+external workers. The **same** multi-profile process-catalog implementation is usable for
+operator-pinned **E3, E4 or E5** bounded actions. The root-owned first-run
+policy may select a matching `effect_class` and `action_type`; it creates a
+separate class-bound signed worker and matching independent HITL policy.
+It does not grant arbitrary provider API calls, dynamic shell commands or
+privilege escalation. E4 requires `reversible=true`; E5 requires
+`reversible=false` and forbids compensation.
 
 An independent operator may provision 1–32 exact, unique `/tasks/...` targets
-under one signed E3 process adapter with one worker identity, one Unix socket
+under one signed class-bound E3/E4/E5 process adapter with one worker identity, one Unix socket
 and one durable nonce ledger. The protected worker config chooses either
 `profiles` or legacy `executable`/`fixed_args`/`target`, not both.
 Each profile pins executable, fixed arguments and bounded runtime/output. The

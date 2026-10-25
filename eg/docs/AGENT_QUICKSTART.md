@@ -1,8 +1,9 @@
 # Agent quickstart — provider-neutral runtime and admission
 
 See [Generic execution model](GENERIC_EXECUTION_MODEL.md). One independently
-installed E3 catalog can serve many approved task targets; E4/E5 rely on their
-own supported typed effects and authorized external workers.
+installed typed E3–E5 process catalog can serve many approved task targets.
+Each effect class needs a matching independently authorized worker/policy,
+not provider-specific source code.
 
 **First read [root SKILL.md](../../SKILL.md).** For all supported API routes, exact request/response fields, operator/agent responsibilities and receipt recovery, follow the [agent operations reference](AGENT_OPERATIONS_REFERENCE.md). This is an operational entry point, not an alternate evaluator or an override of the canonical executor contract.
 
@@ -46,7 +47,7 @@ After one-time operator provisioning, the E0/E2 agent can call `dispatch_action(
 
 For an independent non-root agent/controller to call the built-in E2 worker, the operator may set `controller_uid` and `controller_group_gid` in the existing worker configuration. Put the Unix socket in a worker-owned, group-owned private directory (`2710`) and ensure the controller belongs to that approved group. EG checks the exact Linux `SO_PEERCRED` UID on each connection and makes the socket group-writable (`0660`) only for that configuration; the default remains worker-private (`0600`). This does not grant execution rights beyond fresh PRE, receipt and POST. A working example is `tests/test_e2_controller_group.py`.
 
-An authorized administrator can generate the separate non-AI worker/signer identities and signed operator binding with the [one-time staging bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md). This is not self-admission by the AI agent. For a reusable operator-pinned build/test process worker, see [one-time E3 process worker onboarding](OPERATOR_PROCESS_SERVICE.md). This requires an independent OS operator, not another AI agent. For repeated staging builds/tests under one preapproved scope, a separate [non-AI standing policy signer](SCOPED_STAGING_APPROVAL.md) can provide short-lived, exact-gate E3 approvals with a protected signer identity, durable nonce reuse and operator-defined limits; this never self-admits or approves production actions.
+An authorized administrator can generate the separate non-AI worker/signer identities and signed operator binding with the [one-time staging bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md). This is not self-admission by the AI agent. For a reusable operator-pinned E3–E5 process worker, see [one-time E3 process worker onboarding](OPERATOR_PROCESS_SERVICE.md). This requires an independent OS operator, not another AI agent. For repeated staging builds/tests under one preapproved scope, a separate [non-AI standing policy signer](SCOPED_STAGING_APPROVAL.md) can provide short-lived, exact-gate E3 approvals with a protected signer identity, durable nonce reuse and operator-defined limits; this never self-admits or approves production actions.
 
 The minimal [single-agent workflow](SINGLE_AGENT_WORKFLOW.md) reuses EG's original REGISTER → PRE → independently signed execution receipt → POST → task acceptance path without another AI agent and without blind retries.
 

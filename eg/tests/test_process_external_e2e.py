@@ -31,14 +31,34 @@ from tools.governed_agent_dispatcher import dispatch_action
 pytestmark=pytest.mark.skipif(os.getuid()!=0,reason="distinct-UID CI only")
 
 
-@pytest.mark.parametrize("example", ("echo", "generic_http_check", "generic_catalog"))
+@pytest.mark.parametrize("example", ("echo", "generic_http_check", "generic_catalog", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"))
 def test_third_process_consumer_signed_registry_physical_post(monkeypatch,example):
+    effect = {"generic_e4": "E4", "generic_e5": "E5",
+              "generic_no_effect_e4": "E4", "generic_no_effect_e5": "E5"}.get(example, "E3")
     uid=65532
     base=Path(tempfile.mkdtemp(prefix="eg-process-",dir="/tmp"))
     base.chmod(0o755)
     socket_dir=base/"socket";socket_dir.mkdir(mode=0o700)
     journal=base/"journal";journal.mkdir(mode=0o700)
     project=base/"project";project.mkdir(mode=0o700)
+    if example in ("generic_e4","generic_e5"):
+        checker=project/"effect.py"
+        checker.write_text("""import os,sys
+from pathlib import Path
+raw=sys.stdin.buffer.read()
+p=Path(__file__).with_name("state.json")
+if sys.argv[1]=="E5":
+    with p.open("xb") as fd:
+        fd.write(raw);fd.flush();os.fsync(fd.fileno())
+else:
+    p.write_bytes(raw)
+sys.stdout.buffer.write(raw)
+""")
+        os.chown(checker,uid,uid)
+        if effect=="E4":
+            prior=project/"state.json"
+            prior.write_bytes(b"BEFORE")
+            os.chown(prior,uid,uid)
     if example=="generic_http_check":
         # Operator-owned pinned verifier: compile, validate a generic object and serve an
         # actual loopback API; it is never an agent-controlled shell command.
@@ -78,11 +98,11 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
                   "properties":{"message":{"type":"string","minimum":1,"maximum":80}}}
     schema_hash=hashlib.sha256(json_canonical(input_schema)).hexdigest()
     cap=AdapterCapability(adapter_id=adapter,action_type="bounded_process_run",
-        effect_class="E3",target_prefix="/tasks/process/",maximum_payload_bytes=4096,
+        effect_class=effect,target_prefix="/tasks/process/",maximum_payload_bytes=4096,
         isolated=True,public_key_b64=pub(worker),ci_only=False)
     capsha=hashlib.sha256(canon(asdict(cap))).hexdigest()
-    action={"action_type":"bounded_process_run","effect_class":"E3","target":target,
-            "real_world_effect":True,"reversible":True,
+    action={"action_type":"bounded_process_run","effect_class":effect,"target":target,
+            "real_world_effect":True,"reversible":effect!="E5",
             "payload_sha256":hashlib.sha256(payload).hexdigest(),
             "payload_bytes":len(payload),"proofs":[]}
 
@@ -108,9 +128,12 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             os.setgid(uid);os.setuid(uid)
             common=dict(journal_dir=journal,private_key=worker,
                 adapter_id=adapter,hitl_key_b64=pub(human))
-            if example=="generic_catalog":
-                process=TrustedProcessCatalog(**common,profiles=[
-                    {"target":target,"executable":"/usr/bin/cat","fixed_args":[]},
+            if example in ("generic_catalog", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"):
+                script_mode=example in ("generic_e4","generic_e5")
+                process=TrustedProcessCatalog(**common,effect_class=effect,profiles=[
+                    {"target":target,
+                     "executable":str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if script_mode else "/usr/bin/cat",
+                     "fixed_args":[str(checker),effect] if script_mode else []},
                     {"target":"/tasks/process/another","executable":"/usr/bin/cat",
                      "fixed_args":[],"timeout":5}])
             else:
@@ -157,14 +180,15 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR",str(reg_dir))
         monkeypatch.setenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64",
                            pub(operator))
-        if example=="generic_http_check":
+        if example in ("generic_http_check", "generic_e4", "generic_e5", "generic_no_effect_e4", "generic_no_effect_e5"):
             # Operator grants bounded staging authority once; no second AI
             # agent, and the E3 worker still enforces the exact signed PRE.
             from tools.operator_scoped_approval import Grants
             grant_dir=base/"grant-ledger";grant_dir.mkdir(mode=0o700)
             approvals=Grants({"key":human,"ledger_dir":str(grant_dir),
                 "adapter_id":adapter,"target_prefix":"/tasks/process",
-                "expires_at":int(time.time())+120,"max_grants":2,"max_payload_bytes":4096})
+                "expires_at":int(time.time())+120,"max_grants":2,"max_payload_bytes":4096,
+                "effect_class":effect, "action_type":"bounded_process_run"})
             approval=approvals.issue({"task_id":task,"step_key":"01.01",
                 "gate_checkpoint_no":1,"action":action})
             assert approvals.issue({"task_id":task,"step_key":"01.01",
@@ -175,6 +199,33 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
                      claims=[high_pre_claim(high_pre_ref(task,0))],
                      phase="PRE_EXECUTION",action=action,hitl_approval=approval)
         assert pre.status_code==200 and pre.json()["verdict"]=="READY_TO_EXECUTE",pre.text
+        if example.startswith("generic_no_effect_"):
+            cp=pre.json()["checkpoint_no"]
+            control={"contract_hash":contract,"protocol_hash":H.gw.protocol_hash(),
+                     "checkpoint_no":cp,"reason":"isolate uncertain worker result"}
+            paused=H.CLIENT.post("/v1/tasks/"+task+"/pause",headers=H.HEAD,
+                json={"event_id":H.eid("pause"),**control})
+            assert paused.status_code==200,paused.text
+            resumed=H.CLIENT.post("/v1/tasks/"+task+"/resume",headers=H.HEAD,
+                json={"event_id":H.eid("resume"),**control})
+            assert resumed.status_code==200 and resumed.json()["status"]=="RECOVERY_PENDING"
+            neutral=dispatch_action(
+                request={"task_id":task,"step_key":"01.01","action":action,"data_b64":""},
+                eg_url=url,api_key=H.API_KEY,executor_public_key_b64=pub(H.EXEC_PRIV),
+                hitl_public_key_b64=pub(human),hitl_approval=approval,operation="no_effect")
+            assert neutral["status"]=="SIGNED_NO_EFFECT_RECONCILIATION_REQUIRED"
+            assert neutral["no_effect_proof"]["status"]=="NOT_EXECUTED"
+            assert not (project/"state.json").exists()
+            reconciled=H.CLIENT.post("/v1/tasks/"+task+"/reconcile",headers=H.HEAD,
+                json={"event_id":H.eid("reconcile"),"contract_hash":contract,
+                      "protocol_hash":H.gw.protocol_hash(),"checkpoint_no":cp,
+                      "step_key":"01.01","action":action,
+                      "proof":neutral["no_effect_proof"],
+                      "executor_public_key_b64":pub(worker)})
+            assert reconciled.status_code==200,reconciled.text
+            assert reconciled.json()["reconciled_effect"]=="NOT_EXECUTED"
+            assert reconciled.json()["checkpoint_no"]==cp
+            return
         result=dispatch_action(
             request={"task_id":task,"step_key":"01.01","action":action,
                      "data_b64":base64.b64encode(payload).decode()},
@@ -182,6 +233,10 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             hitl_public_key_b64=pub(human),hitl_approval=approval)
         assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
         assert result["execution_receipt"]["output_sha256"]==hashlib.sha256(payload).hexdigest()
+        if example in ("generic_e4","generic_e5"):
+            assert (project/"state.json").read_bytes()==payload
+        if effect=="E5":
+            assert action["reversible"] is False
         post=raw_eval(task,contract,pre.json()["checkpoint_no"],step="01.01",
                  claims=[claim(step_ref(task,"POST_EXECUTION",pre.json()["gate_checkpoint_no"]))],
                  phase="POST_EXECUTION",action=action,

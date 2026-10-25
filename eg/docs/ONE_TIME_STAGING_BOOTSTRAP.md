@@ -20,6 +20,7 @@ operation modes are:
 | `worker_uid`, `signer_uid`, `agent_uid` | Three existing distinct **non-root** OS identities |
 | `adapter_id` | Operator-chosen ID beginning `trusted-adapter-` |
 | `target_prefix` | Bounded permitted `/tasks/...` scope; required in both modes |
+| `effect_class`, `action_type` | Optional paired operator selection of E3/E4/E5 and typed action; defaults E3 / `bounded_process_run` | 
 | `profiles` | Generic mode: 1–32 unique exact target, executable, fixed_args, optional timeout/max_stdout |
 | `target`, `executable`, `fixed_args` | Legacy mode only; use **instead** of `profiles` |
 | `eg_url` | HTTPS gateway or local loopback gateway |
@@ -75,3 +76,7 @@ separately privileged system services. If the controlling agent has host root,
 new accounts alone cannot demonstrate an independently secured production
 signer: root can still access/reconfigure all local UID domains. Never claim
 independent trust without a genuinely protected enforcement boundary.
+
+### Identical bootstrap for E3, E4 and E5
+
+A new worker does **not** need application-specific executor source. To provision high-effect operations, the operator supplies **both** `effect_class` and `action_type` in the existing protected root-owned policy; the installer pins them into the capability descriptor, worker configuration and independently owned scoped signer configuration. E4 profiles admit only reversible actions; E5 profiles admit only explicitly irreversible actions and forbid compensation. Each effect class remains a separately signed adapter and needs its own live trust domain. Use the same Python worker implementation and operator registry, not a new module per provider. No automatic admission or unreviewed OS permission is granted by installer success.

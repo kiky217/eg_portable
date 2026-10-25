@@ -21,7 +21,7 @@ Call authenticated `GET /v1/agent/capabilities` on the **actual** EG instance be
 - Before claiming, match exact desired action, effect class, target, adapter identity and testable result to a live, independently trusted adapter. If missing, report `CAPABILITY_UNAVAILABLE` and specify required adapter contract. Do not use direct shell, CI fixture, a dummy key, fabricated receipt, or HITL as a substitute.
 
 ## Portable capability model
-**Reusable generic E3 execution:** prefer an operator-pinned multi-target catalog (one adapter, several preapproved commands) via `trusted_process_catalog.py`. A new project never requires a bespoke executor implementation if a live catalog profile already matches. See [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
+**Reusable generic E3–E5 execution:** prefer an operator-pinned multi-target catalog (one adapter, several preapproved commands) via `trusted_process_catalog.py`. An operator may provision the same bounded process-catalog implementation for E3, E4 or E5 with class-bound `effect_class` and `action_type`; profiles are exact-scoped. Different effect classes require separately authorized typed bindings. A new project never requires bespoke EG executor code if a live profile already matches. See [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
 
 EG must not hardcode Rust, Git, Docker or any programming toolchain as universal requirements. Discover **registered runtime capabilities** from the target deployment. Match typed action, effect class, scope, constraints, attested executor identity and evidence/receipt contract. Prefer an already-authorized native tool or adapter; agents may propose or install a new adapter only through the operator-approved onboarding and trust process. A self-declared capability is never automatically admitted. The bundled E0/E2 worker is a baseline, **not an upper bound of EG's extensible architecture**. The local readiness script reports only bundled-worker compatibility, not what an external deployment may provide.
 
@@ -239,7 +239,7 @@ installation. Root on the **same host** can still control all such accounts:
 a root-capable agent must not claim its signer is independent solely by
 dropping UID.
 
-The multi-target policy has common fields `root`, `worker_uid`,
+The multi-target policy accepts optional **paired** `effect_class` (E3/E4/E5) and `action_type` (operator-pinned typed name); absent both it preserves E3 `bounded_process_run` compatibility. Its common fields are `root`, `worker_uid`,
 `signer_uid`, `agent_uid`, `adapter_id`, `target_prefix`, `eg_url`,
 `gateway_key_file`, and `profiles` (1–32 unique `/tasks/...` targets).
 Each profile pins an independently controlled absolute executable, immutable
@@ -257,8 +257,8 @@ signing authority is fabricated by the agent.
 | E1 | No blanket network read permission | Independently admitted typed worker |
 | E2 | Worker-owned restricted create/compare-and-swap replace (512 KiB limit) | Matching allowed suffix/root, PRE proofs and independent worker |
 | E3 | Bounded `bounded_process_run` via 1–32 operator-pinned profiles | New **operator-approved profile/policy**, not bespoke source module |
-| E4 | Generic dispatcher only; no E4 process-catalog implementation | Independently governed E4 typed worker, compensation as applicable |
-| E5 | Generic dispatcher only; no E5 process-catalog implementation | Independently governed E5 worker/HITL; compensation prohibited |
+| E4 | Reusable signed bounded-process catalog with operator-pinned `effect_class=E4`, typed action and profiles | Independent E4 authorization, `reversible=true`, PRE/receipt/POST; compensation is a new separately governed operation |
+| E5 | The **same** worker implementation with pinned `effect_class=E5` and typed action/profile | Independent E5 authorization, `reversible=false`, PRE/receipt/POST; **no compensation/replay** |
 
 A profile cannot issue arbitrary agent-selected commands or escape its
 configured OS permissions, fixed argv, bounded stdin/output and 1–30-second
@@ -308,3 +308,7 @@ worker or a particular destination's external effects.
   worker runtime E2E. **Production** requires additional authorized live
   validation, full restoration and rollback evidence. Do not call CI PASS a
   production VERIFIED outcome.
+
+### Generic E4/E5 high-effect worker enrollment
+
+`operator_first_run.py` provisions an independently signed high-effect worker for the selected E3, E4 or E5 capability, using the **same** `operator_process_service.py`, `trusted_process_catalog.py`, `trusted_process_effect.py`, generic RPC, registry and receipt verifier. A separately protected signing policy is bound to the same `effect_class`, `action_type`, adapter ID, exact target prefix and bounded profiles. The agent never selects the executable or changes effect class at runtime. E4 requires `reversible=true`; E5 requires `reversible=false` and cannot be compensated. For rollback after an E4 result, register a new governed reversible E4 step using an independently authorized corrective profile and a fresh PRE/POST; there is no ungoverned `compensate` shortcut. The installed worker process must be live, pinned, independently protected and authorized; merely shipping the generic worker source never grants E4/E5 permissions. For a truly unexecuted original PRE, the operator-pinned worker supports `no_effect` over the same trusted RPC, atomically retires the unclaimed nonce and signs `NOT_EXECUTED`; only a canonical recovery-pending `/reconcile` consumes that gate without marking it VERIFIED. A claimed/unknown effect cannot be declared unexecuted. `recover_receipt` returns an existing sealed receipt without rerunning the action.

@@ -22,6 +22,7 @@ def setup(tmp_path):
     root=tmp_path/"ledger";root.mkdir(mode=0o700)
     w=object.__new__(TrustedProcessEffect)
     w.ledger=ApprovalLedger(root);w.private=priv;w.adapter_id="trusted-adapter-typed"
+    w.effect_class="E3";w.action_type="bounded_process_run"
     w.hitl_key_b64=pub(human);w.executable="/operator/pinned"
     w.fixed_args=();w.target="/tasks/typed/test"
     w.timeout=3;w.max_stdout=2048
@@ -96,3 +97,25 @@ def test_process_worker_rejects_replaceable_executable_ancestors(tmp_path):
     # A package-manager-owned immutable system path remains admissible.
     safe=TrustedProcessEffect(executable='/usr/bin/cat',**args)
     assert safe.executable=='/usr/bin/cat'
+
+def test_no_effect_retirement_is_signed_and_prevents_late_execution(tmp_path,monkeypatch):
+    from app.no_effect_receipts import verify_no_effect
+    worker,args=setup(tmp_path)
+    scope=dict(task_id=args["task_id"],step_key=args["step_key"],
+               gate_checkpoint_no=args["gate"]["checkpoint_no"],
+               action_fingerprint=action_fingerprint(args["action"]),
+               adapter_id=worker.adapter_id)
+    proof=worker.reconcile_no_effect(task_id=args["task_id"],step_key=args["step_key"],
+        action=args["action"],approval=args["approval"],gate=args["gate"])
+    assert verify_no_effect(proof,public_b64=pub(worker.private),
+        target=args["action"]["target"],gate_created_at=args["gate_created_at"],
+        **{k:v for k,v in scope.items() if k!="adapter_id"})
+    assert worker.ledger.claim_status(args["approval"]["nonce"],**scope) is None
+    # The original nonce is durably retired, even across future execute retries.
+    class Result:returncode=0;stdout=args["stdin"];stderr=b""
+    calls=[]
+    monkeypatch.setattr("tools.trusted_process_effect._bounded_process",
+        lambda *a,**kw: calls.append("executed") or Result())
+    with pytest.raises(Exception,match="RETIRED_NO_EFFECT"):
+        worker.execute(**args)
+    assert calls==[]
