@@ -46,6 +46,12 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
             provision({**policy,'profiles':[dict(policy['profiles'][0],executable=str(untrusted))]})
         with pytest.raises(ValueError,match='OUT_OF_SCOPE_OPERATOR_POLICY'):
             provision({**policy,'target_prefix':'/tasks/../escape'})
+        with pytest.raises(ValueError,match='INVALID_OPERATOR_POLICY'):
+            provision({**policy,'target':'/tasks/projects/build'})
+        implicit=dict(policy)
+        implicit.pop('effect_class')
+        with pytest.raises(ValueError,match='INVALID_OPERATOR_POLICY'):
+            provision(implicit)
         result=provision(policy)
         assert result['adapter_id']==policy['adapter_id']
         assert len({result['operator_public_key_b64'],result['hitl_public_key_b64'],
