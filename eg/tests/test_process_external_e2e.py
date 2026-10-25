@@ -40,6 +40,24 @@ def test_third_process_consumer_signed_registry_physical_post(monkeypatch,exampl
     socket_dir=base/"socket";socket_dir.mkdir(mode=0o700)
     journal=base/"journal";journal.mkdir(mode=0o700)
     project=base/"project";project.mkdir(mode=0o700)
+    if example in ("generic_e4","generic_e5"):
+        checker=project/"effect.py"
+        checker.write_text("""import os,sys
+from pathlib import Path
+raw=sys.stdin.buffer.read()
+p=Path(__file__).with_name("state.json")
+if sys.argv[1]=="E5":
+    with p.open("xb") as fd:
+        fd.write(raw);fd.flush();os.fsync(fd.fileno())
+else:
+    p.write_bytes(raw)
+sys.stdout.buffer.write(raw)
+""")
+        os.chown(checker,uid,uid)
+        if effect=="E4":
+            prior=project/"state.json"
+            prior.write_bytes(b"BEFORE")
+            os.chown(prior,uid,uid)
     if example=="generic_http_check":
         # Operator-owned pinned verifier: compile, validate a generic object and serve an
         # actual loopback API; it is never an agent-controlled shell command.
@@ -110,8 +128,11 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             common=dict(journal_dir=journal,private_key=worker,
                 adapter_id=adapter,hitl_key_b64=pub(human))
             if example in ("generic_catalog", "generic_e4", "generic_e5"):
+                script_mode=example in ("generic_e4","generic_e5")
                 process=TrustedProcessCatalog(**common,effect_class=effect,profiles=[
-                    {"target":target,"executable":"/usr/bin/cat","fixed_args":[]},
+                    {"target":target,
+                     "executable":str(next(p for p in (Path("/usr/bin/python3.12"),Path("/usr/bin/python3.13")) if p.is_file())) if script_mode else "/usr/bin/cat",
+                     "fixed_args":[str(checker),effect] if script_mode else []},
                     {"target":"/tasks/process/another","executable":"/usr/bin/cat",
                      "fixed_args":[],"timeout":5}])
             else:
@@ -184,6 +205,8 @@ sys.stdout.buffer.write(sys.stdin.buffer.read())
             hitl_public_key_b64=pub(human),hitl_approval=approval)
         assert result["status"]=="RECEIPT_VERIFIED_POST_REQUIRED"
         assert result["execution_receipt"]["output_sha256"]==hashlib.sha256(payload).hexdigest()
+        if example in ("generic_e4","generic_e5"):
+            assert (project/"state.json").read_bytes()==payload
         if effect=="E5":
             assert action["reversible"] is False
         post=raw_eval(task,contract,pre.json()["checkpoint_no"],step="01.01",
