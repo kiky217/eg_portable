@@ -152,31 +152,33 @@ Only authenticated original-gate PRE signing roots may validate subsequent
 E3–E5 POST or no-effect reconciliation; absence of a trustworthy root is BLOCKED.
 
 
-### Optional operator-scoped GitHub PR/merge E4 worker
+### Generic capability dispatch for any application
 
-The existing independent GitHub worker also supports an explicit operator-owned
-`operation_kind: "pull_requests"` config. The default (field omitted) remains
-`contents` for backward compatibility. PR mode uses policy fields
-`repository`, `branch_prefix` (for example `agent/`), `base_branches` (list
-of explicitly allowed destination branches), and `operations`
-(`create_pull_request` and/or `merge_pull_request`). The generic capability
-`action_type` is `github_pull_request`, `effect_class` is `E4`, and the
-`target_prefix` is `/github/<owner>/<repo>/pulls/`.
+The **E3 process catalog** (`tools.trusted_process_catalog.TrustedProcessCatalog`)
+provides one reusable operator-pinned worker for up to 32 exact action
+targets. Operators select installed executables and fixed arguments in a
+protected profile catalog. A project, language, database, host or API provider
+does **not** require a new EG executor module. The common agent interface is
+`tools.governed_agent_dispatcher.dispatch_action()`; it uses authenticated
+capability discovery, original PRE, an independent scoped approval, one
+signed worker receipt and canonical POST. A catalog entry **does not**
+automatically grant OS permission or real-world change authority.
 
-Create operations bind the head/base/title/body in the exact canonical
-`{"version":1,"operation":{...}}` signed payload; the action target is
-`/github/<owner>/<repo>/pulls/head/<head-branch>`. Merge operations bind the
-PR number, expected head commit SHA, and method; target is
-`/github/<owner>/<repo>/pulls/<number>`. The worker checks repository and
-branch policy before consuming approval, then performs one HTTPS GitHub API
-request, verifies PR/commit readback, seals an independent receipt, and
-requires canonical EG POST. Redirects are denied. An ambiguous acknowledgement
-is `UNKNOWN_NO_REPLAY` and must be reconciled using the original journal.
+The bundled `bounded_process_run` catalog is **E3 only**. E4/E5, or an effect
+that cannot safely fit an already approved process profile, still require
+an independently governed, capability-matched worker. The *generic dispatcher*
+accepts such externally provisioned workers; no special provider branches
+exist in EG core. No built-in GitHub write/PR/merge worker is shipped in
+`eg/tools/`. A provider API operation cannot be claimed as supported just
+because it is present in documentation or as a diagnostic capability.
 
-This operator-controlled mode never provisions tokens, signature keys,
-approvals, UIDs or workers from agent input. Granting GitHub credentials or
-a production merge approval remains outside the local CI fixture.
-
+For cross-environment bootstrap, exact profile syntax, operator UID separation,
+approval/replay limits and failure handling, use
+[Generic execution model](GENERIC_EXECUTION_MODEL.md),
+[Operator process service](OPERATOR_PROCESS_SERVICE.md) and
+[Agent operations reference](AGENT_OPERATIONS_REFERENCE.md).
+If the capability is not authorized, fail closed and report the missing
+policy/scope; never silently substitute a host shell or a CI fixture.
 
 ### Source-pinned semantic hardcode review (#104)
 

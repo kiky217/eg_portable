@@ -108,7 +108,8 @@ EG is a **generic, provider-neutral work governance system**, not a remote root 
 | **E0** bounded reads | Bundled trusted worker |
 | **E2** reversible file creation and SHA-256-bound replacement | Bundled trusted worker, restricted output directory and allowlisted suffixes |
 | **E3–E5** higher-effect operations | Generic typed-adapter path only when an independently provisioned, authenticated external worker is admitted |
-| Service control and higher-effect operations | Reuse a signed, operator-approved generic process profile under E3–E5; no bespoke provider module is required |
+| **E3 bounded processes** | Reuse signed, operator-approved process catalog profiles; no project-specific executor module is required |
+| **E4/E5 or unsupported operations** | Generic typed external dispatch, but requires an independently authorized matching worker; the E3 process catalog does not implement E4/E5 |
 
 The E3–E5 disposable adapters included for repository tests are **CI fixtures, not production executors**. Human approval alone cannot create a missing execution capability. EG also cannot enforce actions performed entirely outside its trusted boundary.
 

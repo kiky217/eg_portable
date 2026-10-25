@@ -67,9 +67,9 @@ adapter through the signed registry, and calls
 original action and independently signed approval. With a signed operator
 registry installed, omitting the adapter ID triggers authenticated read-only
 typed/scope discovery: **exactly one active adapter** is selected or dispatch
-fails closed without executing anything. The same dispatcher works for process,
-GitHub or newly provisioned typed adapters; no project/provider branches are
-added to EG core.
+fails closed without executing anything. The same dispatcher works for any independently provisioned typed external
+adapter without adding project/provider branches to EG core. The bundled
+process catalog implements E3 only, not E4/E5 or provider API writes.
 
 If admission is disabled or no separately provisioned adapter exists, the
 correct result is **NOT_ADMITTED / OPERATOR_PROVISIONING_REQUIRED**, including

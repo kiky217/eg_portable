@@ -1,6 +1,8 @@
-Operator standing approval is generic and targets a signed scope, not a provider. One standing policy can cover many already-provisioned process catalog profiles; it never permits arbitrary shell. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
+# Generic E3 scoped standing approval
 
-# One agent, bounded standing E3 staging approval
+One independently provisioned, non-AI signer can issue bounded approvals for
+many already-approved process profiles under the same typed scope.
+See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
 
 A task does **not** need a second AI agent to supply every signed HITL envelope.
 An authorized human/operator may provision a **separate, non-AI signing process**
@@ -8,7 +10,7 @@ with a short-lived, narrowly scoped standing policy. The policy is authority
 granted at installation; it is *not* an agent's self-approval or a claim that a
 human reviewed each action.
 
-This optional process implements **E3 bounded_process_run in staging only**.
+This optional signer authorizes **E3 `bounded_process_run` only within the operator-pinned target scope and grant limits**. Its policy is environment-neutral; separate deployment authorization is still required for production changes.
 All of EG's requirements remain: registered task, original action-bound PRE,
 a distinct admitted executor, nonce no-replay, independently signed execution
 receipt, result evidence and canonical POST. The approval *never* completes
@@ -67,7 +69,7 @@ real hosts.
 The agent asks the Unix socket for an approval containing only
 `task_id`, `step_key`, `gate_checkpoint_no`, and the *complete intended action*.
 The signer independently derives the canonical action fingerprint. Only
-`E3/bounded_process_run`, targets within the preapproved staging prefix,
+`E3/bounded_process_run`, targets within the preapproved target prefix,
 payloads below the operator's limit and unexpired grants receive a short-lived
 Ed25519 signature.
 
@@ -81,9 +83,9 @@ If a request falls outside the signed standing authority, the result is
 Run the checks through
 `tests/test_operator_scoped_approval.py` (non-root signer/agent, key denial,
 identity pinning, scope and quota), and
-`tests/test_process_external_e2e.py` (actual E3 café compilation/HTTP with
+`tests/test_process_external_e2e.py` (actual generic E3 HTTP fixture with
 the same kind of grant, independent physical worker, signed PRE/POST).
 
-**Not supported:** production approvals, unrestricted shell commands, automatic
-service deployment or signed authority that has never been issued by the
-operator. Issue #104 closed on local/staging engineering acceptance. Its closure does not authorize production deployment or remove the independent operator prerequisite.
+**Not authorized automatically:** production changes, unrestricted shell commands,
+service deployment or signing privileges outside the operator policy. A
+valid scoped approval does not prove a live production executor or deployment. Issue #104 closed on local/staging engineering acceptance. Its closure does not authorize production deployment or remove the independent operator prerequisite.
