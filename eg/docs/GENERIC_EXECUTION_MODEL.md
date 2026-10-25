@@ -4,13 +4,15 @@ EG is a provider-neutral evaluation and evidence gateway, not a catalog of proje
 
 ## One-time generic operator bootstrap
 
-`tools.operator_first_run` provisions one worker identity, one signing domain and one bounded approval signer. It accepts either the legacy single target or a multi-target **profiles** catalog under one `target_prefix`. There is no new Python executor module per project. One catalog can authorize up to 32 fixed operations without modifying EG source.
+`tools.operator_first_run` provisions one worker identity, one signing domain and one bounded approval signer. It requires a typed E3/E4/E5 **profiles** catalog under one `target_prefix`. There is no new Python executor module per project. One catalog can authorize up to 32 fixed operations without modifying EG source.
 
 Operator-only policy fragment (not an executable or a substitute for operator authority):
 
 ```json
 {
   "adapter_id": "trusted-adapter-workflow",
+  "effect_class": "E3",
+  "action_type": "bounded_process_run",
   "target_prefix": "/tasks/workflow",
   "profiles": [
     {"target": "/tasks/workflow/inspect", "executable": "/usr/bin/cat", "fixed_args": [], "timeout": 5},
@@ -21,7 +23,7 @@ Operator-only policy fragment (not an executable or a substitute for operator au
 
 The complete root-owned installer policy also needs `root`, `worker_uid`, `signer_uid`, `agent_uid`, `eg_url` and `gateway_key_file`. The example illustrates routing only: `cat` does not run a service or manage a database. The operator must pin executables that actually implement approved actions, verify their OS permissions and audit their immutable script/argument dependencies.
 
-After provisioning, `operator_process_service.py` accepts a private `profiles` array **instead of** legacy `executable`, `fixed_args` and `target` keys. Profiles have unique exact target names under `/tasks/`, fixed executable/argv, 1–30-second timeouts and bounded output. One adapter identity, socket, signer and nonce journal serve all profiles. The agent supplies neither shell command nor executable nor target-to-argv mapping.
+After provisioning, `operator_process_service.py` requires an explicit typed `effect_class`, `action_type`, and private `profiles` array. Top-level executable/target fields are not accepted. Profiles have unique exact target names under `/tasks/`, fixed executable/argv, 1–30-second timeouts and bounded output. One adapter identity, socket, signer and nonce journal serve all profiles. The agent supplies neither shell command nor executable nor target-to-argv mapping.
 
 ## Generic task flow
 
@@ -46,7 +48,7 @@ Verification: `cd eg && python -m pytest -q tests`. Focused: `pytest -q tests/te
 
 ## Reuse across hosts and time windows
 
-The operator bootstrap accepts optional `environment`, `grant_seconds` and `max_grants`, with enforced bounds, in both legacy and catalog modes. Source code remains identical across hosts and projects; only the independent trust roots, filesystem privileges and preapproved catalog differ. Approval expiry/revocation still applies. This does not make runtime privileges transferable across hosts.
+The operator bootstrap accepts optional `environment`, `grant_seconds` and `max_grants`, with enforced bounds, for the one typed catalog format. Source code remains identical across hosts and projects; only the independent trust roots, filesystem privileges and preapproved catalog differ. Approval expiry/revocation still applies. This does not make runtime privileges transferable across hosts.
 
 ## Same engine, independent target domains
 
