@@ -1,4 +1,4 @@
-# One-time E3 process worker onboarding (operator-owned)
+# One-time E3–E5 typed process worker onboarding (operator-owned)
 
 A **single AI agent** can plan a task and use EG; it does **not** need a
 second AI agent. The executable performing a concrete effect is an ordinary
@@ -69,7 +69,8 @@ registry installed, omitting the adapter ID triggers authenticated read-only
 typed/scope discovery: **exactly one active adapter** is selected or dispatch
 fails closed without executing anything. The same dispatcher works for any independently provisioned typed external
 adapter without adding project/provider branches to EG core. The bundled
-process catalog implements E3 only, not E4/E5 or provider API writes.
+process catalog implementation supports E3, E4 and E5 via operator-pinned
+`effect_class`/`action_type`; it does not grant unspecified provider API writes.
 
 If admission is disabled or no separately provisioned adapter exists, the
 correct result is **NOT_ADMITTED / OPERATOR_PROVISIONING_REQUIRED**, including
@@ -96,3 +97,7 @@ The local/staging engineering acceptance of [Issue #104](https://github.com/kiky
 ## Reusable catalog, no per-project executor
 
 Use [Generic execution model](GENERIC_EXECUTION_MODEL.md). The private worker configuration accepts either legacy `target`/`executable`/`fixed_args`, or a `profiles` array, never both. Each profile is an immutable operator-pinned mapping of an exact `/tasks/...` target to an executable and fixed arguments. `operator_first_run.py` supports the same catalog for one-time independent installation. A new task uses existing compatible profiles; when a new permission is genuinely needed, the operator updates a bounded catalog and trust binding rather than the agent writing provider-specific executable code. This does not permit agent-supplied shell strings or generate HITL approval.
+
+## Typed high-effect classes without bespoke worker implementations
+
+The operator installer accepts the **paired optional** fields `effect_class` (`E3`, `E4`, `E5`) and `action_type` (bounded, typed lowercase name). Omit both for legacy E3 `bounded_process_run`. The same `TrustedProcessCatalog`, `TrustedProcessEffect`, `operator_process_service`, generic signed RPC and dispatcher run the selected class using 1–32 operator-fixed targets. The generated worker and separately held signer configs are bound to the **same exact class and action type**. Do not mix configurations across classes, routes, or signing domains. E4 requires action `reversible=true`; E5 requires `reversible=false` and forbids compensation. An E4 corrective action must be independently authorized with a fresh PRE and POST. Runtime authority still depends on a live independently protected worker, exact scoped signed HITL, target readback and task-global acceptance. Source availability is not auto-deployment or permission to run arbitrary shell or provider APIs.
