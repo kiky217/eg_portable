@@ -90,7 +90,8 @@ def test_process_worker_rejects_replaceable_executable_ancestors(tmp_path):
     signer,approval=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
     args=dict(journal_dir=journal,private_key=signer,
         adapter_id='trusted-adapter-test-executable',hitl_key_b64=pub(approval),
-        fixed_args=(),target='/tasks/verify/cmd')
+        fixed_args=(),target='/tasks/verify/cmd',
+        effect_class='E3',action_type='bounded_process_run')
     # A root-owned binary under /tmp is still replaceable through /tmp.
     with pytest.raises(ProcessDenied,match='UNSAFE_EXECUTABLE_PATH'):
         TrustedProcessEffect(executable=str(binary),**args)
