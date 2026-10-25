@@ -43,8 +43,7 @@ def load_config(path: Path) -> dict:
               "controller_uid", "effect_class", "action_type", "profiles"}
     if (not isinstance(value,dict) or set(value) not in (fields,fields|{"controller_group_gid"})
             or type(value.get("controller_uid")) is not int
-            or value["controller_uid"] in (0, os.geteuid())
-            ):
+            or value["controller_uid"] in (0, os.geteuid())):
         raise ConfigurationDenied("INVALID_OPERATOR_WORKER_CONFIGURATION")
     if (not isinstance(value["eg_url"], str) or not value["eg_url"].startswith("https://")
         ) and not value["eg_url"].startswith(("http://127.0.0.1:", "http://localhost:")):
