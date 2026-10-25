@@ -46,15 +46,13 @@ def provision(policy):
     if os.geteuid() != 0:
         raise ValueError('TRUSTED_ROOT_INSTALLER_REQUIRED')
     required={'root','worker_uid','signer_uid','agent_uid','adapter_id','target_prefix',
-              'target','executable','fixed_args','eg_url','gateway_key_file'}
-    catalog_required=(required-{'target','executable','fixed_args'})|{'profiles'}
-    optional={'environment','grant_seconds','max_grants','effect_class','action_type'}
-    if not isinstance(policy,dict) or set(policy)-optional not in (required,catalog_required):
+              'profiles','effect_class','action_type','eg_url','gateway_key_file'}
+    optional={'environment','grant_seconds','max_grants'}
+    if not isinstance(policy,dict) or not required.issubset(policy) or set(policy)-required-optional:
         raise ValueError('INVALID_OPERATOR_POLICY')
-    effect=policy.get('effect_class','E3')
-    action_type=policy.get('action_type','bounded_process_run')
-    if ((('effect_class' in policy)!=('action_type' in policy)) or
-        effect not in ('E3','E4','E5') or not isinstance(action_type,str) or
+    effect=policy['effect_class']
+    action_type=policy['action_type']
+    if (effect not in ('E3','E4','E5') or not isinstance(action_type,str) or
         not re.fullmatch(r'[a-z][a-z0-9_]{0,63}',action_type)):
         raise ValueError('INVALID_TYPED_OPERATOR_CAPABILITY')
     environment=policy.get('environment','staging')
@@ -65,10 +63,7 @@ def provision(policy):
         type(seconds) is not int or not 30<=seconds<=86400 or
         type(grants) is not int or not 1<=grants<=100):
         raise ValueError('INVALID_GENERIC_OPERATOR_LIFETIME')
-    catalog_mode='profiles' in policy
-    profiles=validate_profiles(policy['profiles']) if catalog_mode else ({
-        'target':policy['target'], 'executable':policy['executable'],
-        'fixed_args':tuple(policy['fixed_args'])},)
+    profiles=validate_profiles(policy['profiles'])
     worker,signer,agent=(policy[x] for x in ('worker_uid','signer_uid','agent_uid'))
     if (any(type(x) is not int or x<=0 for x in (worker,signer,agent))
         or len({worker,signer,agent})!=3
@@ -135,13 +130,8 @@ def provision(policy):
         'eg_api_key_path':str(worker_dir/'gateway.key'),
         'hitl_public_key_b64':signer_result['signer_public_key_b64'],
         'controller_uid':agent,'controller_group_gid':agent}
-    if effect!='E3' or action_type!='bounded_process_run':
-        worker_config.update(effect_class=effect,action_type=action_type)
-    if catalog_mode:
-        worker_config['profiles']=[dict(p, fixed_args=list(p['fixed_args'])) for p in profiles]
-    else:
-        worker_config.update(executable=policy['executable'],
-                             fixed_args=policy['fixed_args'],target=policy['target'])
+    worker_config.update(effect_class=effect,action_type=action_type,
+        profiles=[dict(p, fixed_args=list(p['fixed_args'])) for p in profiles])
     _write(worker_dir/'config.json',canon(worker_config)+b'\n',worker,worker)
     now=int(time.time())
     binding={'version':1,'adapter_id':capability.adapter_id,'capability_sha256':capsha,
