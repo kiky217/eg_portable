@@ -1,4 +1,4 @@
-"""Operator-preapproved generic E3 scope: independent, limited signed HITL grants.
+"""Operator-preapproved generic E3–E5 typed scope: independent, limited signed HITL grants.
 
 This is an OPTIONAL separate-UID signer, not a way for agents to approve themselves.
 No automatic production authority, no arbitrary shell, and no HITL key shared with the agent.
@@ -36,7 +36,8 @@ def configure(path):
     fields = {'key_file', 'ledger_dir', 'socket_path', 'controller_uid',
               'controller_group_gid', 'adapter_id', 'target_prefix',
               'expires_at', 'max_grants', 'max_payload_bytes'}
-    if (not isinstance(config, dict) or set(config) != fields or
+    typed_fields={'effect_class','action_type'}
+    if (not isinstance(config, dict) or set(config) not in (fields,fields|typed_fields) or
         type(config['controller_uid']) is not int or config['controller_uid'] in (0, os.geteuid()) or
         type(config['controller_group_gid']) is not int or config['controller_group_gid'] <= 0 or
         not isinstance(config['adapter_id'], str) or not config['adapter_id'].startswith('trusted-adapter-') or
@@ -45,7 +46,10 @@ def configure(path):
         type(config['max_grants']) is not int or not 1 <= config['max_grants'] <= 100 or
         type(config['max_payload_bytes']) is not int or not 1 <= config['max_payload_bytes'] <= 524288 or
         type(config['expires_at']) is not int or
-        not time.time() < config['expires_at'] <= time.time() + 86400):
+        not time.time() < config['expires_at'] <= time.time() + 86400 or
+        config.get('effect_class','E3') not in ('E3','E4','E5') or
+        not isinstance(config.get('action_type','bounded_process_run'),str) or
+        not re.fullmatch(r'[a-z][a-z0-9_]{0,63}', config.get('action_type','bounded_process_run'))):
         raise PolicyDenied('INVALID_SCOPED_OPERATOR_POLICY')
     key = load_pem_private_key(_private_file(Path(config['key_file'])), password=None)
     if not isinstance(key, Ed25519PrivateKey):
@@ -84,8 +88,11 @@ class Grants:
         p=self.p
         if (not isinstance(task,str) or not 1<=len(task)<=127 or any(x in task for x in '/?#')
             or not isinstance(step,str) or not 1<=len(step)<=127 or type(gate) is not int or gate<=0
-            or not isinstance(action,dict) or action.get('action_type')!='bounded_process_run'
-            or action.get('effect_class')!='E3' or action.get('real_world_effect') is not True
+            or not isinstance(action,dict) or action.get('action_type')!=p.get('action_type','bounded_process_run')
+            or action.get('effect_class')!=p.get('effect_class','E3')
+            or action.get('real_world_effect') is not True
+            or (action.get('effect_class')=='E5' and action.get('reversible') is not False)
+            or (action.get('effect_class')=='E4' and action.get('reversible') is not True)
             or not isinstance(action.get('target'),str)
             or not action['target'].startswith(p['target_prefix'].rstrip('/')+'/')
             or any(x in ('.','..','') for x in action['target'][len(p['target_prefix'].rstrip('/'))+1:].split('/'))
