@@ -21,6 +21,8 @@ Call authenticated `GET /v1/agent/capabilities` on the **actual** EG instance be
 - Before claiming, match exact desired action, effect class, target, adapter identity and testable result to a live, independently trusted adapter. If missing, report `CAPABILITY_UNAVAILABLE` and specify required adapter contract. Do not use direct shell, CI fixture, a dummy key, fabricated receipt, or HITL as a substitute.
 
 ## Portable capability model
+**Reusable generic E3 execution:** prefer an operator-pinned multi-target catalog (one adapter, several preapproved commands) via `trusted_process_catalog.py`. A new project never requires a bespoke executor implementation if a live catalog profile already matches. See [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
+
 EG must not hardcode Rust, Git, Docker or any programming toolchain as universal requirements. Discover **registered runtime capabilities** from the target deployment. Match typed action, effect class, scope, constraints, attested executor identity and evidence/receipt contract. Prefer an already-authorized native tool or adapter; agents may propose or install a new adapter only through the operator-approved onboarding and trust process. A self-declared capability is never automatically admitted. The bundled E0/E2 worker is a baseline, **not an upper bound of EG's extensible architecture**. The local readiness script reports only bundled-worker compatibility, not what an external deployment may provide.
 
 ## Governed source-file creation (operator opt-in)
@@ -69,7 +71,7 @@ Use [the existing orchestrator](eg/tools/single_agent_workflow.py), `tools.singl
 
 ## Operator-supplied first-run, runtime, test and promotion
 
-For trusted E3–E5 capability, use the existing [operator-only first-run provisioning](eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md), [bounded process service](eg/docs/OPERATOR_PROCESS_SERVICE.md) and [independent scoped approval](eg/docs/SCOPED_STAGING_APPROVAL.md). The operator installs separately protected OS identities, socket, signer, signed registry binding and target policy. An agent may *discover and use* this admitted capability, but not self-register authority. For persistent staging deploy/revise/rollback use [staging service guidance](eg/docs/PERSISTENT_STAGING_SITE.md); successful local staging is not production cutover.
+For trusted E3–E5 capability, use the existing [operator-only first-run provisioning](eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md), [bounded process service](eg/docs/OPERATOR_PROCESS_SERVICE.md) and [independent scoped approval](eg/docs/SCOPED_STAGING_APPROVAL.md). The operator installs separately protected OS identities, socket, signer, signed registry binding and target policy. An agent may *discover and use* this admitted capability, but not self-register authority. For service workflows, use an admitted generic process catalog profile with signed PRE, independent readback and rollback evidence. A staging test is not proof of production cutover.
 
 Local source-only check (no live authorization), from repository root:
 
@@ -79,7 +81,7 @@ python eg/tools/agent_readiness.py --effect E2 --action replace
 python eg/tools/agent_readiness.py --effect E3 --action bounded_process_run --json
 ```
 
-With `--url` and an authorized `EVALUATION_GATEWAY_API_KEY`, the readiness tool makes read-only live capability queries. For local development, from `eg/`, run `python -m pytest -q tests`; see `tests/test_single_agent_workflow.py`, `tests/test_process_external_e2e.py` and `tests/test_staging_site_eg_integration.py` for actual signed worker and recovery E2E. The manifest runner `python eg/tools/local_project_e2e.py eg/examples/cafe-website.json` runs **only** in an authorized disposable Linux staging environment with separate OS UIDs; it is not a production installer. Portable runtime supports Linux x86-64 with CPython 3.12-compatible glibc; use [portable startup, backup, restore and rollback guide](eg/docs/PORTABLE_RUNBOOK.md). CI, file creation and build success never substitute for live E2E, current protocol admission or [production promotion](eg/docs/PRODUCTION_PROMOTION.md).
+With `--url` and an authorized `EVALUATION_GATEWAY_API_KEY`, the readiness tool makes read-only live capability queries. For local development, from `eg/`, run `python -m pytest -q tests`; see `tests/test_single_agent_workflow.py`, `tests/test_process_external_e2e.py` and `tests/test_trusted_process_catalog.py` for generic signed-worker and recovery E2E. Portable runtime supports Linux x86-64 with CPython 3.12-compatible glibc; use [portable startup, backup, restore and rollback guide](eg/docs/PORTABLE_RUNBOOK.md). CI, file creation and build success never substitute for live E2E, current protocol admission or [production promotion](eg/docs/PRODUCTION_PROMOTION.md).
 
 ## Failure reconciliation and acceptance states
 

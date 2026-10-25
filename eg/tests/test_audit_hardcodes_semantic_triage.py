@@ -9,7 +9,7 @@ def test_provider_specific_token_in_core_is_high_risk_not_approved():
     assert row['risk'] == 'HIGH'
     assert row['action'] == 'REVIEW_PROVIDER_COUPLING_IN_CORE'
     assert row['review_status'] == 'SEMANTIC_REVIEW_REQUIRED'
-    assert _review('eg/tools/github_effect_scope.py', 13, 'APP_SPECIFIC', 'github')['risk'] == 'LOW'
+    assert _review('eg/tools/trusted_process_catalog.py', 13, 'APP_SPECIFIC', 'github')['risk'] == 'LOW'
 
 
 def test_literal_and_security_triage_do_not_misreport_manual_completion():
@@ -69,9 +69,9 @@ def test_full_matrix_is_source_sha_pinned_and_unsafe_core_provider_is_unknown(tm
 
 def test_low_risk_scoped_review_never_masks_vendor_in_generic_core():
     generic={'origin':'GENERIC_EG_CORE','category':'UNKNOWN_REVIEW'}
-    provider={'origin':'OPTIONAL_PROVIDER_ADAPTER','category':'UNKNOWN_REVIEW'}
+    portable={'origin':'PORTABLE_OPERATIONS','category':'UNKNOWN_REVIEW'}
     assert semantic_disposition(generic)=='CONTRACT'
-    assert semantic_disposition(provider)=='APP_SPECIFIC'
+    assert semantic_disposition(portable)=='CONTRACT'
     assert semantic_disposition({**generic,'category':'APP_SPECIFIC'})=='UNKNOWN'
     assert semantic_disposition({**generic,'category':'SECURITY_REVIEW'})=='SECURITY_INVARIANT'
 

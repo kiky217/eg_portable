@@ -47,7 +47,7 @@ def test_documentation_links_refer_to_existing_paths():
         "eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md",
         "eg/docs/OPERATOR_PROCESS_SERVICE.md",
         "eg/docs/SCOPED_STAGING_APPROVAL.md",
-        "eg/docs/PERSISTENT_STAGING_SITE.md",
+        "eg/docs/GENERIC_EXECUTION_MODEL.md",
         "eg/docs/PRODUCTION_PROMOTION.md",
         "eg/tools/single_agent_workflow.py",
         "eg/tools/governed_agent_dispatcher.py",
