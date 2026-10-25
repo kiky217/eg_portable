@@ -14,7 +14,13 @@ ROOT_README = (ROOT / "README.md").read_text(encoding="utf-8")
 def test_all_operational_markdown_starts_with_a_real_heading():
     for document in [ROOT / "README.md", ROOT / "SKILL.md", ROOT / "SECURITY.md",
                      ROOT / "eg/README.md", *DOCS.glob("*.md")]:
-        assert document.read_text(encoding="utf-8").startswith("# "), document
+        content = document.read_text(encoding="utf-8")
+        if document.name == "SKILL.md":
+            # Skill metadata uses required YAML front matter before its heading.
+            assert content.startswith("---\\n".replace("\\n", "\n"))
+            assert "\\n---\\n# ".replace("\\n", "\n") in content
+        else:
+            assert content.startswith("# "), document
 
 
 def test_markdown_local_links_have_real_repository_targets():
