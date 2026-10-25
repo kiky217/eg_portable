@@ -140,3 +140,26 @@ print(json.dumps(request_scoped_approval(json.load(sys.stdin))))'''
             try:child.wait(timeout=3)
             except subprocess.TimeoutExpired:child.kill();child.wait()
         shutil.rmtree(tmp,ignore_errors=True)
+
+
+@pytest.mark.parametrize("effect,reversible", [("E4",True),("E5",False)])
+def test_generic_high_effect_signer_is_typed_and_denies_wrong_risk(tmp_path,monkeypatch,effect,reversible):
+    owner=os.geteuid() or 1000
+    cfg,policy,pub=_config(tmp_path,owner)
+    policy.update(effect_class=effect,action_type="bounded_process_run")
+    cfg.write_text(json.dumps(policy))
+    if os.geteuid()==0:
+        monkeypatch.setattr(os,"geteuid",lambda:owner)
+    signer=Grants(configure(cfg))
+    basic=_scope()
+    action={**basic["action"],"effect_class":effect,"reversible":reversible}
+    req={**basic,"action":action}
+    approval=signer.issue(req)
+    assert verify_approval(approval,pub,task_id=req["task_id"],step_key=req["step_key"],
+        gate_checkpoint_no=req["gate_checkpoint_no"],action_fingerprint=action_fingerprint(action),
+        adapter_id=policy["adapter_id"])
+    for changed in ({**action,"effect_class":"E3"},
+                    {**action,"reversible":not reversible},
+                    {**action,"action_type":"unbounded_shell"}):
+        with pytest.raises(PolicyDenied,match="ACTION_OUTSIDE_OPERATOR_POLICY"):
+            signer.issue({**req,"action":changed})
