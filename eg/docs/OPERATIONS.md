@@ -154,7 +154,7 @@ E3–E5 POST or no-effect reconciliation; absence of a trustworthy root is BLOCK
 
 ### Generic capability dispatch for any application
 
-The **E3 process catalog** (`tools.trusted_process_catalog.TrustedProcessCatalog`)
+The **E3–E5 typed process catalog** (`tools.trusted_process_catalog.TrustedProcessCatalog`)
 provides one reusable operator-pinned worker for up to 32 exact action
 targets. Operators select installed executables and fixed arguments in a
 protected profile catalog. A project, language, database, host or API provider
@@ -164,9 +164,7 @@ capability discovery, original PRE, an independent scoped approval, one
 signed worker receipt and canonical POST. A catalog entry **does not**
 automatically grant OS permission or real-world change authority.
 
-The bundled `bounded_process_run` catalog is **E3 only**. E4/E5, or an effect
-that cannot safely fit an already approved process profile, still require
-an independently governed, capability-matched worker. The *generic dispatcher*
+The **same** bundled process-catalog source now supports E3, E4 and E5 through a separately provisioned, class-bound `effect_class` and `action_type` policy. Each authorized worker has one typed effect class, 1–32 pinned targets and its own independent worker/signer identity. E4 requires `reversible=true`, E5 `reversible=false`. Effects not representable by an approved bounded profile still require an independently governed matching worker. The *generic dispatcher*
 accepts such externally provisioned workers; no special provider branches
 exist in EG core. No built-in GitHub write/PR/merge worker is shipped in
 `eg/tools/`. A provider API operation cannot be claimed as supported just
