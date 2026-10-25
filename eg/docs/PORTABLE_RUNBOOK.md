@@ -249,9 +249,12 @@ challenge, action fingerprint, scope, immutable receipt and POST. Use the unifie
 registry can select exactly one active matching adapter without per-task
 socket/UID parameters. Explicit external-worker routing remains available for
 independently provisioned policy. The reusable bounded process catalog
-(`trusted_process_catalog.py`) implements **E3 only**, with up to 32 pinned
-actions, shared identity/socket/journal, and no project-specific module.
-**E4/E5 require their own approved typed worker**. No external production
+(`trusted_process_catalog.py`) implements **E3, E4 and E5** with the same
+worker code, 1–32 pinned actions per class-bound adapter, and shared
+identity/socket/journal within that adapter. Independent operator policies
+select `effect_class` and `action_type`; E4 requires reversible actions and
+separately authorized correction, E5 requires irreversible actions and cannot
+be compensated. No provider-specific executor module is needed. No external production
 permission is bundled: the CI-only disposable fixture is not eligible for
 production promotion. Authentication, worker isolation,
 durable journals, real effects, recovery and independent readback remain
