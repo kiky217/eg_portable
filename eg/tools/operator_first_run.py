@@ -1,4 +1,4 @@
-"""Provision an independent, operator-pinned E3 worker and scoped staging signer.
+"""Provision an independent reusable E3 catalog worker and scoped signer.
 
 Root-owned one-time install; never a tool that can be invoked by the AI agent.
 The operator still chooses exact executable/arguments, UIDs, and capability scope.

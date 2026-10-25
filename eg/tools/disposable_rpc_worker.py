@@ -119,7 +119,7 @@ def execute_once(request,*,adapter,eg_url,eg_key,hitl_key):
 
 def serve(*,socket_path,output_root,ledger_root,private_key_path,eg_url,eg_api_key_file,
           adapter_id,effect_class,hitl_public_key_b64,controller_uid,max_requests=0):
-    """GitHub CI/test sandbox ONLY; no production or host-service effects."""
+    """Isolated CI/test sandbox ONLY; no production or host-service effects."""
     if not (eg_url.startswith("http://127.0.0.1:") or eg_url.startswith("https://")):
         raise RpcDenied("EG_URL_NOT_TRUSTED")
     path=Path(socket_path)

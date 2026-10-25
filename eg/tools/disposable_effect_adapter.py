@@ -1,4 +1,4 @@
-"""Isolated disposable E3/E4/E5 effect adapter for GitHub CI only.
+"""Isolated disposable E3/E4/E5 effect adapter for CI tests only.
 
 Never operates on host services. The only allowed effect is an exclusive,
 payload-bound creation inside a private disposable sandbox. High-effect class

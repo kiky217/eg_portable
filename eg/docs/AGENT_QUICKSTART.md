@@ -1,6 +1,8 @@
-See [Generic execution model](GENERIC_EXECUTION_MODEL.md). One independently installed catalog executor can serve many approved task targets; the application/provider name is never a prerequisite.
+# Agent quickstart — provider-neutral runtime and admission
 
-# Agent quickstart — production EG without false readiness
+See [Generic execution model](GENERIC_EXECUTION_MODEL.md). One independently
+installed E3 catalog can serve many approved task targets; E4/E5 rely on their
+own supported typed effects and authorized external workers.
 
 **First read [root SKILL.md](../../SKILL.md).** For all supported API routes, exact request/response fields, operator/agent responsibilities and receipt recovery, follow the [agent operations reference](AGENT_OPERATIONS_REFERENCE.md). This is an operational entry point, not an alternate evaluator or an override of the canonical executor contract.
 

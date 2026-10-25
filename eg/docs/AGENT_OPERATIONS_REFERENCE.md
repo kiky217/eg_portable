@@ -1,6 +1,8 @@
-Generic-first: use one approved catalog process worker for all matching actions, regardless of project or environment. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
-
 # EG Agent Operations Reference — current executable contract
+
+Use one approved E3 process catalog for all matching actions. E4/E5 still
+require independently provisioned typed workers. See
+[Generic execution model](GENERIC_EXECUTION_MODEL.md).
 
 Read [root SKILL](../../SKILL.md) first. This operational index is grounded in `eg/app/main.py`, `tools/governed_agent_dispatcher.py`, the supported E0/E2 worker and `docs/EXECUTOR_PROTOCOL.md`. It is guidance, **not** authority to execute, deploy, sign HITL, or operate an unprovisioned system. The actual target EG runtime and its original signed task always win over sample paths and a GitHub release.
 

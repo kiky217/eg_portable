@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Strict agent entrypoint for the supported independently signed E0/E2 worker.
+"""Provider-neutral E0–E5 agent dispatch (not an unrestricted shell).
 
-Not a general shell. Never executes an effect itself, never signs a receipt,
-never calls POST and never declares a task VERIFIED. For other actions, require
-a separately audited adapter; never route around EG or relabel effect classes.
+E0/E2 use a restricted worker; E3–E5 use separately authorized typed external
+workers. E3 process profiles can be reused across projects through one catalog.
+This module never executes effects or signs receipts, calls POST, or declares
+a task VERIFIED. Never route around EG or relabel effect classes.
 """
 from __future__ import annotations
 import json
