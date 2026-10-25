@@ -47,3 +47,16 @@ Verification: `cd eg && python -m pytest -q tests`. Focused: `pytest -q tests/te
 ## Reuse across hosts and time windows
 
 The operator bootstrap accepts optional `environment`, `grant_seconds` and `max_grants`, with enforced bounds, in both legacy and catalog modes. Source code remains identical across hosts and projects; only the independent trust roots, filesystem privileges and preapproved catalog differ. Approval expiry/revocation still applies. This does not make runtime privileges transferable across hosts.
+
+## Scope of the generic E3 catalog
+
+The built-in multi-target process catalog implements only E3
+`bounded_process_run`, not E4/E5 privileged operations or vendor APIs.
+The **dispatcher** is generic across E0–E5; actual executable capabilities
+remain whatever has been independently admitted. Do not claim a missing E4/E5
+capability can be executed by an E3 profile. Moving to a new Linux host needs
+appropriate OS users, protected trust roots and operator bootstrap, but does
+not require writing a new project-specific executor. A root-capable AI agent
+may provision OS users only if authorized; merely dropping its subprocess UID
+does **not** make a signer independent from an agent that still controls host
+root. PRE/HITL and receipt verification remain mandatory.

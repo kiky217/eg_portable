@@ -64,3 +64,14 @@ administrator approval remains a legitimate fail-closed prerequisite.
 ## Any independently authorized environment
 
 The same installer works for different independently trusted environments. Optional root-owned policy keys are `environment` (short ASCII label), `grant_seconds` (30–86400), and `max_grants` (1–100). Defaults preserve existing staging deployments. These fields only constrain operator-signed expiry and grant quota; they never grant a task permissions or turn an agent into the signer. One configured multi-profile worker serves many approved tasks. See [Generic execution model](GENERIC_EXECUTION_MODEL.md).
+
+## Root host versus a non-root runtime
+
+The root-owned installer expects three distinct, **already existing** non-root
+OS user identities (controller, E3 worker, scoped approval signer). An
+operator may prepare these identities using normal host administration, but
+this does **not** create three AI agents. It is one AI agent interacting with
+separately privileged system services. If the controlling agent has host root,
+new accounts alone cannot demonstrate an independently secured production
+signer: root can still access/reconfigure all local UID domains. Never claim
+independent trust without a genuinely protected enforcement boundary.

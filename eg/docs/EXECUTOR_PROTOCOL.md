@@ -244,3 +244,27 @@ enforcement. Offline/unpinned workers fail closed. The original immutable
 audit stores this evidence; historical gate hashes and previously recorded
 task intakes are not rewritten. The evidence is **key possession at PRE**,
 not proof of a real-world production cutover.
+
+## Reusable generic worker catalog — current operational contract
+
+The single provider-neutral `governed_agent_dispatcher.dispatch_action` routes
+E0/E2 to the restricted file worker and E3–E5 to independently admitted typed
+external workers. The **bundled multi-profile process catalog implements E3
+`bounded_process_run` only**; it does not implement E4/E5, arbitrary
+provider API calls, dynamic shell commands or privilege escalation.
+
+An independent operator may provision 1–32 exact, unique `/tasks/...` targets
+under one signed E3 process adapter with one worker identity, one Unix socket
+and one durable nonce ledger. The protected worker config chooses either
+`profiles` or legacy `executable`/`fixed_args`/`target`, not both.
+Each profile pins executable, fixed arguments and bounded runtime/output. The
+agent supplies only the originally bound action payload over stdin; it cannot
+change executable or arguments. No per-project worker implementation is
+required for new tasks already covered by approved profiles.
+
+An operator-approved action **still** requires live worker attestation, the
+original authenticated PRE and action fingerprint, independently signed HITL,
+exactly-once durable nonce, signed receipt, independent readback and canonical
+POST. A new permission or separate host trust domain may require operator
+policy/bootstrap; **it does not imply provider-specific EG source code**.
+Read [Generic execution model](GENERIC_EXECUTION_MODEL.md).
