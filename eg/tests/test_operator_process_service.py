@@ -57,7 +57,7 @@ def _layout(tmp):
               "eg_api_key_path":str(token),"hitl_public_key_b64":pub,
               "controller_uid":CONTROLLER_UID,"controller_group_gid":CONTROLLER_UID,
               "effect_class":"E3","action_type":"bounded_process_run",
-              "profiles":[{"target":"/tasks/app/build","executable":"/usr/bin/cat","fixed_args":[]}]}}
+              "profiles":[{"target":"/tasks/app/build","executable":"/usr/bin/cat","fixed_args":[]}]}
     config.write_text(json.dumps(settings))
     for path in (secret,token,config):
         os.chown(path,WORKER_UID,WORKER_UID)
