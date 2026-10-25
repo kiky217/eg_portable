@@ -87,9 +87,6 @@ def test_one_private_service_config_supports_a_generic_catalog():
     base = Path(tempfile.mkdtemp(prefix="eg-generic-catalog-", dir="/tmp"))
     try:
         config, settings, _, _ = _layout(base)
-        del settings["target"]
-        del settings["executable"]
-        del settings["fixed_args"]
         settings["profiles"] = PROFILES
         config.write_text(json.dumps(settings))
         script = ("import json;from pathlib import Path;"
