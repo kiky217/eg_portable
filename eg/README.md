@@ -90,3 +90,5 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 | Git history | Historical reports remain recoverable by commit SHA; no obsolete snapshots ship in the current tree |
 
 EG has **one canonical task registry and evaluator**. The trusted worker is an execution adapter, not an alternative evaluator.
+
+For multiple admitted external E3/E4/E5 adapters on the same gateway, configure independently authorized class-bound signer public roots with `EVALUATION_GATEWAY_HIGH_EFFECT_HITL_PUBLIC_KEYS_JSON` as documented in [operator bootstrap](docs/ONE_TIME_STAGING_BOOTSTRAP.md). A shared legacy signer key does not establish per-class independent approval.
