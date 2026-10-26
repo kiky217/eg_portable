@@ -270,10 +270,24 @@ if [ ! -f "$EG_STATE_DIR/runtime.env" ]; then
   echo "DENIED: runtime credentials not initialized" >&2
   exit 77
 fi
-set -a
-. "$EG_STATE_DIR/runtime.env"
-set +a
-exec "$ROOT/run.sh"
+exec "$ROOT/python.sh" - "$ROOT" <<'PYENV'
+import os, re, stat, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+path = Path(os.environ['EG_STATE_DIR']) / 'runtime.env'
+if path.is_symlink() or stat.S_IMODE(path.stat().st_mode) & 0o077:
+    raise SystemExit('DENIED: insecure runtime configuration')
+values = {}
+for line in path.read_text().splitlines():
+    if not line or '=' not in line:
+        raise SystemExit('DENIED: malformed runtime configuration')
+    key, value = line.split('=', 1)
+    if not re.fullmatch(r'EVALUATION_GATEWAY_[A-Z0-9_]+', key) or key in values:
+        raise SystemExit('DENIED: invalid runtime configuration key')
+    values[key] = value
+env = dict(os.environ, **values)
+os.execve(str(root / 'run.sh'), [str(root / 'run.sh')], env)
+PYENV
 '''
     write_text(root/'start.sh',envrunner);(root/'start.sh').chmod(0o755)
     doc=f'''# EG Offline Portable {RELEASE_VERSION} (Linux x86-64)

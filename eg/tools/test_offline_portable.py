@@ -155,6 +155,12 @@ def main():
           'EVALUATION_GATEWAY_ADMISSION_MODE=disabled' in audit_config)
     check('audit_only_executor_root_empty',
           'EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64=\n' in audit_config)
+    # Runtime values are data, including paths with spaces on mounted storage.
+    with (audit_state/'runtime.env').open('a') as stream:
+        stream.write('EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT=/tmp/path with spaces\n')
+    boot(extracted,audit_env)
+    check('space_containing_runtime_value_starts',get('/health').get('status')=='PASS')
+    stop()
     enabled_env=dict(env,EG_STATE_DIR=str(ROOT/'no-executor-state'))
     enabled_env.pop('EG_EXECUTOR_PUBLIC_KEY_B64',None)
     enabled_init=subprocess.run([str(extracted/'init.sh')],env=enabled_env,
