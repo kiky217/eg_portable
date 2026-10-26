@@ -5,8 +5,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME = ROOT / "tests" / "_runtime"
-shutil.rmtree(RUNTIME, ignore_errors=True)
+# Each interpreter owns a private test state. Nested subprocesses must never
+# erase the parent suite's SQLite database or signed-evidence directory.
+RUNTIME = ROOT / "tests" / "_runtime" / f"run-{os.getpid()}-{secrets.token_hex(6)}"
 (RUNTIME / "evidence").mkdir(parents=True)
 (RUNTIME / "evidence").chmod(0o755)
 WORKER_OUTPUT=RUNTIME/"worker-outputs"
