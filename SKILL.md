@@ -74,13 +74,13 @@ Keep a single original task and its event history; an agent can operate it witho
 | `POST /v1/evaluate` | `PRE_EXECUTION` → original worker → `POST_EXECUTION`; `FACT_CHECK` is non-advancing; only final POST may set `finalize_task` and submit `task_claims` |
 | `POST /v1/tasks/{task_id}/pause`, `/resume`, `/reconcile`, `/abort` | Audit-controlled suspension, signed no-effect recovery, and separately HITL-authorized abort |
 
-An `EvalRequest` includes original task/contract/protocol, event ID, checkpoint, step key, agent, phase, criterion-indexed independently notarized `claims`, plus immutable `action` and `execution_receipt` where required. E2 action binds payload SHA-256 and size; E2 replace additionally binds the **previous** file SHA-256. Do not invent signing material, evidence references or replayed claim results. [Exact fields and operational decision table](eg/docs/AGENT_OPERATIONS_REFERENCE.md).
+An `EvalRequest` includes original task/contract/protocol, event ID, checkpoint, step key, agent, phase, criterion-indexed independently notarized `claims`, plus immutable `action` and `execution_receipt` where required. E2 action binds payload SHA-256 and size; E2 replace additionally binds the **previous** file SHA-256. Do not invent signing material, evidence references or replayed claim results. [Exact fields and operational decision table](eg/docs/PORTABLE_RUNBOOK.md).
 
-Use [the existing orchestrator](eg/tools/single_agent_workflow.py), `tools.single_agent_workflow.run_step`/`run_task`, with `pre_request(checkpoint)`, a real `dispatch_once` callback (via [the trusted agent dispatcher](eg/tools/governed_agent_dispatcher.py), `tools.governed_agent_dispatcher.dispatch_action`), and `post_evidence(pre,receipt)` performing independent target readback. Dispatch status `RECEIPT_VERIFIED_POST_REQUIRED` is **not** a verified task. After each `VERIFIED_PASS`, reread the current step/receipt; after final task-wide criteria require `contract_status=SATISFIED` and `GET /v1/audit/verify` PASS. Never infer a completed task from an intermediate checkpoint.
+Use [the canonical single-agent workflow](eg/tools/single_agent_workflow.py) through `run_step` or `run_task`. Provide `pre_request(checkpoint)`, a bounded trusted worker callback `dispatch_once`, and `post_evidence(pre, receipt)` backed by independent result readback. Dispatch status `RECEIPT_VERIFIED_POST_REQUIRED` is **not** a verified task. After each `VERIFIED_PASS`, reread the current step/receipt; after final task-wide criteria require `contract_status=SATISFIED` and `GET /v1/audit/verify` PASS. Never infer a completed task from an intermediate checkpoint.
 
-## Operator-supplied first-run, runtime, test and promotion
+## Canonical first-run and verification
 
-For trusted E3–E5 capability, use the existing [operator-only first-run provisioning](eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md), [bounded process service](eg/docs/OPERATOR_PROCESS_SERVICE.md) and [independent scoped approval](eg/docs/SCOPED_STAGING_APPROVAL.md). The operator installs separately protected OS identities, socket, signer, signed registry binding and target policy. An agent may *discover and use* this admitted capability, but not self-register authority. For service workflows, use an admitted generic process catalog profile with signed PRE, independent readback and rollback evidence. A staging test is not proof of production cutover.
+For current portable installations use [the canonical runbook](eg/docs/PORTABLE_RUNBOOK.md) and bundled bounded file operations. Do not configure retired process adapters or special worker identities. Staging is governed by the same PRE, receipt and POST requirements as production.
 
 Local source-only check (no live authorization), from repository root:
 
@@ -107,7 +107,7 @@ Never confuse CREATED, SUBMITTED, RUNNING, COMPLETED, VERIFIED or UNKNOWN. Befor
 ## Reporting
 State exactly: target instance, software/version, timestamp, task/step/checkpoint, source state, admission, claimed capability, worker state, execution state, canonical verdict, unresolved blocker. Separate `SOURCE PASS`, `BUILD PASS`, `RUNTIME PASS`, `CANONICAL VERIFIED`. Cite actual logs/receipts/checkpoints; never infer them.
 
-References: [complete API/operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md), [agent onboarding](eg/docs/AGENT_QUICKSTART.md), [operations](eg/docs/OPERATIONS.md), [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md).
+References: [complete API/operations reference](eg/docs/PORTABLE_RUNBOOK.md), [agent onboarding](eg/docs/PORTABLE_RUNBOOK.md), [operations](eg/docs/OPERATIONS.md), [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md).
 
 ## Provider-neutral operational cookbook (normative for new work)
 
@@ -225,64 +225,13 @@ fields are `task_id`, `contract_hash`, `protocol_hash`,
 independently notarized `task_claims`. The signer, evidence references,
 action fingerprints and receipts must come from actual operations.
 See `eg/app/main.py` request models and the
-[agent operations reference](eg/docs/AGENT_OPERATIONS_REFERENCE.md) before
+[agent operations reference](eg/docs/PORTABLE_RUNBOOK.md) before
 forming a mutating request.
 
-The dispatcher's common request is exactly
-`{"task_id":"...","step_key":"...","action":{...},"data_b64":"..."}`.
-Use `tools.governed_agent_dispatcher.dispatch_action`; never supply
-runtime executable/argv through the agent request. E0/E2 require their
-independent signed worker and socket. E3–E5 require a matching authorized
-external binding **plus** a distinct scoped HITL approval and exact PRE.
+The agent supplies the exact task, step, action and payload to the admitted bundled worker after PRE. Never select an arbitrary executable or supply an unapproved shell command; preserve the signed receipt for POST.
 
-### Reusable operator bootstrap: new environment, not new project
-
-The supported packaged runtime is Linux x86-64 with CPython 3.12-compatible
-glibc. Do not infer Windows/macOS/other-architecture support from the generic
-action model. For a new Linux installation, an authorized independent
-operator first provisions durable state, protected public/private roots,
-existing distinct non-root OS identities, authenticated EG and a pinned
-worker/signer. `operator_first_run.py` uses a root-owned mode-0600 policy,
-does not create OS users automatically and refuses to overwrite an existing
-installation. Root on the **same host** can still control all such accounts:
-a root-capable agent must not claim its signer is independent solely by
-dropping UID.
-
-The multi-target policy **requires** explicit `effect_class` (E3/E4/E5) and `action_type` (operator-pinned typed name); there is no implicit E3 default or top-level single-target configuration. Its common fields are `root`, `worker_uid`,
-`signer_uid`, `agent_uid`, `adapter_id`, `target_prefix`, `eg_url`,
-`gateway_key_file`, and `profiles` (1–32 unique `/tasks/...` targets).
-Each profile pins an independently controlled absolute executable, immutable
-fixed args and optional bounds. The only accepted operator process policy uses the typed `profiles` catalog. See
-[operator bootstrap](eg/docs/ONE_TIME_STAGING_BOOTSTRAP.md).
-Provisioning files is not live admission: the operator must start the
-separate services, prove worker UID/socket/key independence, activate the
-signed registry and test a matching PRE. No capability or independent
-signing authority is fabricated by the agent.
-
-| Class | Actual bundled capability | Required when absent |
-| --- | --- | --- |
-| E0 | Restricted admitted reads via signed bundled worker | Existing target/scope and worker; otherwise approved capability |
-| E1 | No blanket network read permission | Independently admitted typed worker |
-| E2 | Worker-owned restricted create/compare-and-swap replace (512 KiB limit) | Matching allowed suffix/root, PRE proofs and independent worker |
-| E3 | Bounded `bounded_process_run` via 1–32 operator-pinned profiles | New **operator-approved profile/policy**, not bespoke source module |
-| E4 | Reusable signed bounded-process catalog with operator-pinned `effect_class=E4`, typed action and profiles | Independent E4 authorization, `reversible=true`, PRE/receipt/POST; compensation is a new separately governed operation |
-| E5 | The **same** worker implementation with pinned `effect_class=E5` and typed action/profile | Independent E5 authorization, `reversible=false`, PRE/receipt/POST; **no compensation/replay** |
-
-A profile cannot issue arbitrary agent-selected commands or escape its
-configured OS permissions, fixed argv, bounded stdin/output and 1–30-second
-timeout. `trusted_process_catalog.py` shares one adapter signer, socket
-and durable nonce ledger across the profiles. Reuse the **same live policy**
-for source checks, application tests, and database checks only if all three
-actions were actually approved there. A different host/security domain
-requires its own legitimate trust provisioning, not a new EG implementation.
-
-### Local single-host mode
-
-For machines managed through one account, the optional `EVALUATION_GATEWAY_LOCAL_HOST_MODE=enabled` accepts root or non-root gateway and typed worker processes on that same account. The signed registry, pinned executable/argv, typed E3/E4/E5 capability, scoped signed approval, original PRE/receipt/POST, replay-safe journal and real result readback are still required. The default keeps separate identities; local mode must not be represented as independent security domains or automatically grant broad commands.
-
-### Live capability diagnosis and signed-lease maintenance
-
-Use `python -m tools.inspect_live_capabilities --state "$EG_STATE_DIR" --manifest /path/to/operator/manifest.json --task-id "$EG_TASK_ID"` after deployment/restart or when E3–E5 appear in discovery but cannot obtain PRE. It checks pinned signed operator registry, binding expiry, fresh worker liveness, gateway/audit and the unchanged canonical checkpoint; output `MATCHED_LIVE_PRE_REQUIRED` is **not** execution admission or VERIFIED. An expired binding is unavailable even if its socket still exists. The protected operator may renew only the **existing identical** binding with `tools.renew_operator_binding` and the pinned original signing key; it cannot extend the target, executable, capability, adapter identity or bypass a revoked binding. Never automatically sign HITL or retry a denied physical effect.
+### Portable first-run
+Use the single canonical gateway and bundled trusted file operations. Never provision the retired process adapters.
 
 ### Failure matrix, runtime verification and regression
 
@@ -324,7 +273,3 @@ worker or a particular destination's external effects.
   worker runtime E2E. **Production** requires additional authorized live
   validation, full restoration and rollback evidence. Do not call CI PASS a
   production VERIFIED outcome.
-
-### Generic E4/E5 high-effect worker enrollment
-
-`operator_first_run.py` provisions an independently signed high-effect worker for the selected E3, E4 or E5 capability, using the **same** `operator_process_service.py`, `trusted_process_catalog.py`, `trusted_process_effect.py`, generic RPC, registry and receipt verifier. A separately protected signing policy is bound to the same `effect_class`, `action_type`, adapter ID, exact target prefix and bounded profiles. The agent never selects the executable or changes effect class at runtime. E4 requires `reversible=true`; E5 requires `reversible=false` and cannot be compensated. For rollback after an E4 result, register a new governed reversible E4 step using an independently authorized corrective profile and a fresh PRE/POST; there is no ungoverned `compensate` shortcut. The installed worker process must be live, pinned, independently protected and authorized; merely shipping the generic worker source never grants E4/E5 permissions. For a truly unexecuted original PRE, the operator-pinned worker supports `no_effect` over the same trusted RPC, atomically retires the unclaimed nonce and signs `NOT_EXECUTED`; only a canonical recovery-pending `/reconcile` consumes that gate without marking it VERIFIED. A claimed/unknown effect cannot be declared unexecuted. `recover_receipt` returns an existing sealed receipt without rerunning the action.

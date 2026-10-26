@@ -15,13 +15,10 @@ historical Colab session. One registry, one current evaluator, one writer.
 
 ## Reconnect / idempotent service startup
 
-With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.133-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash, **running app/tools source fingerprint**, admission mode and full capability fingerprints (including target scope, payload limit and worker public key) before reusing a live process. A new bundle with unchanged protocol documentation but different runtime code cannot silently reuse the old process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
+With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.134-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash, **running app/tools source fingerprint**, admission mode and full capability fingerprints (including target scope, payload limit and worker public key) before reusing a live process. A new bundle with unchanged protocol documentation but different runtime code cannot silently reuse the old process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
 
-## Read-only capability health and existing binding renewal
-
-Run `python -m tools.inspect_live_capabilities --state "$EG_STATE_DIR" --manifest /path/to/protected/catalog/manifest.json --task-id "$EG_TASK_ID"` to verify the canonical gateway, immutable task checkpoint, audit chain, pinned operator public root, signed registry binding TTL, and fresh worker challenge for each typed E3/E4/E5 catalog entry. It never submits PRE, issues an approval, executes an effect, or marks a task verified. Listed capabilities can be **UNAVAILABLE** when their signed operator binding expires. Do not equate `MATCHED_LIVE_PRE_REQUIRED` with `VERIFIED_PASS`.
-
-For an existing operator-authorized binding, `python -m tools.renew_operator_binding --binding /path/to/binding.json --operator-key /protected/operator.pem --registry /protected/registry --operator-public-key "$EG_PINNED_OPERATOR_PUBLIC_KEY_B64" --ttl-seconds 3600` reissues the **same** adapter, capability digest, socket, peer UID and worker key. It requires the existing protected operator key, verifies the old signature, and performs a fresh signed worker probe. No operator scope, task, or action approval is added. Renew before expiry where possible; a different signer/adapter requires separate explicit provisioning.
+## Read-only capability health
+Check the authenticated gateway health, audit, task state and currently admitted actions. A listed capability is not execution authorization.
 
 ## Host identity neutrality
 
@@ -218,80 +215,5 @@ EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES=.txt,.json,.py,.rs,.toml
 
 In the independently privileged worker's private JSON configuration, set `"allowed_suffixes":[".txt",".json",".py",".rs",".toml"]`. The worker still enforces the approved root, exact precommitted payload digest and length, exclusive no-follow creation, durable journal, signed receipt, and independent readback. Nested project targets are permitted only within **pre-created, worker-UID-owned, 0700 private** subdirectories; the worker rejects symlink ancestors, missing directories and traversal. The operator must provision those directories through an independently governed process. The worker never creates directories implicitly, so this feature does not claim to govern workspace provisioning. Do **not** treat a suffix opt-in as approval to run a script, compile, overwrite, control a service, or push to GitHub; those require independently provisioned and authorized execution adapters. A mismatch between EG and worker policies must fail closed at the worker, never fall back to an ungoverned shell. Invalid suffix entries are rejected at startup.
 
-## Governed agent entrypoint (currently E0/E2)
-
-`tools/governed_agent_dispatcher.py` is a **library interface for a separately
-trusted dispatcher**, not a general terminal or a shortcut around EG. It only
-forwards the exact registered E0/E2 action to the independent Unix-socket
-worker after checking current task, executable READY PRE, original action
-fingerprint, and unexpired lease. The worker independently repeats its own
-EG checks and signs only after real execution and readback. The dispatcher
-verifies the receipt's independent executor signature.
-
-The dispatcher returns `RECEIPT_VERIFIED_POST_REQUIRED`, **never**
-`VERIFIED`. The agent must submit that exact signed receipt and fresh result
-evidence via EG POST before advancing the task. When PRE is absent, the action changes, execution is paused or recovery is unknown, or no independently
-provisioned external adapter matches E3–E5, the dispatcher refuses the call. HITL alone cannot add executor capability.
-
-Provision the dispatcher itself under a protected identity with access to
-the worker socket and narrow EG API credentials. Do **not** give an untrusted
-agent direct access to the worker socket, signer key, EG API keys or an
-unrestricted host shell. CI exercises actual signed-worker E2E across
-physical registered steps, negative admissions and a separate untrusted UID
-attempting to connect directly to the worker socket.
-
-This protects **only the adopted, controlled entrypoint**. It cannot
-intercept commands from an external host-root agent, a free shell or an
-unconnected scheduler; such systems need their own isolation and EG adaptor
-before claiming mandatory end-to-end enforcement. Staging, remediation, and
-recovery remain subject to the same registered PRE/POST rules.
-
-## Compose deployment for an independently administered adapter
-
-Default `docker-compose.yml` deliberately does not enable external E3–E5 adapters.
-For a separately deployed worker that meets the independent-identity and
-signed-HITL requirements, an operator can opt in using:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.external-adapter.yml config
-docker compose -f docker-compose.yml -f docker-compose.external-adapter.yml up -d
-```
-
-The override requires `EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID`,
-`EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON`,
-`EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64`, and
-`EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET_DIR`. The latter must be a
-dedicated, operator-controlled directory containing `effect.sock`, accessible
-to the EG container UID only with the necessary permissions. The worker and
-its signing key must run outside the gateway container and outside the
-untrusted agent's privilege domain. This override does **not** start a worker,
-create HITL signatures, guarantee availability or grant any PRE. If the worker
-or keys are absent, keep E3–E5 unavailable; never mount the Docker daemon
-socket or share a private signing key.
-
-## Portable high-effect boundary
-The bundled execution worker remains E0/E2-only. EG now exposes a generic,
-**operator-opt-in** E3–E5 adapter admission/dispatch contract without embedding
-Cargo, Git, Rust, Python or arbitrary shell permissions. For external work,
-provision independent worker UID/socket/key, typed effect capability and
-separate signed HITL authority; pin every original PRE, signed live
-challenge, action fingerprint, scope, immutable receipt and POST. Use the unified `dispatch_action` and operator-signed worker registry; the
-registry can select exactly one active matching adapter without per-task
-socket/UID parameters. Explicit external-worker routing remains available for
-independently provisioned policy. The reusable bounded process catalog
-(`trusted_process_catalog.py`) implements **E3, E4 and E5** with the same
-worker code, 1–32 pinned actions per class-bound adapter, and shared
-identity/socket/journal within that adapter. Independent operator policies
-select `effect_class` and `action_type`; E4 requires reversible actions and
-separately authorized correction, E5 requires irreversible actions and cannot
-be compensated. No provider-specific executor module is needed. No external production
-permission is bundled: the CI-only disposable fixture is not eligible for
-production promotion. Authentication, worker isolation,
-durable journals, real effects, recovery and independent readback remain
-operator-adapter obligations.
-
-Authenticated `GET /v1/agent/capabilities` now includes the scoped E3–E5
-registry's diagnostic availability. An external entry marked
-`EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED` indicates **only** potential
-capability: it is not an authorization, liveness proof or worker launch.
-The exact PRE and worker attestation determine eligibility for execution.
+## Governed step execution
+Use the single-agent workflow: register before work, obtain a valid PRE, dispatch the bounded operation once, submit the signed receipt and fresh POST evidence, then verify. Staging follows the same rule.

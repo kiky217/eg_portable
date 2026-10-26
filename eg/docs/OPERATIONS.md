@@ -143,54 +143,5 @@ security domain is required. An expired PRE with no observed action requires
 a new PRE after native executor admission; an effect already present instead
 requires reconciliation, not re-execution or a retrospective receipt.
 
-## E3–E5 operational limits
-The portable package does not automatically provision production E3–E5 workers.
-An operator can register multiple independent signed worker bindings using
-`EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR` and
-`EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64`, then enable
-`EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE=enabled` with typed capabilities and
-a separate HITL trust root. Canonical PRE checks each worker's live identity;
-the agent dispatcher reuses active bindings without per-task socket/UID entry.
-Do not treat
-`EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON` as a liveness/privilege
-attestation or set an in-process CI-only dispatcher as production transport.
-Only authenticated original-gate PRE signing roots may validate subsequent
-E3–E5 POST or no-effect reconciliation; absence of a trustworthy root is BLOCKED.
-
-
-### Generic capability dispatch for any application
-
-The **E3–E5 typed process catalog** (`tools.trusted_process_catalog.TrustedProcessCatalog`)
-provides one reusable operator-pinned worker for up to 32 exact action
-targets. Operators select installed executables and fixed arguments in a
-protected profile catalog. A project, language, database, host or API provider
-does **not** require a new EG executor module. The common agent interface is
-`tools.governed_agent_dispatcher.dispatch_action()`; it uses authenticated
-capability discovery, original PRE, an independent scoped approval, one
-signed worker receipt and canonical POST. A catalog entry **does not**
-automatically grant OS permission or real-world change authority.
-
-The **same** bundled process-catalog source now supports E3, E4 and E5 through a separately provisioned, class-bound `effect_class` and `action_type` policy. Each authorized worker has one typed effect class, 1–32 pinned targets and its own independent worker/signer identity. E4 requires `reversible=true`, E5 `reversible=false`. Effects not representable by an approved bounded profile still require an independently governed matching worker. The *generic dispatcher*
-accepts such externally provisioned workers; no special provider branches
-exist in EG core. No built-in GitHub write/PR/merge worker is shipped in
-`eg/tools/`. A provider API operation cannot be claimed as supported just
-because it is present in documentation or as a diagnostic capability.
-
-For cross-environment bootstrap, exact profile syntax, operator UID separation,
-approval/replay limits and failure handling, use
-[Generic execution model](GENERIC_EXECUTION_MODEL.md),
-[Operator process service](OPERATOR_PROCESS_SERVICE.md) and
-[Agent operations reference](AGENT_OPERATIONS_REFERENCE.md).
-If the capability is not authorized, fail closed and report the missing
-policy/scope; never silently substitute a host shell or a CI fixture.
-
-### Source-pinned semantic hardcode review (#104)
-
-The release workflow's existing read-only `audit_hardcodes.py` now includes
-source-file SHA256, path:line lexical findings, and Python AST literal sites
-with explicit origin, consumer, preliminary risk, and next review action.
-All automated classifications retain `SEMANTIC_REVIEW_REQUIRED`;
-`semantic_review_complete` stays false until independent semantic review.
-No automatic finding is a defect verdict or authorization to remove security
-invariants. Use the exact released source-commit and the archived candidate
-report before touching core code.
+## Current operational scope
+The canonical gateway admits bounded reads, exclusive file creation and verified replacement. Old external process bindings and catalog workers have been retired from this installation. Refer to [the portable runbook](PORTABLE_RUNBOOK.md) for ordered step verification, audit, recovery and migration.

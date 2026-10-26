@@ -16,7 +16,7 @@ Evaluation Gateway (EG) checks work **one step at a time**. An agent registers i
 
 **Every step must be verified — including staging, testing, recovery, and cutover steps.** EG does not allow a supported physical action to be presented as verified merely because it was performed or reported afterward.
 
-For the project overview, see the [main README](../README.md). For agent operations begin with the [complete SKILL](../SKILL.md) and [source-verified operation reference](docs/AGENT_OPERATIONS_REFERENCE.md).
+For the project overview, see the [main README](../README.md). For agent operations begin with the [complete SKILL](../SKILL.md) and [source-verified operation reference](docs/PORTABLE_RUNBOOK.md).
 
 ## How a task progresses
 
@@ -93,9 +93,6 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 | `app/main.py` | Canonical API, evaluation logic, task and audit state |
 | `app/execution_receipts.py` | Signed executor receipt verification |
 | `tools/trusted_execution_worker.py` | Bounded worker for admitted E0/E2 effects |
-| `tools/trusted_process_catalog.py` | Operator-pinned generic E3 multi-target process catalog |
-| `tools/operator_process_service.py` | Separate-UID generic E3 process host and signed RPC |
-| `tools/governed_agent_dispatcher.py` | Shared E0/E2/E3–E5 typed action routing, not a shell |
 | `tools/check_live_cutover_readiness.py` | Read-only cutover readiness and provenance checks |
 | `tests/` | Regression and E2E tests |
 | `docs/` | Operational runbook, protocol, architecture, and release criteria |
@@ -103,4 +100,4 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 
 EG has **one canonical task registry and evaluator**. The trusted worker is an execution adapter, not an alternative evaluator.
 
-For multiple admitted external E3/E4/E5 adapters on the same gateway, configure independently authorized class-bound signer public roots with `EVALUATION_GATEWAY_HIGH_EFFECT_HITL_PUBLIC_KEYS_JSON` as documented in [operator bootstrap](docs/ONE_TIME_STAGING_BOOTSTRAP.md). A shared legacy signer key does not establish per-class independent approval.
+For multiple admitted external E3/E4/E5 adapters on the same gateway, configure independently authorized class-bound signer public roots with `EVALUATION_GATEWAY_HIGH_EFFECT_HITL_PUBLIC_KEYS_JSON` as documented in [operator bootstrap](docs/PORTABLE_RUNBOOK.md). A shared legacy signer key does not establish per-class independent approval.
