@@ -118,6 +118,10 @@ def provision(policy):
         effect_class=effect,action_type=action_type)
     operator_key,worker_key=Ed25519PrivateKey.generate(),Ed25519PrivateKey.generate()
     _write(operator_dir/'operator.pem',_private_pem(operator_key),0,0)
+    # Controller-readable but operator-controlled trust pin, independent of
+    # agent-writable registry/public.json. Never supply operator private keys.
+    _write(root/'operator-public-key.b64',(_public(operator_key)+'\n').encode(),0,0)
+    (root/'operator-public-key.b64').chmod(0o444)
     _write(worker_dir/'worker.pem',_private_pem(worker_key),worker,worker)
     _write(worker_dir/'gateway.key',token+b'\n',worker,worker)
     capability=AdapterCapability(adapter_id=policy['adapter_id'],effect_class=effect,

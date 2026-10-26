@@ -47,16 +47,30 @@ For deployment and recovery, use the [portable runbook](docs/PORTABLE_RUNBOOK.md
 
 ## Build and test
 
-From the `eg/` directory, using Python 3.12 and the project's test dependencies:
+Use a **disposable Python 3.12 test environment**, separate from the production
+runtime and portable archive. The test-only manifest is pinned and shared
+with GitHub Actions. From `eg/`:
 
 ```sh
-python -m pytest -q tests
+python -m venv .venv-test
+. .venv-test/bin/activate
+python -m pip install --only-binary=:all: --require-hashes -r requirements.lock
+python -m pip install --only-binary=:all: -r requirements-test.txt
+PYTHONPATH=.:tests python -m pytest -q -p no:cacheprovider tests
 PYTHONPATH=. python tools/run_trusted_e2e.py
 PYTHONPATH=. python tools/run_remedial_e2e.py
 python tests/live_e2e.py
 python tools/build_portable_bundle.py
 python tools/test_offline_portable.py
 ```
+
+If the system Python lacks `venv`/`ensurepip` (common on notebook images),
+use `uv venv --python python3.12 .venv-test`, then `uv pip install --python
+.venv-test/bin/python --require-hashes -r requirements.lock` and `uv pip
+install --python .venv-test/bin/python -r requirements-test.txt`. The production
+runtime stays separate in either approach.
+
+`requirements-test.txt` (pytest, httpx, httpx2) is for development/testing **only**; do not put these packages in `requirements.lock`, Docker production images or the portable bundle. A full root-run may show deliberate non-root-only SKIPs; rerun those tests with eligible unprivileged user identities instead of calling SKIPs a PASS.
 
 The E2E scripts use isolated test-only instances. They do not take ownership of a production task or replace the current gateway's authenticated state.
 

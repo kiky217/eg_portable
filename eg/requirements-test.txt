@@ -1,0 +1,5 @@
+# Test-only dependencies for CPython 3.12. Never install in production runtime/archive.
+# Install after hash-locked eg/requirements.lock in an isolated test environment.
+pytest==9.1.1
+httpx==0.28.1
+httpx2==2.16.0

@@ -4,7 +4,7 @@
 Starts uvicorn against an isolated temp runtime, drives the API over loopback HTTP, restarts the process,
 and performs destructive database tests. Usage: python tests/live_e2e.py
 """
-import base64, hashlib, json, os, secrets, shutil, sqlite3, subprocess, sys, tempfile, time
+import base64, hashlib, json, os, secrets, shutil, socket, sqlite3, subprocess, sys, tempfile, time
 from pathlib import Path
 import httpx
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -20,7 +20,15 @@ ENV = {**os.environ, "EVALUATION_GATEWAY_API_KEY": secrets.token_urlsafe(48), "E
        "EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64": base64.b64encode(EXEC_PRIV.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)).decode(),
        "EVALUATION_GATEWAY_EVIDENCE_ROOT": str(TMP / "evidence"), "EVALUATION_GATEWAY_DB_PATH": str(TMP / "data" / "gateway.db"), "EVALUATION_GATEWAY_ANCHOR_PATH": str(TMP / "anchor" / "audit.anchor"),
        "EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID": str(os.getuid())}
-PORT = int(os.getenv("EG_LIVE_PORT", "18791")); URL = f"http://127.0.0.1:{PORT}"
+def reserve_test_port():
+    # Avoid a fixed port colliding with a legitimate service on a shared test host.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
+
+
+PORT = int(os.environ["EG_LIVE_PORT"]) if "EG_LIVE_PORT" in os.environ else reserve_test_port()
+URL = f"http://127.0.0.1:{PORT}"
 HEAD = {"X-Evaluation-Key": ENV["EVALUATION_GATEWAY_API_KEY"]}; HITL = {**HEAD, "X-Evaluation-HITL-Key": ENV["EVALUATION_GATEWAY_HITL_KEY"]}
 results = []; proc = None
 
@@ -36,7 +44,10 @@ def start(env=None, expect_up=True):
         if proc.poll() is not None:
             return False
         try:
-            if httpx.get(URL + "/health", timeout=1).status_code == 200:
+            # A different local service may also answer /health; require the
+            # authenticated EG protocol endpoint and our own live subprocess.
+            response = httpx.get(URL + "/v1/protocol", headers=HEAD, timeout=1)
+            if proc.poll() is None and response.status_code == 200 and isinstance(response.json().get("hash"), str):
                 return True
         except httpx.HTTPError:
             pass

@@ -80,7 +80,16 @@ def test_distinct_uid_controller_worker_live_attestation_and_denial():
                 # Rogue member of shared group can connect, but SO_PEERCRED blocks it.
                 with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
                     client.settimeout(3)
-                    client.connect(str(sock))
+                    # Socket pathname can exist before the listener accepts.
+                    # Retry only the connection attempt, never the attestation.
+                    for _ in range(60):
+                        try:
+                            client.connect(str(sock))
+                            break
+                        except (ConnectionRefusedError, FileNotFoundError):
+                            time.sleep(0.02)
+                    else:
+                        raise AssertionError("attester never accepted connections")
                     client.sendall(canon({"operation":"attest","challenge":{}})+b"\n")
                     response=client.makefile("rb").readline(4096)
                 assert response==b'{"status":"DENIED"}\n'

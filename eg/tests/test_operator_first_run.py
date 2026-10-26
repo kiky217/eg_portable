@@ -76,6 +76,10 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
             result['signer_config_path']],cwd=src,env=env,
             preexec_fn=switch(SIGNER),capture_output=True,timeout=5)
         assert signer_checker.returncode==0,signer_checker.stderr
+        pin=root/'operator-public-key.b64'
+        assert pin.stat().st_uid == 0
+        assert stat.S_IMODE(pin.stat().st_mode) == 0o444
+        assert pin.read_text().strip() == result['operator_public_key_b64']
         binding=json.loads((root/'registry/binding.json').read_text())
         proof=verify_operator_binding(binding,operator_public_key_b64=result['operator_public_key_b64'],
                    adapter_id=policy['adapter_id'],capability_sha256=result['capability_sha256'])
@@ -88,16 +92,27 @@ def test_one_time_operator_provisioning_and_signed_worker_activation():
             assert worker.poll() is None,worker.stderr.read().decode()
             time.sleep(.035)
         assert socket_path.is_socket()
-        script='''import json,sys
-from tools.operator_runtime_registry import OperatorAdapterRegistry
-p=json.load(open(sys.argv[1]));b=json.load(open(sys.argv[2]))
-a=OperatorAdapterRegistry(sys.argv[3],p['operator_public_key_b64']).activate(b,adapter_id=b['adapter_id'],capability_sha256=b['capability_sha256'])
-assert a['status']=='ACTIVE_CONFIG_ONLY',a
-'''
-        result2=subprocess.run([sys.executable,'-c',script,str(root/'registry/public.json'),
-                str(root/'registry/binding.json'),str(root/'registry')],cwd=src,env=env,
+        result2=subprocess.run([sys.executable,'-m','tools.operator_activate_catalog',
+                str(root),'--mode','activate'],cwd=src,env=env,
                 preexec_fn=switch(AGENT),capture_output=True,timeout=8)
         assert result2.returncode==0,result2.stderr
+        assert json.loads(result2.stdout)['status']=='ACTIVE_CONFIG_ONLY'
+        verified=subprocess.run([sys.executable,'-m','tools.operator_activate_catalog',
+                str(root),'--mode','verify'],cwd=src,env=env,
+                preexec_fn=switch(AGENT),capture_output=True,timeout=8)
+        assert verified.returncode==0,verified.stderr
+        assert json.loads(verified.stdout)['status']=='REGISTRY_ACTIVE_AND_WORKER_LIVE'
+        assert json.loads(verified.stdout)['canonical_pre_post_verified'] is False
+        # Agent-writable discovery metadata cannot substitute root-pinned trust.
+        public_file=root/'registry/public.json'
+        metadata=json.loads(public_file.read_text())
+        metadata['operator_public_key_b64']='AA' * 22
+        public_file.write_text(json.dumps(metadata))
+        denied=subprocess.run([sys.executable,'-m','tools.operator_activate_catalog',
+                str(root),'--mode','inspect'],cwd=src,env=env,
+                preexec_fn=switch(AGENT),capture_output=True,timeout=8)
+        assert denied.returncode!=0
+        assert 'OPERATOR_PUBLIC_KEY_PIN_MISMATCH' in denied.stdout.decode()
     finally:
         if worker and worker.poll() is None:
             worker.terminate()
@@ -175,5 +190,32 @@ def test_high_effect_generic_worker_provisions_without_new_executor_module(effec
         assert worker["action_type"]==signer["action_type"]=="bounded_process_run"
         assert len(worker["profiles"])==2
         assert result["capability"]["ci_only"] is False
+        # Same activation implementation must accept each separately signed
+        # high-effect identity; never use the E3 adapter as an E4/E5 grant.
+        env={**os.environ, 'PYTHONPATH':str(Path(__file__).resolve().parents[1])}
+        worker=subprocess.Popen([sys.executable,'-m','tools.operator_process_service',
+                result['worker_config_path']],cwd=Path(__file__).resolve().parents[1],
+                env=env,preexec_fn=switch(WORKER),stderr=subprocess.PIPE)
+        try:
+            socket_path=Path(policy['root'])/'socket/worker.sock'
+            for _ in range(120):
+                if socket_path.is_socket():break
+                assert worker.poll() is None,worker.stderr.read().decode()
+                time.sleep(.035)
+            assert socket_path.is_socket()
+            activated=subprocess.run([sys.executable,'-m','tools.operator_activate_catalog',
+                    str(Path(policy['root'])),'--mode','activate'],
+                    cwd=Path(__file__).resolve().parents[1],env=env,
+                    preexec_fn=switch(AGENT),capture_output=True,timeout=8)
+            assert activated.returncode==0,activated.stdout+activated.stderr
+            state=json.loads(activated.stdout)
+            assert state['effect_class']==effect
+            assert state['status']=='ACTIVE_CONFIG_ONLY'
+            assert state['canonical_pre_post_verified'] is False
+        finally:
+            if worker.poll() is None:
+                worker.terminate()
+                try:worker.wait(timeout=3)
+                except subprocess.TimeoutExpired:worker.kill();worker.wait()
     finally:
         shutil.rmtree(base,ignore_errors=True)

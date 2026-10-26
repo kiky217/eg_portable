@@ -37,6 +37,37 @@ typed capability and agent-readable *public* metadata. It refuses replacing
 an existing installation. The operator can provision multiple bounded targets together, so different
 projects reuse one worker, dispatcher, journal and signing root.
 
+**Generic activation, after independent operator setup.** The installer now creates a
+root-owned, read-only `operator-public-key.b64` alongside the agent-readable
+registry. The agent-controlled discovery JSON is **not** the signing trust root.
+
+Once the **independent operator** has started both the catalog process worker
+and scoped HITL signer as separate non-root identities, an authorized non-root
+controller can inspect and activate its already signed catalog, without
+creating credentials or expanding scope:
+
+```sh
+python -m tools.operator_activate_catalog /trusted/operator-install --mode inspect
+python -m tools.operator_activate_catalog /trusted/operator-install --mode activate
+python -m tools.operator_activate_catalog /trusted/operator-install --mode verify
+```
+
+The CLI checks the **root-pinned** Ed25519 operator key, binding signature,
+worker UID, Unix socket liveness and signed worker challenge. Activation is
+fail-closed and never grants agent-selected shell commands, unsigned approval,
+or a canonical EG PRE. The operator must also register the independently
+pinned roots with the EG instance and activate the scoped HITL service. A
+successful registry activation reports `admission=false`: only the subsequent
+original EG `REGISTER → PRE → separately signed HITL → worker effect → signed
+receipt → POST → SATISFIED` can establish actual task authorization and success.
+
+Existing installations **without** a root-pinned public key cannot be upgraded
+by copying an agent-provided key into this path. An independent administrator
+must authenticate and pin the existing operator identity, or use a fresh
+one-time protected onboarding with separately authorized profiles. Use one
+reusable implementation across projects but independently bound E3/E4/E5
+identities and operator policy per effect class.
+
 **Do not mistake files for live admission.** The operator must separately
 start the worker using `tools.operator_process_service` under its pinned
 worker UID, start `tools.operator_scoped_approval` under the signer UID,

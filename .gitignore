@@ -25,3 +25,7 @@ runtime.env
 **/evidence/knid-task-*/
 **/logs/
 **/*.jsonl
+
+# Disposable contributor/test virtual environments
+**/.venv/
+**/.venv-*/

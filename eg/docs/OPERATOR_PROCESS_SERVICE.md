@@ -27,6 +27,15 @@ private, with an operator-approved controller group if the controller has a
 different UID (`chmod 2710`; the socket itself becomes `0660`). Both Unix peer
 credentials and the Ed25519 liveness challenge are checked before admission. A process restart after an abrupt interruption may recover a stale worker-owned socket only under its exclusive private lock; it must never overwrite a live listener. Existing durable nonce and signed receipt records are unaffected.
 
+After independent provisioning, the operator can delegate **registry-only**
+activation to the unprivileged controller with
+`python -m tools.operator_activate_catalog /trusted/operator-install --mode activate`.
+It verifies the operator-signed binding against a root-owned public-key pin,
+the exact typed catalog, pinned peer UID and a live signed challenge. The
+operator must still separately run and authorize the HITL signer and pin the
+roots in EG. Neither this command nor registry activation is an EG PRE or
+physical-effect permission. See [one-time operator bootstrap](ONE_TIME_STAGING_BOOTSTRAP.md).
+
 Run the worker as its dedicated non-root UID with an **operator-owned 0600**
 JSON configuration file. Keys, the EG API credential, and the configuration
 must each be regular owner-only files with no symlink. No secret is supplied on
