@@ -192,9 +192,10 @@ def test_high_effect_generic_worker_provisions_without_new_executor_module(effec
         assert result["capability"]["ci_only"] is False
         # Same activation implementation must accept each separately signed
         # high-effect identity; never use the E3 adapter as an E4/E5 grant.
-        env={**os.environ, 'PYTHONPATH':str(Path(__file__).resolve().parents[1])}
+        src=Path(os.environ.get('EG_TEST_SOURCE',Path(__file__).resolve().parents[1]))
+        env={**os.environ, 'PYTHONPATH':str(src)}
         worker=subprocess.Popen([sys.executable,'-m','tools.operator_process_service',
-                result['worker_config_path']],cwd=Path(__file__).resolve().parents[1],
+                result['worker_config_path']],cwd=src,
                 env=env,preexec_fn=switch(WORKER),stderr=subprocess.PIPE)
         try:
             socket_path=Path(policy['root'])/'socket/worker.sock'
@@ -205,7 +206,7 @@ def test_high_effect_generic_worker_provisions_without_new_executor_module(effec
             assert socket_path.is_socket()
             activated=subprocess.run([sys.executable,'-m','tools.operator_activate_catalog',
                     str(Path(policy['root'])),'--mode','activate'],
-                    cwd=Path(__file__).resolve().parents[1],env=env,
+                    cwd=src,env=env,
                     preexec_fn=switch(AGENT),capture_output=True,timeout=8)
             assert activated.returncode==0,activated.stdout+activated.stderr
             state=json.loads(activated.stdout)
