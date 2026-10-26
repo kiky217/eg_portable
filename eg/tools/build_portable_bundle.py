@@ -200,7 +200,11 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 77
 fi
 [ -n "${EG_STATE_DIR:-}" ] || { echo "DENIED: set EG_STATE_DIR to durable persistent storage" >&2; exit 77; }
-[ -n "${EG_EXECUTOR_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: externally administered executor root required" >&2; exit 77; }
+case "${EVALUATION_GATEWAY_ADMISSION_MODE:-enabled}" in
+ enabled) [ -n "${EG_EXECUTOR_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: externally administered executor root required" >&2; exit 77; } ;;
+ disabled) : ;; # Explicit audit-only bootstrap; all concrete effects stay denied.
+ *) echo "DENIED: invalid admission mode" >&2; exit 77 ;;
+esac
 [ -n "${EG_NOTARY_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: independently administered evidence notary public key required" >&2; exit 77; }
 if [ -e "$EG_STATE_DIR" ]; then
   echo "DENIED: refuse to overwrite existing state or identity" >&2
@@ -214,14 +218,15 @@ from pathlib import Path
 d=Path(os.environ['EG_STATE_DIR'])
 executor=os.environ.get('EG_EXECUTOR_PUBLIC_KEY_B64','')
 notary=os.environ.get('EG_NOTARY_PUBLIC_KEY_B64','')
+audit_only=os.environ.get('EVALUATION_GATEWAY_ADMISSION_MODE','enabled') == 'disabled'
 try:
-    if len(base64.b64decode(executor,validate=True))!=32:
+    if (not audit_only or executor) and len(base64.b64decode(executor,validate=True))!=32:
         raise ValueError('executor public key invalid')
     if len(base64.b64decode(notary,validate=True))!=32:
         raise ValueError('notary public key invalid')
 except (ValueError,TypeError) as exc:
     raise SystemExit('DENIED: independent public keys invalid') from exc
-if executor == notary:
+if executor and executor == notary:
     raise SystemExit('DENIED: executor and evidence notary trust roots must be distinct')
 if (d/'notary-private.pem').exists():
     raise SystemExit('DENIED: evidence notary private key accessible in EG state')
@@ -230,11 +235,12 @@ values={'EVALUATION_GATEWAY_API_KEY':secrets.token_urlsafe(48),
 'EVALUATION_GATEWAY_HITL_KEY':secrets.token_urlsafe(48),
 'EVALUATION_GATEWAY_AUDIT_HMAC_KEY':secrets.token_urlsafe(48),
 'EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64':pub,
-'EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64':executor}
+'EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64':executor,
+'EVALUATION_GATEWAY_ADMISSION_MODE':'disabled' if audit_only else 'enabled'}
 with (d/'runtime.env').open('x') as stream:
   for key,value in values.items():stream.write(key+'='+value+'\\n')
 (d/'runtime.env').chmod(0o600)
-print('STATE_INITIALIZED_SEPARATE_EXECUTOR_AND_NOTARY_TRUST_ROOTS_REQUIRED')
+print('STATE_INITIALIZED_AUDIT_ONLY' if audit_only else 'STATE_INITIALIZED_INDEPENDENT_ROOTS')
 PY
 '''
     write_text(root/'init.sh',installer);(root/'init.sh').chmod(0o755)

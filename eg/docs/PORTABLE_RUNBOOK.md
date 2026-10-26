@@ -26,10 +26,14 @@ the previous Colab path. Missing database/signing roots are blockers.
 The source evaluator's default is `EVALUATION_GATEWAY_ADMISSION_MODE=enabled`
 when unset. This is **not** a worker-attestation or PRE authorization default:
 read `/v1/agent/capabilities` and the real worker before claiming any effect.
-Operators can explicitly select `disabled` for historical/audit-only service,
-but the current portable `init.sh` still demands both independently provided
-public roots for a fresh state. See [operations](OPERATIONS.md#safe-historical-task-migration)
-before attempting a no-executor first-run; never substitute a dummy signer.
+Operators may select `disabled` for a separately designated audit-only
+service. The generated portable `init.sh` accepts this explicit mode without an
+executor public key, **but still requires** a valid independently administered
+notary public key and non-root runtime. It writes the audit-only setting into
+the runtime env. This never enables E0–E5 physical effects. Full acceptance
+still requires independent authorized workers and signed admission for each
+supported/authorized target. See [operations](OPERATIONS.md#safe-historical-task-migration).
+
 
 ## Software, protocol and receipts
 

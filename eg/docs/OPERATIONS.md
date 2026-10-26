@@ -56,18 +56,17 @@ checks the protocol hash originally authenticated in the TASK_INTAKE event
 and applies CURRENT receipt and audit validations without dispatching any
 previous evaluator. New registrations must use the current protocol hash.
 
-For a separately designated **historical/audit-only** instance with no trusted
-executor, the operator may explicitly set
-`EVALUATION_GATEWAY_ADMISSION_MODE=disabled` and omit the executor public key
-from the evaluator configuration. This is an exception to the source default;
-all concrete PRE/POST actions remain denied. The current generated portable
-`init.sh` nevertheless requires **both** `EG_EXECUTOR_PUBLIC_KEY_B64` and
-`EG_NOTARY_PUBLIC_KEY_B64` even for `disabled` initialization. Therefore fresh
-bootstrap without an independent executor public root is currently **blocked**
-by the installer; this must not be worked around by inventing a dummy key.
-An existing, independently initialized historical state can still be verified
-in audit-only mode with no executor key. Operator provisioning and key isolation
-are needed to enable actual effect execution, regardless of the mode flag.
+For a separately designated **historical/audit-only** instance, set
+`EVALUATION_GATEWAY_ADMISSION_MODE=disabled` **before** invoking the generated
+portable `init.sh`. The installer now accepts an empty executor public root in
+this explicit mode, while still requiring a valid independent evidence-notary
+public root and a non-root service identity. It persists `disabled` to
+`runtime.env`; the service must continue to deny concrete PRE/POST effects.
+The default `enabled` mode still requires a genuine independently provisioned
+executor public root. Audit-only readiness is **not** full capability acceptance.
+Missing independently authorized E0/E2 and E3–E5 workers remains a live
+capability-specific blocker until provisioned and verified, rather than a
+reason to fabricate a key or mark the complete installation PASS.
 
 
 ## Rehearse migration without cutover
