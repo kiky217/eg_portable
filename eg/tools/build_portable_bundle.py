@@ -282,8 +282,8 @@ Relocatable bundled Python 3.12, stdlib, all pinned runtime libraries and EG sou
 Requires Linux x86-64 ABI compatible with the build environment (glibc-compatible).
 No pip/apt/network required to execute, but not a cross-OS executable.
 
-Use as a **dedicated non-root identity**, and set EG_STATE_DIR to secure,
-durable and separately backed-up storage. It MUST be outside this immutable
+Run as the operator-selected host identity (root or non-root), and set
+EG_STATE_DIR to secure, durable and separately backed-up storage. It MUST be outside this immutable
 installation directory. The executor signing root must be independently
 administered: supply its raw 32-byte Ed25519 public key via
 EG_EXECUTOR_PUBLIC_KEY_B64. The evidence notary private key must also live in
