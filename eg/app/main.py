@@ -532,8 +532,7 @@ def require_config() -> None:
     if EXTERNAL_ADAPTER_MODE == "enabled":
         signed_registry=bool(EXTERNAL_REGISTRY_DIR and EXTERNAL_REGISTRY_KEY)
         if (ADMISSION_MODE != "enabled" or HIGH_EFFECT_CI_FIXTURE_ENABLED
-            or os.geteuid() == 0 or
-            bool(EXTERNAL_REGISTRY_DIR)!=bool(EXTERNAL_REGISTRY_KEY)
+            or bool(EXTERNAL_REGISTRY_DIR)!=bool(EXTERNAL_REGISTRY_KEY)
             or (signed_registry and (EXTERNAL_ADAPTER_SOCKET or EXTERNAL_ADAPTER_UID>=0))
             or (not signed_registry and
                 (EXTERNAL_ADAPTER_UID<=0 or
