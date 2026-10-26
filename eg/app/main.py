@@ -1618,6 +1618,7 @@ def external_discovery_status(cap: AdapterCapability) -> str:
 def high_effect_catalog() -> list[dict]:
     """Diagnostic metadata only, never advertise an online E3-E5 executor."""
     return [{"adapter_id":cap.adapter_id,"version":cap.version,"ci_only":cap.ci_only,
+             "capability_sha256":sha(canon(asdict(cap))),
              "effect_class":cap.effect_class,
              "action_type":cap.action_type,"availability":(
                  "CI_ONLY_NOT_PRODUCTION" if cap.ci_only and HIGH_EFFECT_CI_FIXTURE_ENABLED

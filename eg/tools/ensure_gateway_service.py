@@ -4,7 +4,9 @@ Does not initialize identities, approve actions, or replace protected state.
 """
 from __future__ import annotations
 import argparse, hashlib, json, os, subprocess, sys, time, urllib.error, urllib.request
+from dataclasses import asdict
 from pathlib import Path
+from tools.high_effect_admission import AdapterCapability
 
 
 def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
@@ -24,10 +26,16 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
     configured = json.loads(config.get('EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON') or '[]')
     if not isinstance(configured, list):
         raise ValueError('INVALID_CONFIGURED_CAPABILITY_CATALOG')
+    def digest(cap):
+        canonical = json.dumps(asdict(AdapterCapability(**cap)),
+                               sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+        return hashlib.sha256(canonical.encode()).hexdigest()
     expected_caps = {
-        (cap['adapter_id'], cap['action_type'], cap['effect_class'])
+        (cap['adapter_id'], cap['action_type'], cap['effect_class'], digest(cap))
         for cap in configured
     }
+    if len(expected_caps) != len(configured):
+        raise ValueError('DUPLICATE_CONFIGURED_CAPABILITY')
     def check():
         headers = {'X-Evaluation-Key': key}
         request = urllib.request.Request(url, headers=headers)
@@ -39,12 +47,18 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
         with urllib.request.urlopen(request, timeout=2) as response:
             live = json.load(response)
         actual_caps = {
+            (item['adapter_id'], item['action_type'], item['effect_class'],
+             item.get('capability_sha256'))
+            for item in result.get('high_effect_capability_catalog', [])
+        }
+        listed = {
             (item['adapter_id'], item['action_type'], item['effect_class'])
             for item in live.get('capabilities', [])
             if item.get('effect_class') in ('E3', 'E4', 'E5')
         }
         if (live.get('admission_mode') != config.get('EVALUATION_GATEWAY_ADMISSION_MODE', 'enabled')
-                or actual_caps != expected_caps):
+                or actual_caps != expected_caps
+                or listed != {item[:3] for item in expected_caps}):
             raise RuntimeError('RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED')
         return True
     try:
