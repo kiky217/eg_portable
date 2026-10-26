@@ -138,6 +138,24 @@ def main():
     second=subprocess.run([str(extracted/'init.sh')],env=env,capture_output=True,text=True,
                           timeout=10,preexec_fn=switch)
     check('existing_state_not_overwritten',second.returncode==77)
+    # Regression: explicitly disabled audit-only installer must not require an executor key.
+    audit_state=ROOT/'audit-only-state'
+    audit_env=dict(env,EG_STATE_DIR=str(audit_state),
+                   EVALUATION_GATEWAY_ADMISSION_MODE='disabled')
+    audit_env.pop('EG_EXECUTOR_PUBLIC_KEY_B64',None)
+    audit_init=subprocess.run([str(extracted/'init.sh')],env=audit_env,
+                              capture_output=True,text=True,timeout=10,preexec_fn=switch)
+    check('audit_only_init_without_executor_pass',audit_init.returncode==0)
+    audit_config=(audit_state/'runtime.env').read_text()
+    check('audit_only_mode_persisted',
+          'EVALUATION_GATEWAY_ADMISSION_MODE=disabled' in audit_config)
+    check('audit_only_executor_root_empty',
+          'EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64=\n' in audit_config)
+    enabled_env=dict(env,EG_STATE_DIR=str(ROOT/'no-executor-state'))
+    enabled_env.pop('EG_EXECUTOR_PUBLIC_KEY_B64',None)
+    enabled_init=subprocess.run([str(extracted/'init.sh')],env=enabled_env,
+                                capture_output=True,text=True,timeout=10,preexec_fn=switch)
+    check('enabled_missing_executor_still_denied',enabled_init.returncode==77)
     shutil.rmtree(B)
     shutil.move(str(extracted),str(B))
     B.chmod(0o755)
