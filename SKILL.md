@@ -2,9 +2,9 @@
 name: evaluation-gateway-agent
 description: Operate EG end-to-end by reconciling live state, choosing typed capability, registering task, obtaining PRE, executing once, recovering receipt, submitting POST, and verifying final acceptance.
 ---
-# WAJIB SEJAK INSTALASI / MANDATORY INSTALLATION ACCEPTANCE
+# MANDATORY FROM INSTALLATION — FULL CAPABILITY ACCEPTANCE
 
-**"Instal EG lengkap secara generik dan uji sampai seluruh capability dapat digunakan."**
+**"Install EG completely as a generic system and test it end-to-end until every supported, authorized capability is operational."**
 
 **MUST (before declaring EG installed, ready, or completed):** inventory all supported effect classes, install/configure the generic trusted executor and independent approval/trust components for every authorized target class (E0, E2, E3, E4, E5), register and activate operator-approved capabilities, then demonstrate **live** end-to-end REGISTER → PRE → approved execution → signed receipt → POST → VERIFIED → task SATISFIED, including denial, recovery and rollback where applicable. Run exact capability matching and independent outcome readback. Source code, documentation, CI, and `/health: PASS` **do not** establish live capability readiness. Never stop after provisioning only the bundled E0/E2 worker when full EG operation was requested.
 
