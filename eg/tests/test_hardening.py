@@ -237,10 +237,19 @@ def test_40_same_source_evidence_across_steps_and_tasks_has_unique_materializati
     t1, c1 = register(criteria_child=['shared']); t2, c2 = register(criteria_child=['shared'])
     bindings = [sb(t1, '01.01', 0, 'shared', 'PRE_EXECUTION', 0, 'SHARED=PASS'), sb(t1, '01.01', 0, 'shared', 'POST_EXECUTION', 1, 'SHARED=PASS'), sb(t1, '01', 0, 'parent criterion', 'PRE_EXECUTION', 2, 'SHARED=PASS'), sb(t2, '01.01', 0, 'shared', 'PRE_EXECUTION', 0, 'SHARED=PASS'), sb(t2, '01.01', 0, 'shared', 'POST_EXECUTION', 1, 'SHARED=PASS')]
     ref = notarized(eid('knid-task'), stdout='SHARED=PASS', bindings=bindings); crit = [(0, 'shared')]
-    p1, _ = do_pre(t1, c1, 0, criteria=crit, ref=ref); q1, _ = do_post(t1, c1, p1, criteria=crit, ref=ref); assert q1.json()['step_verified']
-    p2, _ = do_pre(t2, c2, 0, criteria=crit, ref=ref); q2, _ = do_post(t2, c2, p2, criteria=crit, ref=ref); assert q2.json()['step_verified']
+    p1, _ = do_pre(t1, c1, 0, criteria=crit, ref=ref)
+    q1, _ = do_post(t1, c1, p1, criteria=crit, stdout='SHARED=PASS', value='SHARED=PASS')
+    assert q1.json()['step_verified']
+    p2, _ = do_pre(t2, c2, 0, criteria=crit, ref=ref)
+    q2, _ = do_post(t2, c2, p2, criteria=crit, stdout='SHARED=PASS', value='SHARED=PASS')
+    assert q2.json()['step_verified']
     pp, _ = do_pre(t1, c1, q1.json()['checkpoint_no'], step='01', criteria=[(0, 'parent criterion')], ref=ref); assert pp.status_code == 200
-    c = gw.conn(); fps = [r[0] for r in c.execute('SELECT evidence_fingerprint FROM evidence_records WHERE reference=?', (ref,))]; assert len(fps) == 5 and len(set(fps)) == 5; assert gw.verify_materialized_state(c); c.close(); assert CLIENT.get('/health').status_code == 200
+    c = gw.conn()
+    fps = [r[0] for r in c.execute('SELECT evidence_fingerprint FROM evidence_records')]
+    assert len(fps) == len(set(fps)) and len([r for r in c.execute('SELECT evidence_fingerprint FROM evidence_records WHERE reference=?', (ref,))]) == 3
+    assert gw.verify_materialized_state(c)
+    c.close()
+    assert CLIENT.get('/health').status_code == 200
 
 
 def test_41_task_kind_tamper_detected():

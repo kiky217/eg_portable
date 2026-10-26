@@ -13,7 +13,8 @@ def test_b1_pre_evidence_cannot_be_replayed_as_post_evidence():
     task, ch = register(); pre, pre_ref = do_pre(task, ch, 0)
     r = raw_eval(task, ch, pre.json()['checkpoint_no'], claims=[claim(pre_ref)], phase='POST_EXECUTION')
     assert r.status_code == 200 and r.json()['verdict'] == 'UNVERIFIED' and not r.json()['step_verified']
-    assert any('binding mismatch' in n['note'] for n in r.json()['evidence_notes'])
+    assert any('binding mismatch' in n['note'] or 'predates required EG checkpoint' in n['note']
+               for n in r.json()['evidence_notes'])
 
 
 def test_b1_post_evidence_bound_to_wrong_gate_checkpoint_rejected():
@@ -22,11 +23,29 @@ def test_b1_post_evidence_bound_to_wrong_gate_checkpoint_rejected():
     assert r.json()['verdict'] == 'UNVERIFIED' and any('binding mismatch' in n['note'] for n in r.json()['evidence_notes'])
 
 
+def test_staging_pre_evidence_older_than_registration_is_rejected():
+    task, ch = register()
+    ref = step_ref(task, 'PRE_EXECUTION', 0, age=2)
+    r = raw_eval(task, ch, 0, claims=[claim(ref)])
+    assert r.status_code == 200
+    assert r.json()['verdict'] == 'UNVERIFIED'
+    assert any('predates required EG checkpoint' in n['note'] for n in r.json()['evidence_notes'])
+
+
+def test_staging_post_evidence_older_than_gate_is_rejected_even_inside_clock_skew():
+    task, ch = register()
+    pre, _ = do_pre(task, ch, 0)
+    ref = step_ref(task, 'POST_EXECUTION', pre.json()['gate_checkpoint_no'], age=2)
+    post, _ = do_post(task, ch, pre, ref=ref)
+    assert post.status_code == 200 and not post.json()['step_verified']
+    assert post.json()['verdict'] == 'UNVERIFIED'
+
+
 def test_b1_post_evidence_finished_before_gate_is_rejected():
     task, ch = register(); pre, _ = do_pre(task, ch, 0)
     ref = step_ref(task, 'POST_EXECUTION', pre.json()['gate_checkpoint_no'], age=gw.CLOCK_SKEW_SECONDS + 60)
     r, _ = do_post(task, ch, pre, ref=ref)
-    assert r.json()['verdict'] == 'UNVERIFIED' and any('predates execution gate' in n['note'] for n in r.json()['evidence_notes'])
+    assert r.json()['verdict'] == 'UNVERIFIED' and any('predates required EG checkpoint' in n['note'] for n in r.json()['evidence_notes'])
 
 
 def test_b1_fact_check_evidence_cannot_authorize_pre():
@@ -51,7 +70,8 @@ def test_b2_server_policy_governs_freshness(monkeypatch):
     assert raw_eval(task, ch, 0, claims=[claim(ref)]).json()['verdict'] == 'UNVERIFIED'
     monkeypatch.setattr(gw, 'EVIDENCE_MAX_AGE_SECONDS', 2000)
     task2, ch2 = register(); ref2 = step_ref(task2, 'PRE_EXECUTION', 0, age=1000)
-    assert raw_eval(task2, ch2, 0, claims=[claim(ref2)]).json()['verdict'] == 'READY_TO_EXECUTE'
+    # A longer freshness window cannot permit a retrospective staging claim.
+    assert raw_eval(task2, ch2, 0, claims=[claim(ref2)]).json()['verdict'] == 'UNVERIFIED'
 
 
 def test_b2_non_finite_timestamp_rejected():
@@ -286,12 +306,24 @@ def test_low_evidence_directory_and_root_must_not_be_writable(monkeypatch):
     gw.require_config()
 
 
+def test_step_guidance_never_suggests_executing_before_pre():
+    task, ch = register()
+    state = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json()
+    assert state['next_action'] == 'OBTAIN_PRE'
+    assert state['pending_execution_gate'] is None
+    pre, _ = do_pre(task, ch, 0)
+    assert pre.json()['verdict'] == 'READY_TO_EXECUTE'
+    state = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json()
+    assert state['next_action'] == 'SUBMIT_POST'
+    assert state['pending_execution_gate'] is not None
+
+
 def test_low_state_guidance_reflects_blockers():
-    task, ch = register(); st = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json(); assert st['next_action'] == 'EXECUTE_OR_EVALUATE' and st['blocked_reason'] is None and st['terminal'] is False
+    task, ch = register(); st = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json(); assert st['next_action'] == 'OBTAIN_PRE' and st['blocked_reason'] is None and st['terminal'] is False
     cp = induce_three_failures(task, ch); st = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json(); assert st['next_action'] == 'REGISTER_REMEDIAL' and st['blocked_reason'] == 'REMEDIAL_ESCALATION_REQUIRED'
     rem, rr = register_remedial(task, cp); assert rr.status_code == 200
     st = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json(); assert st['next_action'] == 'COMPLETE_REMEDIAL' and st['remedial_task_id'] == rem and st['blocked_reason'] == 'ORIGINAL_TASK_BLOCKED_BY_REMEDIAL'
-    complete_remedial(rem, rr.json()['contract_hash']); st = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json(); assert st['next_action'] == 'EXECUTE_OR_EVALUATE'
+    complete_remedial(rem, rr.json()['contract_hash']); st = CLIENT.get(f'/v1/tasks/{task}/state', headers=HEAD).json(); assert st['next_action'] == 'OBTAIN_PRE'
     done, dch = register(); H.finish_normal(done, dch); st = CLIENT.get(f'/v1/tasks/{done}/state', headers=HEAD).json(); assert st['next_action'] == 'STOP' and st['terminal'] is True
 
 

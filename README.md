@@ -1,16 +1,16 @@
 # Evaluation Gateway (EG)
 
-## MANDATORY FROM INSTALLATION — FULL CAPABILITY ACCEPTANCE
+## Mandatory step-by-step verification, including staging
 
 **"Install EG completely as a generic system and test it end-to-end until every supported, authorized capability is operational."**
 
-**Host-neutral operation:** EG can run with the existing root or non-root account. `EVALUATION_GATEWAY_LOCAL_HOST_MODE=enabled` uses the same generic, reusable E3–E5 typed worker implementation on a single host; no new per-project executor or additional OS account is mandatory. REGISTER, PRE, signed approval, actual execution receipt and POST remain required. The optional multi-identity deployment remains supported.
+**Portable and generic:** One gateway, built-in bounded file operations, no new executor per project or staging environment. Workflow gates—not worker setup—determine when an agent may proceed.
 
-**Required for every fresh installation and upgrade (including staging):** Read the [canonical agent SKILL](SKILL.md) first. Inventory **E0, E2, E3, E4, and E5**. Install the EG gateway and durable audit/evidence state, configure independently protected credentials and trust roots, bring the built-in E0/E2 worker online, and provision/register/activate the **generic** E3/E4/E5 process catalog workers and independently administered scoped HITL signers for every effect class and target profile the operator has actually authorized. Verify live socket/UID identity, signed operator binding, exact typed capability match, and liveness. **Do not build project-specific executor code or infer privileges from the presence of source code.**
+**Required for every fresh installation and upgrade (including staging):** Read the [canonical agent SKILL](SKILL.md) first. Install one portable gateway with durable task/audit state and the built-in read, create and replace operations. Require task registration before any work and a verified PRE, exact execution receipt where an action occurs, independently checked POST, and completion of each step before starting the next; staging is not exempt. **Do not build project-specific executor code or infer privileges from the presence of source code.**
 
-**Mandatory acceptance for every authorized capability:** Demonstrate the original EG **REGISTER → PRE → independently authorized execution → signed receipt → POST → VERIFIED → task SATISFIED** with a real physical effect where applicable, independent result readback, and relevant denial, replay/idempotence, crash recovery, and rollback tests. High-effect signed HITL must be valid **before PRE admission**. **CI PASS, `/health: PASS`, source/build completion, and capabilities merely listed/configured are never proof of live E2E readiness.**
+**Mandatory verification:** REGISTER → signed PRE → admitted action → signed receipt → independently checked POST → VERIFIED → next step → SATISFIED. No work before PRE, no retrospective claims, no staging exceptions.
 
-**Fail-closed completion rule:** Missing independent operator approval, worker/UID, signer, scoped policy, profile, credentials, registration, or live PRE/POST evidence means the requested full installation is **INCOMPLETE / BLOCKED**, not COMPLETED. Identify the exact prerequisite; never fabricate independent authority, self-approve, or bypass EG by running the effect directly. Generic means reusable implementations with **separately authorized privileges**, not an unrestricted shell.
+**Fail closed:** Without registration, current-step PRE, signed action receipt or verifiable POST, the step stays BLOCKED. A healthy gateway or passing CI never proves task completion. Operations outside EG are not governed or eligible for retroactive acceptance.
 
 **Verify every step as work happens — not after a project is finished.**
 
@@ -109,22 +109,15 @@ trusted executor.
 
 **3. Learn the contracts before admitting effects.** The [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) describes PRE, signed receipts, POST, and evidence requirements. For development and isolated regression testing, see the [application and developer guide](eg/README.md#build-and-test).
 
-For a signed provider-neutral process example, see `eg/tests/test_process_external_e2e.py` and [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md). One generic worker can serve many independently approved task targets.
+For examples of the required gated workflow, see the [single-agent tests](eg/tests/test_single_agent_workflow.py) and [agent SKILL](SKILL.md).
 
 ## Current boundaries
 
 EG is a **generic, provider-neutral work governance system**, not a remote root shell. Preapproved catalog profiles can serve many projects without adding code for each tool or provider.
 
-| Execution scope | Current support |
-| --- | --- |
-| **E0** bounded reads | Bundled trusted worker |
-| **E1** | Not implemented; rejected from new capability discovery and action input. Do not count as installed. |
-| **E2** reversible file creation and SHA-256-bound replacement | Bundled trusted worker, restricted output directory and allowlisted suffixes |
-| **E3–E5** higher-effect operations | Generic typed worker under exact signed operator policy; single-host root/non-root mode supported, without per-project executor |
-| **E3 bounded processes** | Reuse signed, operator-approved process catalog profiles; no project-specific executor or mandatory new OS account |
-| **E4/E5 bounded typed operations** | The **same** independently provisioned process-catalog implementation supports E4 and E5 with operator-pinned effect/action profile, separate signed scope and PRE/HITL/POST. E4 reversible, E5 irreversible; no arbitrary shell or implicit new privileges |
+The canonical portable installation supports **bounded file reading, exclusive creation and verified replacement** in its configured workspace. Other actions are not claimed as available or silently substituted.
 
-The E3–E5 disposable adapters included for repository tests are **CI fixtures, not production executors**. Human approval alone cannot create a missing execution capability. EG also cannot enforce actions performed entirely outside its trusted boundary.
+EG verifies only work performed through its governed path. It cannot physically prevent an agent from using an unrelated external tool, but it rejects missing PRE, missing receipts, and retrospective evidence as grounds for task completion.
 
 **Generic evidence provenance:** Evidence producer names are validated as
 bounded `*_task` labels; an unfamiliar or historical label is not a

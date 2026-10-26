@@ -46,7 +46,7 @@ def test_runtime_and_documentation_are_same_generic_contract():
     assert "class TrustedProcessCatalog:" in catalog and "len(profiles)" in catalog
     assert 'action.get("effect_class")!=self.effect_class' in process
     assert "E3–E5 typed process catalog" in OPS and "E3, E4 and E5" in OPS
-    assert "**E4/E5 bounded typed operations**" in ROOT_README and "E3–E5" in GENERIC
+    assert "bounded file reading, exclusive creation and verified replacement" in ROOT_README and "E3–E5" in GENERIC
     assert "profiles" in BOOTSTRAP and "single-target" not in BOOTSTRAP
     assert "E3" in SCOPED and "target scope" in SCOPED
     for stale in (

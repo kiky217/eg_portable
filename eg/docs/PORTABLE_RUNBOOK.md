@@ -1,14 +1,14 @@
 # EG portable — canonical active runbook
 
-## MANDATORY FROM INSTALLATION — FULL CAPABILITY ACCEPTANCE
+## Canonical staged execution: verify each step before continuing
 
 **"Install EG completely as a generic system and test it end-to-end until every supported, authorized capability is operational."**
 
-**Required for every fresh installation and upgrade (including staging):** Read the [canonical agent SKILL](../../SKILL.md) first. Inventory **E0, E2, E3, E4, and E5**. Install the EG gateway and durable audit/evidence state, configure independently protected credentials and trust roots, bring the built-in E0/E2 worker online, and provision/register/activate the **generic** E3/E4/E5 process catalog workers and independently administered scoped HITL signers for every effect class and target profile the operator has actually authorized. Verify live socket/UID identity, signed operator binding, exact typed capability match, and liveness. **Do not build project-specific executor code or infer privileges from the presence of source code.**
+**Required for every fresh installation and upgrade (including staging):** Read the [canonical agent SKILL](../../SKILL.md) first. Install one portable gateway with durable task/audit state and the built-in read, create and replace operations. Require task registration before any work and a verified PRE, exact execution receipt where an action occurs, independently checked POST, and completion of each step before starting the next; staging is not exempt. **Do not build project-specific executor code or infer privileges from the presence of source code.**
 
-**Mandatory acceptance for every authorized capability:** Demonstrate the original EG **REGISTER → PRE → independently authorized execution → signed receipt → POST → VERIFIED → task SATISFIED** with a real physical effect where applicable, independent result readback, and relevant denial, replay/idempotence, crash recovery, and rollback tests. High-effect signed HITL must be valid **before PRE admission**. **CI PASS, `/health: PASS`, source/build completion, and capabilities merely listed/configured are never proof of live E2E readiness.**
+**Mandatory verification:** REGISTER → signed PRE → admitted action → signed receipt → independently checked POST → VERIFIED → next step → SATISFIED. No work before PRE, no retrospective claims, no staging exceptions.
 
-**Fail-closed completion rule:** Missing independent operator approval, worker/UID, signer, scoped policy, profile, credentials, registration, or live PRE/POST evidence means the requested full installation is **INCOMPLETE / BLOCKED**, not COMPLETED. Identify the exact prerequisite; never fabricate independent authority, self-approve, or bypass EG by running the effect directly. Generic means reusable implementations with **separately authorized privileges**, not an unrestricted shell.
+**Fail closed:** Without registration, current-step PRE, signed action receipt or verifiable POST, the step stays BLOCKED. A healthy gateway or passing CI never proves task completion. Operations outside EG are not governed or eligible for retroactive acceptance.
 
 This document applies to **new deployments and active runtimes**, not to a
 historical Colab session. One registry, one current evaluator, one writer.

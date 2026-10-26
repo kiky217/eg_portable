@@ -684,7 +684,7 @@ class EvalContext(NamedTuple):
     """Execution context every piece of evidence is bound to.
 
     checkpoint_ref: PRE_EXECUTION/FACT_CHECK -> request checkpoint_no; POST_EXECUTION -> pre_checkpoint_no of the gate.
-    not_before: POST only -> creation time of that gate; evidence finished earlier is rejected.
+    not_before: registration time for PRE/FACT_CHECK; PRE gate time for POST.
     """
     phase: str
     checkpoint_ref: int
@@ -814,8 +814,8 @@ def verify_evidence(ev: Evidence, identity: dict[str, Any], not_before: float | 
     age = datetime.now(timezone.utc).timestamp() - float(finished)
     if age < -CLOCK_SKEW_SECONDS or age > EVIDENCE_MAX_AGE_SECONDS:
         return _reject("stale evidence", oh)
-    if not_before is not None and float(finished) < not_before - CLOCK_SKEW_SECONDS:
-        return _reject("evidence predates execution gate", oh)
+    if not_before is not None and float(finished) < not_before:
+        return _reject("evidence predates required EG checkpoint", oh)
     if state.get("status") != "PASS" or state.get("exit_code") != 0:
         return _reject("source task not PASS", oh)
     bindings = meta.get("bindings")
@@ -1434,9 +1434,13 @@ def latest_gate(c: sqlite3.Connection, task_id: str, step_key: str):
 def task_guidance(c: sqlite3.Connection, t: sqlite3.Row, current: str | None) -> dict[str, Any]:
     """Machine-readable next action for reconciliation; mirrors the preconditions enforced by /v1/evaluate."""
     terminal = t["contract_status"] in TERMINAL_STATUSES
-    g: dict[str, Any] = {"terminal": terminal, "next_action": "STOP" if terminal else "EXECUTE_OR_EVALUATE", "blocked_reason": None, "remedial_task_id": None}
+    g: dict[str, Any] = {"terminal": terminal, "next_action": "STOP" if terminal else "OBTAIN_PRE", "blocked_reason": None, "remedial_task_id": None}
     if terminal or current is None:
         return g
+    gate = latest_gate(c, t["task_id"], current)
+    if gate and gate["pre_verdict"] == "READY_TO_EXECUTE" and not gate["consumed"]:
+        g["next_action"] = ("SUBMIT_POST" if gate["action_fingerprint"] == action_fingerprint(None)
+                            else "DISPATCH_ONCE_THEN_POST")
     if t["status"] == "PAUSED":
         g.update(next_action="RESUME_AFTER_RECONCILIATION",
                  blocked_reason="TASK_PAUSED")
@@ -1856,7 +1860,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         if req.phase == "FACT_CHECK":
             if req.action is not None or req.finalize_task or req.task_claims or any(x is not None for x in (req.remedial_disposition, req.remedial_outcome, req.recovery_strategy)):
                 raise HTTPException(409, {"code": "FACT_CHECK_READ_ONLY"})
-            step_pass, notes, _rows = verify_claim_set(req.task_id, expected, criteria, req.claims, "step", EvalContext("FACT_CHECK", req.checkpoint_no, None))
+            step_pass, notes, _rows = verify_claim_set(req.task_id, expected, criteria, req.claims, "step", EvalContext("FACT_CHECK", req.checkpoint_no, iso_epoch(t["created_at"])))
             verdict = Verdict.VERIFIED_PASS if step_pass else Verdict.UNVERIFIED
             out = {"gateway_version": APP_VERSION, "task_id": req.task_id, "step_key": expected, "verdict": verdict.value, "reason": "current-step facts verified without state advancement" if step_pass else "one or more current-step facts remain unverified", "step_verified": False, "contract_status": t["contract_status"], "checkpoint_no": int(t["checkpoint_no"]), "evidence_notes": notes, "hitl_approved": False, "action_fingerprint": None, "action_intent_fingerprint": None, "gate_checkpoint_no": None, "evidence_digest": None, "materialized_evidence": [], "completed_at": t["completed_at"], "remedial_outcome": t["remedial_outcome"], "recovery_strategy": t["recovery_strategy"], "idempotent_replay": False}
             return commit_audited(c, req.task_id, req.event_id, "FACT_CHECK", req.contract_hash, rh, req.model_dump(mode="json"), out)
@@ -1908,7 +1912,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                     "code": "UNRESOLVED_ACTION_GATE_NO_NEW_PRE",
                     "pre_checkpoint_no": int(pending["pre_checkpoint_no"]),
                 })
-            ctx = EvalContext("PRE_EXECUTION", req.checkpoint_no, None)
+            ctx = EvalContext("PRE_EXECUTION", req.checkpoint_no, iso_epoch(t["created_at"]))
         else:
             # A failed POST leaves the PRE gate unconsumed: verification is retried against the SAME gate,
             # never by authorizing (and thus potentially re-executing) the action again.

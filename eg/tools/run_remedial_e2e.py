@@ -114,7 +114,7 @@ def scenario(strategy,revision):
     assert state['next_action']=='REGISTER_REMEDIAL',state
     rem,repaired,rem_cp=remediate(original,cp,strategy,revision)
     resumed=X.eg_req('GET','/v1/tasks/'+original+'/state')
-    assert resumed['next_action']=='EXECUTE_OR_EVALUATE',resumed
+    assert resumed['next_action']=='OBTAIN_PRE',resumed
     # Verify physical worker file is actually repaired and acceptance is unchanged.
     manifest=json.loads(repaired.read_text())
     assert manifest['configuration']['enabled'] and manifest['design_version']==revision
