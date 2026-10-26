@@ -6,7 +6,7 @@ worker, or replace canonical PRE and signed HITL.
 from __future__ import annotations
 import re
 
-_ALLOWED_EFFECT={"E0","E1","E2","E3","E4","E5"}
+_ALLOWED_EFFECT={"E0","E2","E3","E4","E5"}
 _NAME=re.compile(r"^[a-z][a-z0-9_.-]{0,127}$")
 _SCHEMA_ID=re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,127}$")
 _TRANSPORTS={"unix-rpc","https-rpc"}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provider-neutral E0–E5 agent dispatch (not an unrestricted shell).
+"""Provider-neutral E0/E2/E3–E5 agent dispatch (not an unrestricted shell).
 
 E0/E2 use a restricted worker; E3–E5 use separately authorized typed external
 workers. E3 process profiles can be reused across projects through one catalog.

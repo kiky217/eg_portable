@@ -48,7 +48,7 @@ provider-specific executors and confer **no** evidence authority without the
 unchanged manifest-v4 independent signature, path/UID, checkpoint and
 criterion checks. New tasks use the same provider-neutral source contract.
 The [root SKILL operational cookbook](../SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work)
-includes registration examples, bootstrap, E0–E5 capability limits, dispatcher
+includes registration examples, bootstrap, E0/E2/E3–E5 capability limits, dispatcher
 inputs, recovery and acceptance.
 
 ## Environment and operations
@@ -95,7 +95,7 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 | `tools/trusted_execution_worker.py` | Bounded worker for admitted E0/E2 effects |
 | `tools/trusted_process_catalog.py` | Operator-pinned generic E3 multi-target process catalog |
 | `tools/operator_process_service.py` | Separate-UID generic E3 process host and signed RPC |
-| `tools/governed_agent_dispatcher.py` | Shared E0–E5 typed action routing, not a shell |
+| `tools/governed_agent_dispatcher.py` | Shared E0/E2/E3–E5 typed action routing, not a shell |
 | `tools/check_live_cutover_readiness.py` | Read-only cutover readiness and provenance checks |
 | `tests/` | Regression and E2E tests |
 | `docs/` | Operational runbook, protocol, architecture, and release criteria |

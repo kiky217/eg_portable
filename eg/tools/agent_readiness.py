@@ -95,7 +95,7 @@ def diagnose_live(effect: str, action: str, *, url: str, api_key: str) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--effect", required=True, choices=["E0", "E1", "E2", "E3", "E4", "E5"])
+    parser.add_argument("--effect", required=True, choices=["E0", "E2", "E3", "E4", "E5"])
     parser.add_argument("--action", required=True, help="Typed action name, e.g. read, write, service_control")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable diagnostics")
     parser.add_argument("--catalog", type=Path, help="Optional untrusted local JSON capability catalog")

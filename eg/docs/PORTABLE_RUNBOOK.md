@@ -29,7 +29,7 @@ Portable gateway init.sh and run.sh support root and non-root host accounts. Exp
 
 ## Installation preflight (read-only, any supported host)
 
-Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `HOST_IDENTITY`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live E0–E5 acceptance; a passing preflight never means capabilities are operational.
+Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `HOST_IDENTITY`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live E0/E2/E3–E5 acceptance; a passing preflight never means capabilities are operational.
 
 ## Resolve actual state, never copied defaults
 
@@ -48,7 +48,7 @@ Operators may select `disabled` for a separately designated audit-only
 service. The generated portable `init.sh` accepts this explicit mode without an
 executor public key, **but still requires** a valid independently administered
 notary public key. Root and non-root host accounts are supported. It writes the audit-only setting into
-the runtime env. This never enables E0–E5 physical effects. Full acceptance
+the runtime env. This never enables E0/E2/E3–E5 physical effects. Full acceptance
 still requires independent authorized workers and signed admission for each
 supported/authorized target. See [operations](OPERATIONS.md#safe-historical-task-migration).
 

@@ -16,7 +16,7 @@ def test_generic_nonhardcoded(effect, action):
     assert match[0]["admission"] == "NOT_AUTHORIZED"
 
 def test_malformed_and_invalid_catalogs_fail_closed():
-    for raw in ['{}', '[]', 'not json', _fixture("E9")]:
+    for raw in ['{}', '[]', 'not json', _fixture("E9"), _fixture("E1")]:
         with pytest.raises(CatalogError):
             parse_catalog(raw)
 

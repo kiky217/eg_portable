@@ -25,6 +25,7 @@ def test_mismatch_denied(different):
 
 @pytest.mark.parametrize("bad",[
     {"schema_version":3},
+    {"effect_class":"E1"},
     {"max_payload_bytes":True},
     {"max_payload_bytes":9999999},
     {"transport":"shell"},

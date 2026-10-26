@@ -3,7 +3,7 @@ import pytest
 from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,e2_action,WORKER_OUTPUT
 
 @pytest.mark.parametrize("action_type,effect",[
-    ("service_cutover","E3"),("shell","E1"),("delete","E2")])
+    ("service_cutover","E3"),("delete","E2")])
 def test_unsupported_action_rejected_without_checkpoint(action_type,effect):
     task,ch=register()
     a={"action_type":action_type,"target":"service","effect_class":effect,
@@ -19,6 +19,13 @@ def test_outside_worker_scope_rejected(target):
        "reversible":False,"real_world_effect":False,"proofs":[]}
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
+
+def test_e1_unimplemented_class_rejected_at_action_schema():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        gw.Action.model_validate({"action_type":"shell","target":"/tasks/example",
+                                  "effect_class":"E1"})
+
 
 def test_supported_write_can_ready_and_capabilities_advertised():
     task,ch=register(physical=True)

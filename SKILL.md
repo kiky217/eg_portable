@@ -129,7 +129,7 @@ separate machines and signers retain separate security domains.
    For an existing task also fetch `/v1/tasks/{task_id}` and `/state`.
    Missing task or deployment identity is a discovery blocker, never a reason
    to register a replacement task.
-3. **Determine** the exact requested physical effect, class E0–E5, typed
+3. **Determine** the exact requested physical effect, class E0, E2, or E3–E5 (E1 is not implemented), typed
    action, destination, least privilege, input schema, independent readback,
    recovery strategy and rollback requirements.
 4. **Select** one already admitted, live, exact-scope worker from the signed

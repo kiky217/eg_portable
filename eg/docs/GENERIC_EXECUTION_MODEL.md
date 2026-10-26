@@ -85,11 +85,9 @@ cookbook](../../SKILL.md#provider-neutral-operational-cookbook-normative-for-new
 ## Scope of the reusable generic E3–E5 catalog
 
 The same `TrustedProcessCatalog` and `TrustedProcessEffect` implement bounded operator-approved processes for **E3, E4 and E5**. The operator-pinned policy selects explicit `effect_class` and `action_type` (both required; no implicit E3 mode) per signed worker identity; 1–32 exact target profiles reuse that identity, journal and socket. Different classes may use the **same source implementation** but require their own independently authorized typed capability/binding. E4 actions must be reversible; E5 actions must be marked irreversible, are not compensatable and must never be replayed. A missing privilege or capability must not be fabricated from a configured descriptor.
-The **dispatcher** is generic across E0–E5; actual executable capabilities
+The **dispatcher** is generic across the supported E0, E2 and E3–E5 effect classes; actual executable capabilities
 remain whatever has been independently admitted. Do not claim a missing E4/E5
-capability can be executed by an E3 profile. Moving to a new Linux host needs
-appropriate OS users, protected trust roots and operator bootstrap, but does
-not require writing a new project-specific executor. A root-capable AI agent
+capability can be executed by an E3 profile. Moving to a new Linux host requires protected trust roots and a bound operator policy, but not a new project-specific executor or new OS accounts in explicit single-host mode. A root-capable AI agent
 may provision OS users only if authorized; merely dropping its subprocess UID
 does **not** make a signer independent from an agent that still controls host
 root. PRE/HITL and receipt verification remain mandatory.

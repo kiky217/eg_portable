@@ -236,7 +236,7 @@ class ActionProof(Strict):
 class Action(Strict):
     action_type: str = Field(min_length=1, max_length=200)
     target: str = Field(min_length=1, max_length=500)
-    effect_class: Literal["E0", "E1", "E2", "E3", "E4", "E5"]
+    effect_class: Literal["E0", "E2", "E3", "E4", "E5"]
     reversible: bool = False
     real_world_effect: bool = False
     payload_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
@@ -1521,7 +1521,7 @@ def agent_capabilities():
 @app.get("/v1/agent/capability-match", dependencies=[Depends(require_key)])
 def agent_capability_match(effect_class: str, action_type: str, target: str):
     """Read-only typed/scope matching. Never grants capability or PRE."""
-    if (effect_class not in ("E0","E1","E2","E3","E4","E5")
+    if (effect_class not in ("E0","E2","E3","E4","E5")
         or not action_type or len(action_type)>128
         or not target.startswith("/") or len(target)>1024):
         raise HTTPException(422, {"code":"INVALID_CAPABILITY_QUERY"})
