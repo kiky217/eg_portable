@@ -59,6 +59,9 @@ jobs:
             --require-hashes -r requirements.lock
       - name: Install test-only dependencies
         run: 'python -m pip install --only-binary=:all: -r eg/requirements-test.txt'
+      - name: Enforce mandatory full E0-E5 installation acceptance in all guides
+        working-directory: eg
+        run: python -m pytest -q tests/test_installation_acceptance_docs.py
       - name: Single-agent canonical PRE execute-once POST acceptance
         working-directory: eg
         run: PYTHONPATH=.:tests python -m pytest -q tests/test_single_agent_workflow.py
