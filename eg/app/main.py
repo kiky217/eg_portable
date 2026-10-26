@@ -67,6 +67,7 @@ EXTERNAL_ADAPTER_MODE = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE", "d
 EXTERNAL_ADAPTER_SOCKET = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET", "")
 EXTERNAL_ADAPTER_UID = env_int("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID", -1, 0, 2**31-1)
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
+HIGH_EFFECT_HITL_KEYS_JSON = os.getenv("EVALUATION_GATEWAY_HIGH_EFFECT_HITL_PUBLIC_KEYS_JSON", "")
 EXTERNAL_REGISTRY_DIR = os.getenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_DIR", "")
 EXTERNAL_REGISTRY_KEY = os.getenv("EVALUATION_GATEWAY_EXTERNAL_REGISTRY_OPERATOR_PUBLIC_KEY_B64", "")
 TRUSTED_UID = env_int("EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID", os.getuid(), 0, 2**31 - 1)
@@ -496,6 +497,32 @@ def legacy_notary_keys() -> list[tuple[str,float]]:
         raise RuntimeError("INVALID_LEGACY_NOTARY_TRUST_CONFIGURATION") from exc
 
 
+def high_effect_hitl_keys(*, strict=False) -> dict[str, str]:
+    """Operator-pinned per-adapter signing public keys, never agent-selected."""
+    if not HIGH_EFFECT_HITL_KEYS_JSON:
+        return {}
+    try:
+        values=json.loads(HIGH_EFFECT_HITL_KEYS_JSON)
+        if (not isinstance(values,dict) or not 1 <= len(values) <= 32 or
+            any(not isinstance(name,str) or not name.startswith("trusted-adapter-")
+                or not isinstance(pub,str) for name,pub in values.items())):
+            raise ValueError("INVALID_HIGH_EFFECT_HITL_MAP")
+        for pub in values.values():
+            raw=base64.b64decode(pub,validate=True)
+            if len(raw)!=32:raise ValueError("INVALID_HIGH_EFFECT_HITL_ROOT")
+            Ed25519PublicKey.from_public_bytes(raw)
+        if len(set(values.values()))!=len(values):
+            raise ValueError("SHARED_HIGH_EFFECT_HITL_ROOT")
+        return values
+    except (ValueError,TypeError) as exc:
+        if strict:raise RuntimeError("INVALID_HIGH_EFFECT_HITL_MAP") from exc
+        return {}
+
+
+def hitl_key_for(cap: AdapterCapability) -> str:
+    return high_effect_hitl_keys().get(cap.adapter_id) or HITL_PUBLIC_KEY_B64
+
+
 def require_config() -> None:
     if ADMISSION_MODE not in ("enabled", "disabled"):
         raise RuntimeError("invalid EG admission mode")
@@ -524,18 +551,25 @@ def require_config() -> None:
         entries = configured_high_effect_capabilities(allow_external=True, strict=True)
         if not entries or any(cap.ci_only for cap in entries):
             raise RuntimeError("EXTERNAL_EXECUTOR_CAPABILITY_MISSING_OR_CI_ONLY")
-        if not HITL_PUBLIC_KEY_B64:
-            raise RuntimeError("EXTERNAL_EXECUTOR_HITL_SIGNER_MISSING")
-        try:
-            hitl_raw=base64.b64decode(HITL_PUBLIC_KEY_B64,validate=True)
-            if len(hitl_raw)!=32:
-                raise ValueError("invalid HITL public key")
-            Ed25519PublicKey.from_public_bytes(hitl_raw)
-        except (ValueError,TypeError) as exc:
-            raise RuntimeError("INVALID_EXTERNAL_EXECUTOR_HITL_TRUST") from exc
-        if (HITL_PUBLIC_KEY_B64 in (NOTARY_PUBLIC_KEY_B64, EXECUTOR_PUBLIC_KEY_B64)
-            or any(cap.public_key_b64 in (NOTARY_PUBLIC_KEY_B64,
-                    EXECUTOR_PUBLIC_KEY_B64,HITL_PUBLIC_KEY_B64) for cap in entries)):
+        roots=high_effect_hitl_keys(strict=True)
+        if roots and set(roots)!={cap.adapter_id for cap in entries}:
+            raise RuntimeError("HIGH_EFFECT_HITL_MAP_CAPABILITY_MISMATCH")
+        all_roots=[]
+        for cap in entries:
+            public=roots.get(cap.adapter_id) if roots else HITL_PUBLIC_KEY_B64
+            if not public:raise RuntimeError("EXTERNAL_EXECUTOR_HITL_SIGNER_MISSING")
+            try:
+                raw=base64.b64decode(public,validate=True)
+                if len(raw)!=32:raise ValueError("invalid HITL public key")
+                Ed25519PublicKey.from_public_bytes(raw)
+            except (ValueError,TypeError) as exc:
+                raise RuntimeError("INVALID_EXTERNAL_EXECUTOR_HITL_TRUST") from exc
+            all_roots.append(public)
+        executor_roots=[cap.public_key_b64 for cap in entries]
+        protected=(NOTARY_PUBLIC_KEY_B64,EXECUTOR_PUBLIC_KEY_B64)
+        if (any(root in protected or root in executor_roots for root in all_roots)
+            or any(root in protected for root in executor_roots)
+            or (roots and len(set(all_roots))!=len(all_roots))):
             raise RuntimeError("EXTERNAL_EXECUTOR_SIGNING_ROOTS_NOT_INDEPENDENT")
     if not os.getenv("EVALUATION_GATEWAY_DB_PATH") or not os.getenv("EVALUATION_GATEWAY_EVIDENCE_ROOT"):
         raise RuntimeError("external canonical DB/evidence configuration required")
@@ -1925,7 +1959,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                 if action_v == Verdict.REQUIRES_HITL and req.action is not None and req.action.effect_class in ("E3","E4","E5"):
                     cap=high_effect_capability(req.action)
                     try:
-                        if cap is None or not HITL_PUBLIC_KEY_B64:
+                        if cap is None or not hitl_key_for(cap):
                             raise AdmissionDenied("HIGH_EFFECT_ADAPTER_OR_HITL_AUTHORITY_UNAVAILABLE")
                         signed=req.hitl_approval
                         legacy=None if not isinstance(signed,dict) else {
@@ -1933,7 +1967,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
                             "action_fingerprint":action_fingerprint(req.action),"adapter_id":cap.adapter_id,
                             "status":"APPROVED","consumed":False,"expires_at":signed.get("expires_at")}
                         admit_high_effect(action=req.action.model_dump(mode="json",exclude_none=True),capability=cap,
-                            approval=legacy,signed_approval=signed,hitl_public_key_b64=HITL_PUBLIC_KEY_B64,
+                            approval=legacy,signed_approval=signed,hitl_public_key_b64=hitl_key_for(cap),
                             task_id=req.task_id,step_key=expected,gate_checkpoint_no=int(t["checkpoint_no"])+1,
                             allow_external=cap.ci_only is False)
                         if HIGH_EFFECT_REQUIRE_RPC_LIVENESS or cap.ci_only is False:
