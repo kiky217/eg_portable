@@ -206,6 +206,26 @@ case "${EVALUATION_GATEWAY_ADMISSION_MODE:-enabled}" in
  *) echo "DENIED: invalid admission mode" >&2; exit 77 ;;
 esac
 [ -n "${EG_NOTARY_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: independently administered evidence notary public key required" >&2; exit 77; }
+# Validate all trust inputs BEFORE making the persistent state directory.
+# A typo must never leave a half-created installation that blocks retry.
+"$ROOT/python.sh" - <<'PYVALIDATE'
+import base64, os
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+mode=os.environ.get('EVALUATION_GATEWAY_ADMISSION_MODE','enabled')
+executor=os.environ.get('EG_EXECUTOR_PUBLIC_KEY_B64','')
+notary=os.environ.get('EG_NOTARY_PUBLIC_KEY_B64','')
+def valid(value):
+    try:
+        data=base64.b64decode(value,validate=True)
+        if len(data)!=32:return False
+        Ed25519PublicKey.from_public_bytes(data)
+        return True
+    except Exception:return False
+if not valid(notary) or (mode=='enabled' or executor) and not valid(executor):
+    raise SystemExit('DENIED: invalid independent public trust root')
+if executor and executor == notary:
+    raise SystemExit('DENIED: identical executor and notary trust roots')
+PYVALIDATE
 if [ -e "$EG_STATE_DIR" ]; then
   echo "DENIED: refuse to overwrite existing state or identity" >&2
   exit 77

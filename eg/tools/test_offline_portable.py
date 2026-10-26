@@ -156,6 +156,18 @@ def main():
     enabled_init=subprocess.run([str(extracted/'init.sh')],env=enabled_env,
                                 capture_output=True,text=True,timeout=10,preexec_fn=switch)
     check('enabled_missing_executor_still_denied',enabled_init.returncode==77)
+    bad_state=ROOT/'invalid-root-state'
+    bad_env=dict(env,EG_STATE_DIR=str(bad_state),EG_NOTARY_PUBLIC_KEY_B64='invalid')
+    bad_init=subprocess.run([str(extracted/'init.sh')],env=bad_env,
+                            capture_output=True,text=True,timeout=10,preexec_fn=switch)
+    check('invalid_root_rejected_without_partial_state',
+          bad_init.returncode!=0 and not bad_state.exists())
+    shared_state=ROOT/'shared-root-state'
+    shared_env=dict(env,EG_STATE_DIR=str(shared_state),EG_NOTARY_PUBLIC_KEY_B64=test_public)
+    shared_init=subprocess.run([str(extracted/'init.sh')],env=shared_env,
+                               capture_output=True,text=True,timeout=10,preexec_fn=switch)
+    check('shared_roots_rejected_without_partial_state',
+          shared_init.returncode!=0 and not shared_state.exists())
     shutil.rmtree(B)
     shutil.move(str(extracted),str(B))
     B.chmod(0o755)
