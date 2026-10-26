@@ -181,10 +181,7 @@ ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 [ -n "${EG_STATE_DIR:-}" ] || { echo "DENIED: EG_STATE_DIR must be explicitly set to durable storage" >&2; exit 77; }
 [ -n "${EG_PORT:-}" ] || EG_PORT=18766
 [ -d "$EG_STATE_DIR" ] || { echo "DENIED: state directory missing; initialize securely" >&2; exit 77; }
-if [ "$(id -u)" -eq 0 ]; then
-  echo "DENIED: portable EG API service cannot run as root" >&2
-  exit 77
-fi
+# Gateway identity follows the host operator; no arbitrary UID prerequisite.
 export EVALUATION_GATEWAY_DB_PATH="$EG_STATE_DIR/data/gateway.db"
 export EVALUATION_GATEWAY_ANCHOR_PATH="$EG_STATE_DIR/anchor/audit.anchor"
 export EVALUATION_GATEWAY_EVIDENCE_ROOT="$EG_STATE_DIR/evidence"
@@ -195,10 +192,7 @@ exec "$ROOT/python.sh" -m uvicorn app.main:app --app-dir "$ROOT/eg" --host 127.0
     installer='''#!/bin/sh
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
-if [ "$(id -u)" -eq 0 ]; then
-  echo "DENIED: initialize and run as dedicated non-root user" >&2
-  exit 77
-fi
+# Initialization is identity-neutral; access is governed by state permissions.
 [ -n "${EG_STATE_DIR:-}" ] || { echo "DENIED: set EG_STATE_DIR to durable persistent storage" >&2; exit 77; }
 case "${EVALUATION_GATEWAY_ADMISSION_MODE:-enabled}" in
  enabled) [ -n "${EG_EXECUTOR_PUBLIC_KEY_B64:-}" ] || { echo "DENIED: externally administered executor root required" >&2; exit 77; } ;;

@@ -13,9 +13,13 @@
 This document applies to **new deployments and active runtimes**, not to a
 historical Colab session. One registry, one current evaluator, one writer.
 
+## Host identity neutrality
+
+Portable gateway init.sh and run.sh now support root and non-root host accounts. Host identity alone does not authorize an effect: task registration, PRE, valid execution receipt, POST and independent verification remain mandatory. High-effect policy and authorization still apply. State must remain outside source with private permissions.
+
 ## Installation preflight (read-only, any supported host)
 
-Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `NONROOT_RUNTIME`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live E0–E5 acceptance; a passing preflight never means capabilities are operational.
+Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `HOST_IDENTITY`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live E0–E5 acceptance; a passing preflight never means capabilities are operational.
 
 ## Resolve actual state, never copied defaults
 

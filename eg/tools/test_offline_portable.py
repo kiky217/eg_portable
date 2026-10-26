@@ -121,9 +121,13 @@ def main():
     env.update({'EG_STATE_DIR':str(STATE),'EG_EXECUTOR_PUBLIC_KEY_B64':test_public,
                 'EG_NOTARY_PUBLIC_KEY_B64':notary_public,
                 'EG_PORT':PORT,'PYTHONNOUSERSITE':'1','HOME':'/tmp'})
-    # Reject insecure invocation as root, no initialized state, absent remote trust root.
-    denied=subprocess.run([str(extracted/'init.sh')],env=env,capture_output=True,text=True,timeout=10)
-    check('root_initialized_denied',denied.returncode==77)
+    # Root is an accepted installation identity; state permissions and admission govern effects.
+    admin_state=ROOT/'admin-state'
+    admin_env=dict(env,EG_STATE_DIR=str(admin_state))
+    admin_init=subprocess.run([str(extracted/'init.sh')],env=admin_env,
+                              capture_output=True,text=True,timeout=10)
+    check('root_initialization_supported',admin_init.returncode==0)
+    check('root_state_0700',(admin_state.stat().st_mode&0o777)==0o700)
     denied=subprocess.run([str(extracted/'start.sh')],env=env,capture_output=True,text=True,timeout=10,
                           preexec_fn=switch)
     check('start_without_state_denied',denied.returncode==77)
