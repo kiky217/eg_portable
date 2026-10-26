@@ -5,10 +5,21 @@ This tool does not admit actions or claim production readiness.
 """
 from __future__ import annotations
 import argparse
+import base64
+import binascii
 import json
 import os
 import pathlib
 import sys
+
+
+def valid_public_key(value):
+    if not value:
+        return False
+    try:
+        return len(base64.b64decode(value, validate=True)) == 32
+    except (ValueError, binascii.Error):
+        return False
 
 
 def inspect(root: pathlib.Path, environ=None):
@@ -30,10 +41,14 @@ def inspect(root: pathlib.Path, environ=None):
           'Start the EG service under its dedicated non-root operating-system identity.')
     mode = env.get('EVALUATION_GATEWAY_ADMISSION_MODE', 'enabled')
     check('MODE', mode in ('enabled', 'disabled'), 'Use enabled or explicit audit-only disabled.')
-    check('NOTARY_ROOT', bool(env.get('EG_NOTARY_PUBLIC_KEY_B64') or env.get('EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64')),
-          'Provide the independently administered notary PUBLIC key; never fabricate signer authority.')
-    check('EXECUTOR_ROOT', mode == 'disabled' or bool(env.get('EG_EXECUTOR_PUBLIC_KEY_B64') or env.get('EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64')),
-          'Provision one reusable authorized worker and register its protected PUBLIC key.')
+    notary = env.get('EG_NOTARY_PUBLIC_KEY_B64') or env.get('EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64')
+    executor = env.get('EG_EXECUTOR_PUBLIC_KEY_B64') or env.get('EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64')
+    check('NOTARY_ROOT', valid_public_key(notary),
+          'Provide a valid independently administered 32-byte Ed25519 notary PUBLIC key.')
+    check('EXECUTOR_ROOT', mode == 'disabled' or valid_public_key(executor),
+          'Provision one reusable authorized worker and register its valid 32-byte Ed25519 PUBLIC key.')
+    check('DISTINCT_TRUST_ROOTS', not executor or notary != executor,
+          'Executor and evidence notary must use separate trusted signing identities.')
     check('FULL_ADMISSION', mode == 'enabled',
           'Audit-only mode is not operational effect admission; provision authenticated workers.')
     return {'status': 'PRECHECK_PASS' if all(x['pass'] for x in checks) else 'BLOCKED',
