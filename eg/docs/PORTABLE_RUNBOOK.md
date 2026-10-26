@@ -13,6 +13,10 @@
 This document applies to **new deployments and active runtimes**, not to a
 historical Colab session. One registry, one current evaluator, one writer.
 
+## Reconnect / idempotent service startup
+
+With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.133-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash before reusing a live process, starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
+
 ## Host identity neutrality
 
 Portable gateway init.sh and run.sh now support root and non-root host accounts. Host identity alone does not authorize an effect: task registration, PRE, valid execution receipt, POST and independent verification remain mandatory. High-effect policy and authorization still apply. State must remain outside source with private permissions.
