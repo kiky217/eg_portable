@@ -282,6 +282,10 @@ requires its own legitimate trust provisioning, not a new EG implementation.
 
 For machines managed through one account, the optional `EVALUATION_GATEWAY_LOCAL_HOST_MODE=enabled` accepts root or non-root gateway and typed worker processes on that same account. The signed registry, pinned executable/argv, typed E3/E4/E5 capability, scoped signed approval, original PRE/receipt/POST, replay-safe journal and real result readback are still required. The default keeps separate identities; local mode must not be represented as independent security domains or automatically grant broad commands.
 
+### Live capability diagnosis and signed-lease maintenance
+
+Use `python -m tools.inspect_live_capabilities --state "$EG_STATE_DIR" --manifest /path/to/operator/manifest.json --task-id "$EG_TASK_ID"` after deployment/restart or when E3–E5 appear in discovery but cannot obtain PRE. It checks pinned signed operator registry, binding expiry, fresh worker liveness, gateway/audit and the unchanged canonical checkpoint; output `MATCHED_LIVE_PRE_REQUIRED` is **not** execution admission or VERIFIED. An expired binding is unavailable even if its socket still exists. The protected operator may renew only the **existing identical** binding with `tools.renew_operator_binding` and the pinned original signing key; it cannot extend the target, executable, capability, adapter identity or bypass a revoked binding. Never automatically sign HITL or retry a denied physical effect.
+
 ### Failure matrix, runtime verification and regression
 
 | Observed state | Required behavior |
