@@ -118,8 +118,9 @@ def serve(*,socket_path,adapter,capability_sha256,eg_url,eg_key,
           hitl_public_key_b64,controller_uid,max_requests=0,controller_group_gid=None):
     """Called ONLY by separately provisioned, non-root operator worker."""
     loc=urlsplit(eg_url)
-    if (os.getuid()<=0 or type(controller_uid) is not int or controller_uid<0
-        or controller_uid==os.getuid()
+    if (type(controller_uid) is not int or controller_uid<0
+        or (os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE")!="enabled" and
+            (os.getuid()<=0 or controller_uid==os.getuid()))
         or not (loc.scheme=="https" or
              (loc.scheme=="http" and loc.hostname in ("localhost","127.0.0.1")))
         or loc.username or loc.password or loc.query or loc.fragment

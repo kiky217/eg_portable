@@ -64,6 +64,7 @@ HIGH_EFFECT_RPC_SOCKET = ""
 HIGH_EFFECT_RPC_WORKER_UID = None
 # Optional external E3-E5 executor. CI-only adapter remains unreachable through env.
 EXTERNAL_ADAPTER_MODE = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE", "disabled")
+LOCAL_HOST_MODE = os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE", "disabled") == "enabled"
 EXTERNAL_ADAPTER_SOCKET = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET", "")
 EXTERNAL_ADAPTER_UID = env_int("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_UID", -1, 0, 2**31-1)
 HITL_PUBLIC_KEY_B64 = os.getenv("EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64", "")
@@ -535,8 +536,9 @@ def require_config() -> None:
             or bool(EXTERNAL_REGISTRY_DIR)!=bool(EXTERNAL_REGISTRY_KEY)
             or (signed_registry and (EXTERNAL_ADAPTER_SOCKET or EXTERNAL_ADAPTER_UID>=0))
             or (not signed_registry and
-                (EXTERNAL_ADAPTER_UID<=0 or
-                 EXTERNAL_ADAPTER_UID in (os.geteuid(), TRUSTED_UID) or
+                (EXTERNAL_ADAPTER_UID<0 or
+                 (not LOCAL_HOST_MODE and
+                  EXTERNAL_ADAPTER_UID in (os.geteuid(), TRUSTED_UID)) or
                  not EXTERNAL_ADAPTER_SOCKET or
                  not Path(EXTERNAL_ADAPTER_SOCKET).is_absolute() or
                  Path(EXTERNAL_ADAPTER_SOCKET).is_symlink()))):
@@ -1679,7 +1681,7 @@ def external_route(cap: AdapterCapability, *, read_only=False) -> tuple[int,str]
         uid=route["worker_uid"]
         if (route["capability_sha256"]!=digest or
             route["worker_public_key_b64"]!=cap.public_key_b64 or
-            uid in (os.geteuid(),TRUSTED_UID) or
+            (not LOCAL_HOST_MODE and uid in (os.geteuid(),TRUSTED_UID)) or
             not Path(route["socket_path"]).is_absolute()):
             raise RegistryDenied("CAPABILITY_AND_SIGNED_OPERATOR_BINDING_MISMATCH")
         return uid,route["socket_path"]

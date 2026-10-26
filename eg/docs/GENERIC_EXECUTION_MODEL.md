@@ -12,6 +12,10 @@
 
 EG is a provider-neutral evaluation and evidence gateway, not a catalog of project executors. It owns one immutable task ledger and one PRE/POST lifecycle. The worker owns physical effects, durable nonce claims and independently signed receipts.
 
+## Single-host generic deployment
+
+Set `EVALUATION_GATEWAY_LOCAL_HOST_MODE=enabled` for a host where the same operating-system account runs the gateway and approved typed process workers. Gateway startup no longer depends on root/non-root identity. This mode still requires fixed process profiles, protected signing keys, signed catalog binding, exact PRE, scoped signed approval, worker receipt, POST and physical readback. Single-host operation does **not** establish separate OS trust domains; do not label local authority as independent authorization. The existing separated-host mode remains the default.
+
 ## One-time generic operator bootstrap
 
 `tools.operator_first_run` provisions one worker identity, one signing domain and one bounded approval signer. It requires a typed E3/E4/E5 **profiles** catalog under one `target_prefix`. There is no new Python executor module per project. One catalog can authorize up to 32 fixed operations without modifying EG source.

@@ -49,7 +49,8 @@ def dispatch(*, request, eg_url, api_key, worker_socket, expected_worker_uid,
     if (url.scheme!="https" and not (url.scheme=="http" and
         url.hostname in ("127.0.0.1","localhost"))) or url.username or url.password:
         raise ExternalDispatchDenied("UNTRUSTED_GATEWAY_URL")
-    if (not isinstance(expected_worker_uid,int) or expected_worker_uid<=0 or expected_worker_uid==os.getuid() or
+    if (not isinstance(expected_worker_uid,int) or (expected_worker_uid<0 if os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE")=="enabled"
+            else expected_worker_uid<=0 or expected_worker_uid==os.getuid()) or
         not isinstance(worker_socket,str) or not worker_socket.startswith("/") or
         not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")):
         raise ExternalDispatchDenied("INDEPENDENT_WORKER_NOT_CONFIGURED")

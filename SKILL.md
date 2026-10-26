@@ -278,6 +278,10 @@ for source checks, application tests, and database checks only if all three
 actions were actually approved there. A different host/security domain
 requires its own legitimate trust provisioning, not a new EG implementation.
 
+### Local single-host mode
+
+For machines managed through one account, the optional `EVALUATION_GATEWAY_LOCAL_HOST_MODE=enabled` accepts root or non-root gateway and typed worker processes on that same account. The signed registry, pinned executable/argv, typed E3/E4/E5 capability, scoped signed approval, original PRE/receipt/POST, replay-safe journal and real result readback are still required. The default keeps separate identities; local mode must not be represented as independent security domains or automatically grant broad commands.
+
 ### Failure matrix, runtime verification and regression
 
 | Observed state | Required behavior |

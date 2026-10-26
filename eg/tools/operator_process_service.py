@@ -35,7 +35,7 @@ def _private_file(path: Path) -> bytes:
 
 
 def load_config(path: Path) -> dict:
-    if os.geteuid() == 0:
+    if os.geteuid() == 0 and os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE")!="enabled":
         raise ConfigurationDenied("WORKER_MUST_RUN_UNPRIVILEGED")
     value = json.loads(_private_file(path))
     fields = {"adapter_id", "capability_sha256", "socket_path", "journal_dir",
@@ -43,7 +43,9 @@ def load_config(path: Path) -> dict:
               "controller_uid", "effect_class", "action_type", "profiles"}
     if (not isinstance(value,dict) or set(value) not in (fields,fields|{"controller_group_gid"})
             or type(value.get("controller_uid")) is not int
-            or value["controller_uid"] in (0, os.geteuid())):
+            or (os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE")!="enabled"
+                and value["controller_uid"] in (0, os.geteuid()))
+            or value["controller_uid"]<0):
         raise ConfigurationDenied("INVALID_OPERATOR_WORKER_CONFIGURATION")
     if (not isinstance(value["eg_url"], str) or not value["eg_url"].startswith("https://")
         ) and not value["eg_url"].startswith(("http://127.0.0.1:", "http://localhost:")):

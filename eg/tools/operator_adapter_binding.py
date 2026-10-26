@@ -4,7 +4,7 @@ A valid signature authorizes an adapter *configuration*, not an EG effect:
 runtime OS peer identity, liveness, canonical PRE and HITL remain mandatory.
 """
 from __future__ import annotations
-import base64, json, re, time
+import base64, json, os, re, time
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 HEX64=re.compile(r"^[0-9a-f]{64}$")
@@ -27,7 +27,8 @@ def verify_operator_binding(signed:dict,*,operator_public_key_b64:str,
         or body["capability_sha256"]!=capability_sha256
         or not isinstance(adapter_id,str) or not adapter_id.startswith("trusted-adapter-")
         or not isinstance(capability_sha256,str) or not HEX64.fullmatch(capability_sha256)
-        or type(body["worker_uid"]) is not int or body["worker_uid"]<=0
+        or type(body["worker_uid"]) is not int or
+        (body["worker_uid"]<0 if os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE")=="enabled" else body["worker_uid"]<=0)
         or not isinstance(body["socket_path"],str) or not body["socket_path"].startswith("/")
         or ".." in body["socket_path"].split("/") or len(body["socket_path"])>128
         or not isinstance(body["environment"],str) or not body["environment"]
