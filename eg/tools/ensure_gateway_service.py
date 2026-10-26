@@ -21,12 +21,31 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
         raise ValueError('NO_GATEWAY_API_KEY')
     expected = hashlib.sha256((bundle / 'eg' / 'docs' / 'EXECUTOR_PROTOCOL.md').read_bytes()).hexdigest()
     url = f'http://127.0.0.1:{port}/v1/protocol'
+    configured = json.loads(config.get('EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON') or '[]')
+    if not isinstance(configured, list):
+        raise ValueError('INVALID_CONFIGURED_CAPABILITY_CATALOG')
+    expected_caps = {
+        (cap['adapter_id'], cap['action_type'], cap['effect_class'])
+        for cap in configured
+    }
     def check():
-        request = urllib.request.Request(url, headers={'X-Evaluation-Key': key})
+        headers = {'X-Evaluation-Key': key}
+        request = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(request, timeout=2) as response:
             result = json.load(response)
         if result.get('hash') != expected:
             raise RuntimeError('RUNNING_GATEWAY_PROTOCOL_MISMATCH')
+        request = urllib.request.Request(f'http://127.0.0.1:{port}/v1/agent/capabilities', headers=headers)
+        with urllib.request.urlopen(request, timeout=2) as response:
+            live = json.load(response)
+        actual_caps = {
+            (item['adapter_id'], item['action_type'], item['effect_class'])
+            for item in live.get('capabilities', [])
+            if item.get('effect_class') in ('E3', 'E4', 'E5')
+        }
+        if (live.get('admission_mode') != config.get('EVALUATION_GATEWAY_ADMISSION_MODE', 'enabled')
+                or actual_caps != expected_caps):
+            raise RuntimeError('RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED')
         return True
     try:
         check()

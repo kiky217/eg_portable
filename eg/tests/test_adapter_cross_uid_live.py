@@ -35,6 +35,10 @@ def _child(uid,call):
             os.setuid(uid)
             call()
         except BaseException:
+            # Preserve the actual child exception in CI stderr. Exit code 9
+            # alone cannot distinguish a socket race from a real UID failure.
+            import traceback
+            traceback.print_exc()
             os._exit(9)
         os._exit(0)
     return pid

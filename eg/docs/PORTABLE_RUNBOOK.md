@@ -15,11 +15,11 @@ historical Colab session. One registry, one current evaluator, one writer.
 
 ## Reconnect / idempotent service startup
 
-With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.133-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash before reusing a live process, starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
+With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.133-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash, admission mode and E3–E5 capability catalog before reusing a live process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
 
 ## Host identity neutrality
 
-Portable gateway init.sh and run.sh now support root and non-root host accounts. Host identity alone does not authorize an effect: task registration, PRE, valid execution receipt, POST and independent verification remain mandatory. High-effect policy and authorization still apply. State must remain outside source with private permissions.
+Portable gateway init.sh and run.sh support root and non-root host accounts. Explicit single-host mode is also available for a typed E3–E5 process catalog, without claiming separate OS security domains. Host identity alone does not authorize an effect: task registration, PRE, valid execution receipt, POST and independent verification remain mandatory. High-effect policy and authorization still apply. State must remain outside source with private permissions.
 
 ## Installation preflight (read-only, any supported host)
 
@@ -41,7 +41,7 @@ read `/v1/agent/capabilities` and the real worker before claiming any effect.
 Operators may select `disabled` for a separately designated audit-only
 service. The generated portable `init.sh` accepts this explicit mode without an
 executor public key, **but still requires** a valid independently administered
-notary public key and non-root runtime. It writes the audit-only setting into
+notary public key. Root and non-root host accounts are supported. It writes the audit-only setting into
 the runtime env. This never enables E0–E5 physical effects. Full acceptance
 still requires independent authorized workers and signed admission for each
 supported/authorized target. See [operations](OPERATIONS.md#safe-historical-task-migration).

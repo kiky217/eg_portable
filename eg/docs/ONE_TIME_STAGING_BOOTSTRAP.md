@@ -10,6 +10,8 @@
 
 **Fail-closed completion rule:** Missing independent operator approval, worker/UID, signer, scoped policy, profile, credentials, registration, or live PRE/POST evidence means the requested full installation is **INCOMPLETE / BLOCKED**, not COMPLETED. Identify the exact prerequisite; never fabricate independent authority, self-approve, or bypass EG by running the effect directly. Generic means reusable implementations with **separately authorized privileges**, not an unrestricted shell.
 
+**Two supported deployment shapes:** The root-owned `operator_first_run.py` below is the pre-existing separated-identity provisioning path. On a single-account host, `EVALUATION_GATEWAY_LOCAL_HOST_MODE=enabled` enables the same generic typed E3–E5 worker runtime without making gateway or worker startup depend on root/non-root identity. This is an explicit local-host mode, not a claim of independent OS trust. Protected keys, bounded operator-approved profiles, signed binding, scoped approval, exact canonical PRE, receipt and POST remain required in either shape. The separated-identity installer below is not mandatory for the local-host variant.
+
 The operator provisions **one reusable worker** for many tasks through a
 protected `profiles` catalog (1–32 exact target-to-executable mappings).
 Use one canonical typed `profiles` policy. See
