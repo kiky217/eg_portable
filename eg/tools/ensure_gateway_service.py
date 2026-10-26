@@ -3,7 +3,7 @@
 Does not initialize identities, approve actions, or replace protected state.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, subprocess, sys, time, urllib.error, urllib.request
+import argparse, hashlib, json, os, socket, subprocess, sys, time, urllib.error, urllib.request
 from dataclasses import asdict
 from pathlib import Path
 from tools.high_effect_admission import AdapterCapability
@@ -67,7 +67,13 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
     except urllib.error.HTTPError as exc:
         raise RuntimeError('PORT_OCCUPIED_BY_UNEXPECTED_AUTHORITY') from exc
     except (urllib.error.URLError, TimeoutError, ConnectionError):
-        pass
+        # A stalled authenticated endpoint may still own the listener. Avoid
+        # duplicate gateway startup and preserve the original live lease.
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=0.5):
+                raise RuntimeError('PORT_OCCUPIED_UNRESPONSIVE_NO_DUPLICATE_START')
+        except OSError:
+            pass
     log_path = state / 'gateway.log'
     env = dict(os.environ, EG_STATE_DIR=str(state), EG_PORT=str(port))
     with log_path.open('ab') as log:

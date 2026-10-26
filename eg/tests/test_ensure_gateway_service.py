@@ -3,6 +3,8 @@ import base64
 import hashlib
 import io
 import json
+from contextlib import nullcontext
+from urllib.error import URLError
 import pytest
 from tools.ensure_gateway_service import ensure
 from tools.high_effect_admission import AdapterCapability
@@ -109,6 +111,25 @@ def test_exact_catalog_fingerprint_required_for_reuse(tmp_path, monkeypatch, cha
     else:
         with pytest.raises(RuntimeError, match='CONFIG_DRIFT_RESTART_REQUIRED'):
             ensure(bundle, state)
+
+
+def test_unresponsive_live_listener_does_not_spawn_duplicate(tmp_path, monkeypatch):
+    bundle = tmp_path / 'bundle'
+    protocol = bundle / 'eg' / 'docs' / 'EXECUTOR_PROTOCOL.md'
+    protocol.parent.mkdir(parents=True)
+    protocol.write_text('protocol')
+    state = tmp_path / 'state'
+    state.mkdir()
+    (state / 'runtime.env').write_text('EVALUATION_GATEWAY_API_KEY=private-test-key\\n')
+    def offline_http(*args, **kwargs):
+        raise URLError('HTTP endpoint unresponsive')
+    monkeypatch.setattr('urllib.request.urlopen', offline_http)
+    monkeypatch.setattr('socket.create_connection',
+                        lambda address, timeout: nullcontext())
+    monkeypatch.setattr('subprocess.Popen',
+                        lambda *args, **kwargs: pytest.fail('duplicate spawn'))
+    with pytest.raises(RuntimeError, match='PORT_OCCUPIED_UNRESPONSIVE_NO_DUPLICATE_START'):
+        ensure(bundle, state)
 
 
 def test_bad_port_denied_before_reading_state(tmp_path):
