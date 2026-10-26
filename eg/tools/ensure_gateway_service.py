@@ -7,6 +7,7 @@ import argparse, hashlib, json, os, socket, subprocess, sys, time, urllib.error,
 from dataclasses import asdict
 from pathlib import Path
 from tools.high_effect_admission import AdapterCapability
+from tools.runtime_source_fingerprint import fingerprint as runtime_source_fingerprint
 
 
 def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
@@ -22,6 +23,7 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
     if not key:
         raise ValueError('NO_GATEWAY_API_KEY')
     expected = hashlib.sha256((bundle / 'eg' / 'docs' / 'EXECUTOR_PROTOCOL.md').read_bytes()).hexdigest()
+    expected_runtime_sha = runtime_source_fingerprint(bundle / 'eg')
     url = f'http://127.0.0.1:{port}/v1/protocol'
     configured = json.loads(config.get('EVALUATION_GATEWAY_HIGH_EFFECT_CAPABILITIES_JSON') or '[]')
     if not isinstance(configured, list):
@@ -43,6 +45,8 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
             result = json.load(response)
         if result.get('hash') != expected:
             raise RuntimeError('RUNNING_GATEWAY_PROTOCOL_MISMATCH')
+        if result.get('runtime_source_sha256') != expected_runtime_sha:
+            raise RuntimeError('RUNNING_GATEWAY_RUNTIME_SOURCE_DRIFT_RESTART_REQUIRED')
         request = urllib.request.Request(f'http://127.0.0.1:{port}/v1/agent/capabilities', headers=headers)
         with urllib.request.urlopen(request, timeout=2) as response:
             live = json.load(response)

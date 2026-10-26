@@ -7,6 +7,11 @@ from contextlib import nullcontext
 from urllib.error import URLError
 import pytest
 from tools.ensure_gateway_service import ensure
+
+@pytest.fixture(autouse=True)
+def frozen_runtime_sha(monkeypatch):
+    monkeypatch.setattr('tools.ensure_gateway_service.runtime_source_fingerprint',
+                        lambda path: 'a' * 64)
 from tools.high_effect_admission import AdapterCapability
 from dataclasses import asdict
 
@@ -32,7 +37,7 @@ def test_live_gateway_is_reused_without_spawn(tmp_path, monkeypatch):
     def respond(request, timeout):
         assert request.get_header('X-evaluation-key') == 'private-test-key'
         if request.full_url.endswith('/v1/protocol'):
-            return io.BytesIO(json.dumps({'hash': expected}).encode())
+            return io.BytesIO(json.dumps({'hash': expected, 'runtime_source_sha256':'a'*64}).encode())
         assert request.full_url.endswith('/v1/agent/capabilities')
         return io.BytesIO(json.dumps({'admission_mode': 'enabled', 'capabilities': []}).encode())
     monkeypatch.setattr('urllib.request.urlopen', respond)
@@ -59,7 +64,7 @@ def test_catalog_drift_refuses_false_reuse(tmp_path, monkeypatch, reported, conf
     )
     expected = hashlib.sha256(b'protocol').hexdigest()
     def respond(request, timeout):
-        result = ({'hash': expected} if request.full_url.endswith('/v1/protocol')
+        result = ({'hash': expected, 'runtime_source_sha256':'a'*64} if request.full_url.endswith('/v1/protocol')
                   else {'admission_mode': 'enabled', 'capabilities': reported})
         return io.BytesIO(json.dumps(result).encode())
     monkeypatch.setattr('urllib.request.urlopen', respond)
@@ -95,6 +100,7 @@ def test_exact_catalog_fingerprint_required_for_reuse(tmp_path, monkeypatch, cha
         sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
     def respond(request, timeout):
         payload = ({'hash': hashlib.sha256(b'protocol').hexdigest(),
+                    'runtime_source_sha256':'a'*64,
                     'high_effect_capability_catalog': [{
                         'adapter_id': original['adapter_id'],
                         'action_type': original['action_type'],
@@ -130,6 +136,26 @@ def test_unresponsive_live_listener_does_not_spawn_duplicate(tmp_path, monkeypat
                         lambda *args, **kwargs: pytest.fail('duplicate spawn'))
     with pytest.raises(RuntimeError, match='PORT_OCCUPIED_UNRESPONSIVE_NO_DUPLICATE_START'):
         ensure(bundle, state)
+
+
+def test_runtime_source_drift_never_reuses_old_process(tmp_path, monkeypatch):
+    bundle=tmp_path/'bundle'
+    doc=bundle/'eg'/'docs'/'EXECUTOR_PROTOCOL.md'
+    doc.parent.mkdir(parents=True)
+    doc.write_text('protocol')
+    state=tmp_path/'state'
+    state.mkdir()
+    (state/'runtime.env').write_text('EVALUATION_GATEWAY_API_KEY=private-test-key\\n')
+    def respond(request, timeout):
+        if request.full_url.endswith('/v1/protocol'):
+            return io.BytesIO(json.dumps({
+                'hash':hashlib.sha256(b'protocol').hexdigest(),
+                'runtime_source_sha256':'b'*64}).encode())
+        pytest.fail('No capability query should follow mismatched runtime source')
+    monkeypatch.setattr('urllib.request.urlopen',respond)
+    monkeypatch.setattr('subprocess.Popen',lambda *a,**kw:pytest.fail('must not start'))
+    with pytest.raises(RuntimeError,match='RUNTIME_SOURCE_DRIFT_RESTART_REQUIRED'):
+        ensure(bundle,state)
 
 
 def test_bad_port_denied_before_reading_state(tmp_path):

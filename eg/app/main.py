@@ -15,6 +15,7 @@ from app.execution_receipts import verify as verify_execution_receipt
 from app.no_effect_receipts import verify_no_effect
 from tools.high_effect_admission import AdapterCapability, AdmissionDenied, admit_high_effect, target_within_scope
 from tools.adapter_liveness import probe_unix, ProbeDenied
+from tools.runtime_source_fingerprint import fingerprint as runtime_source_fingerprint
 
 LOG = logging.getLogger("evaluation_gateway")
 
@@ -23,6 +24,7 @@ APP_VERSION = (BASE / "VERSION").read_text(encoding="utf-8").strip()
 PROTOCOL_VERSION = "3.1"
 MANIFEST_VERSION = 4
 PROTOCOL_PATH = BASE / "docs" / "EXECUTOR_PROTOCOL.md"
+RUNTIME_SOURCE_SHA256 = runtime_source_fingerprint(BASE)
 ZERO_HASH = "0" * 64
 
 
@@ -1466,6 +1468,7 @@ def health():
 @app.get("/v1/protocol", dependencies=[Depends(require_key)])
 def protocol():
     return {"version": PROTOCOL_VERSION, "hash": protocol_hash(),
+            "runtime_source_sha256": RUNTIME_SOURCE_SHA256,
             "admission_mode": ADMISSION_MODE,
             "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
                                        {"action_type":"write","effect_class":"E2"},
