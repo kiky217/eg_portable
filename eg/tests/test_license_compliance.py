@@ -21,7 +21,7 @@ def test_exact_production_dependency_closure_requires_review():
 
 def test_unreviewed_package_fails_closed(tmp_path):
     lock = tmp_path / "requirements.lock"
-    lock.write_text((ROOT / "requirements.lock").read_text() + "unreviewed==1.0.0 \\\n  --hash=sha256:fake\n")
+    lock.write_text((ROOT / "requirements.lock").read_text() + "unreviewed==1.0.0 \\n  --hash=sha256:fake\n")
     with pytest.raises(RuntimeError, match="LICENSE_UNREVIEWED_LOCKED_PACKAGE_LIST"):
         locked_versions(lock)
 
@@ -52,7 +52,7 @@ def test_release_notice_validator_refuses_missing_provenance(tmp_path):
     legal = release / "THIRD_PARTY_LICENSES"
     legal.mkdir(parents=True)
     (legal / "LICENSES.json").write_text(json.dumps(
-        {"python_dependencies": [], "native_libraries": []}))
+        {"format": 2, "python_dependencies": [], "native_libraries": []}))
     with pytest.raises(RuntimeError, match="LICENSE_BUNDLE_PYTHON_CLOSURE_DRIFT"):
         verify_bundled_notices(release, ROOT / "requirements.lock")
 
@@ -77,7 +77,7 @@ def _checked_release(tmp_path):
         dist = site / (name.replace("-", "_") + "-" + version + ".dist-info")
         dist.mkdir()
         (dist / "METADATA").write_text(
-            "Metadata-Version: 2.1\\nName: " + name + "\\nVersion: " + version + "\\n"
+            "Metadata-Version: 2.1\nName: " + name + "\nVersion: " + version + "\n"
         )
         rel = "python/" + name + "-" + version + "/0-LICENSE"
         legal = notices / rel
@@ -120,7 +120,7 @@ def test_unreviewed_extra_distribution_fails(tmp_path):
     extra = root / "python/lib/python3.12/site-packages/unknown-1.0.dist-info"
     extra.mkdir()
     (extra / "METADATA").write_text(
-        "Metadata-Version: 2.1\\nName: unknown\\nVersion: 1.0\\n"
+        "Metadata-Version: 2.1\nName: unknown\nVersion: 1.0\n"
     )
     with pytest.raises(RuntimeError, match="LICENSE_BUNDLE_UNREVIEWED_INSTALLED_WHEEL"):
         verify_bundled_notices(root, ROOT / "requirements.lock")
