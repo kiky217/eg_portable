@@ -8,6 +8,9 @@ x86_64 matching the build ABI; no pip, network or apt needed to launch.
 from __future__ import annotations
 import argparse,hashlib,json,os,platform,re,shutil,subprocess,tarfile,tempfile,time,sys,sysconfig
 from pathlib import Path
+from license_compliance import (wheel_closure, prune_optional_gnu_extensions,
+                                native_notice, publish_notice_index,
+                                verify_bundled_notices)
 
 # Paths resolve from THIS single EG package and its selected Python runtime.
 STAGE=Path(__file__).resolve().parents[1]
@@ -106,7 +109,11 @@ def main():
     shutil.copy2(SYSTEM_PY,root/'python/bin/python3.12')
     (root/'python/bin/python3.12').chmod(0o755)
     copy_source(SYSTEM_STDLIB,root/'python/lib/python3.12',ignore_large=True)
-    copy_source(SITE,root/'python/lib/python3.12/site-packages',merge=True)
+    prune_optional_gnu_extensions(root/'python/lib/python3.12')
+    notice_root=root/'THIRD_PARTY_LICENSES'
+    python_licenses=wheel_closure(SITE,root/'python/lib/python3.12/site-packages',
+                                  notice_root,STAGE/'requirements.lock')
+    native_licenses=[]
     libdir=sysconfig.get_config_var('LIBDIR')
     library=sysconfig.get_config_var('LDLIBRARY')
     if not libdir or not library:
@@ -119,9 +126,8 @@ def main():
     # Never bundle glibc/the dynamic linker; those define the target ABI.
     allowed_native={'libssl.so.3','libcrypto.so.3','libsqlite3.so.0',
                     'libffi.so.8','libbz2.so.1.0','liblzma.so.5',
-                    'libz.so.1','libexpat.so.1','libreadline.so.8',
-                    'libncursesw.so.6','libtinfo.so.6','libgdbm.so.6',
-                    'libgdbm_compat.so.4','libuuid.so.1'}
+                    'libz.so.1','libexpat.so.1',
+                    'libncursesw.so.6','libtinfo.so.6','libuuid.so.1'}
     binary_files=[SYSTEM_PY,libpython]
     binary_files.extend(x for x in (root/'python/lib/python3.12').rglob('*.so')
                         if x.is_file())
@@ -144,6 +150,7 @@ def main():
             destination=root/'python/lib'/parts[0]
             if not destination.exists():
                 shutil.copy2(source.resolve(),destination)
+                native_licenses.append(native_notice(parts[0],source.resolve(),notice_root))
     copy_eg_source(STAGE,root/'eg')
     copy_public_root_docs(STAGE.parent,root)
     # Include only explicitly reviewed public documentation artwork, never
@@ -163,7 +170,10 @@ def main():
     copyright_source=next((q for q in license_candidates if q.is_file()),None)
     if copyright_source is None:
         raise RuntimeError('PYTHON_RUNTIME_LICENSE_FILE_REQUIRED_SET_EG_PYTHON_LICENSE_FILE')
-    shutil.copy2(copyright_source,root/'THIRD_PARTY_LICENSES/CPython-3.12-license.txt')
+    shutil.copy2(copyright_source,notice_root/'CPython-3.12-license.txt')
+    publish_notice_index(notice_root,python_licenses,native_licenses,
+                         notice_root/'CPython-3.12-license.txt')
+    verify_bundled_notices(root,STAGE/'requirements.lock')
     # Strip all runtime/test-only state including cached bytecode and collocated auth
     # state, leave only source/test code.
     launcher='''#!/bin/sh
