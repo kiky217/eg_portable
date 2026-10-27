@@ -29,6 +29,15 @@ REVIEWED_SPDX = {
 # distribution without a separately documented GPL compliance programme.
 BLOCKED_MODULES = ("readline.", "_gdbm.", "_dbm.")
 BLOCKED_NATIVE = frozenset(("libreadline.so.8", "libgdbm.so.6", "libgdbm_compat.so.4"))
+# Debian Bookworm binary-owner mapping, reviewed per soname; new libraries block the build.
+DEBIAN_NATIVE_OWNERS = {
+    "libssl.so.3": "libssl3", "libcrypto.so.3": "libssl3",
+    "libsqlite3.so.0": "libsqlite3-0", "libffi.so.8": "libffi8",
+    "libbz2.so.1.0": "libbz2-1.0", "liblzma.so.5": "liblzma5",
+    "libz.so.1": "zlib1g", "libexpat.so.1": "libexpat1",
+    "libncursesw.so.6": "libncursesw6", "libtinfo.so.6": "libtinfo6",
+    "libuuid.so.1": "libuuid1",
+}
 MAX_NOTICE = 1024 * 1024
 
 
@@ -117,15 +126,17 @@ def prune_optional_gnu_extensions(stdlib: Path) -> None:
 def native_notice(soname: str, source: Path, notice_root: Path) -> dict:
     if soname in BLOCKED_NATIVE:
         raise RuntimeError("LICENSE_GPL_NATIVE_BUNDLING_BLOCKED_" + soname)
+    pkg = DEBIAN_NATIVE_OWNERS.get(soname)
+    if not pkg:
+        raise RuntimeError("LICENSE_UNREVIEWED_NATIVE_LIBRARY_" + soname)
     try:
-        owner = subprocess.run(["dpkg-query", "-S", str(source.resolve())],
-                               text=True, capture_output=True, check=True).stdout
-        # Multiarch package format: libssl3:amd64: /usr/lib/...
-        pkg = owner.splitlines()[0].split(": ", 1)[0].split(":")[0]
-    except (OSError, subprocess.CalledProcessError, IndexError):
+        version = subprocess.run(
+            ["dpkg-query", "-W", "-f=${Version}", pkg],
+            text=True, capture_output=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
         raise RuntimeError("LICENSE_NATIVE_OWNER_UNVERIFIED_" + soname) from None
-    if not re.fullmatch(r"[a-z0-9+.-]+", pkg):
-        raise RuntimeError("LICENSE_NATIVE_OWNER_INVALID_" + soname)
+    if not version:
+        raise RuntimeError("LICENSE_NATIVE_VERSION_MISSING_" + soname)
     source_notice = Path("/usr/share/doc") / pkg / "copyright"
     if not source_notice.is_file():
         raise RuntimeError("LICENSE_NATIVE_TEXT_MISSING_" + soname)
@@ -135,7 +146,7 @@ def native_notice(soname: str, source: Path, notice_root: Path) -> dict:
     target = notice_root / "native" / (soname + "-" + pkg + ".copyright")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
-    return {"soname": soname, "debian_package": pkg,
+    return {"soname": soname, "debian_package": pkg, "debian_version": version,
             "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
             "notice_path": str(target.relative_to(notice_root))}
 
