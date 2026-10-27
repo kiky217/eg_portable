@@ -96,6 +96,8 @@ def copy_public_context_docs(source_root, target_root):
         if relative.is_absolute() or '..' in relative.parts or relative.suffix != '.md':
             raise RuntimeError('INVALID_PUBLIC_CONTEXT_PATH ' + name)
         path = context / relative
+        if path.is_symlink():
+            raise RuntimeError('UNSAFE_PUBLIC_CONTEXT_SYMLINK ' + name)
         for parent in (context, *path.parents):
             if parent == context.parent:
                 break
