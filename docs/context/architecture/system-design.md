@@ -26,7 +26,7 @@ Separate bounded worker (restricted output_root, private signer, durable journal
 Independent evidence notary + original POST --> canonical VERIFIED --> next step
 ```
 
-The arrows describe responsibility and evidence relationships, **not** a claim that the gateway provides an unrestricted generic RPC or host shell. An agent may coordinate work alone while **cryptographic trust roots remain independent**.
+The arrows describe responsibility and evidence relationships, **not** a claim that the gateway provides an unrestricted generic RPC or host shell. The same staged PRE/POST verification applies in development, **staging**, and production. An agent may coordinate work alone while **cryptographic trust roots remain independent**.
 
 ## Components and ownership
 
