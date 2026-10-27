@@ -99,6 +99,18 @@ jobs:
           cd dist
           sha256sum "eg-portable-${version}-linux-amd64.tar.gz" > "eg-portable-${version}-linux-amd64.tar.gz.sha256"
           sha256sum -c "eg-portable-${version}-linux-amd64.tar.gz.sha256"
+      - name: Verify complete legal notices in published distribution
+        run: |
+          PYTHONPATH=eg python - <<'PY'
+          from pathlib import Path
+          import json
+          from tools.license_compliance import verify_bundled_notices
+          version=(Path("eg/VERSION").read_text()).strip()
+          root=Path("dist") / ("eg-portable-"+version+"-linux-amd64")
+          result=verify_bundled_notices(root,Path("eg/requirements.lock"))
+          assert result["python_packages"]==17
+          print(json.dumps(result,sort_keys=True))
+          PY
       - name: Verify offline relocation
         working-directory: eg
         run: sudo env PYTHONPATH=. "$(command -v python)" tools/test_offline_portable.py

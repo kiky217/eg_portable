@@ -4,6 +4,7 @@ COPY requirements.lock .
 RUN python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.lock
 # Application code and protocol stay root-owned and immutable for the runtime user.
 COPY VERSION .
+COPY LICENSE .
 COPY app app
 # Only the gateway's runtime imports; never ship disposable CI executors.
 COPY tools/high_effect_admission.py tools/signed_hitl_approval.py tools/adapter_liveness.py tools/runtime_source_fingerprint.py tools/capability_catalog.py tools/operator_runtime_registry.py tools/operator_adapter_binding.py tools/

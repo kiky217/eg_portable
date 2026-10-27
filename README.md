@@ -150,4 +150,27 @@ EG is released under the [MIT License](LICENSE).
 
 ---
 
+
+## Third-party licensing and release compliance
+
+Evaluation Gateway source code is licensed under [MIT](LICENSE). Third-party
+components **retain their original licenses**; inclusion in an EG release does
+not relicense them as MIT.
+
+The portable Linux bundle includes `THIRD_PARTY_LICENSES/NOTICE.md`,
+`THIRD_PARTY_LICENSES/LICENSES.json`, full available license texts for
+the 17 exact pinned Python wheels, the CPython license, and Debian package
+copyright texts for native libraries copied into the archive. Its
+build and GitHub release gate fail closed when a pinned package changes
+without review, a required text is missing, or GNU Readline/GDBM components
+are accidentally shipped.
+
+Licenses and attribution are separate from security and operational readiness.
+Automated checks do not replace qualified legal review, including any
+applicable LGPL/copyleft obligations and source availability. Do not distribute
+a new artifact whose legal audit fails. The Docker image retains the EG MIT
+license and Python package metadata; its Debian base components remain under
+their respective upstream license terms.
+
+
 **The rule is simple: work is not accepted because it happened. It is accepted because it was verified.**
