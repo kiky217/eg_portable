@@ -30,7 +30,7 @@ def copy_source(source,target,ignore_large=False,merge=False):
     def ignore(dirname,names):
         denied={v for v in names if v in FILTER or v in EXCLUDE_NAMES or Path(v).suffix in EXCLUDE_SUFFIX}
         if ignore_large:
-            denied|={v for v in names if v in {'test','tests','ensurepip','idlelib','tkinter','turtledemo'}}
+            denied|={v for v in names if v in {'test','tests','ensurepip','idlelib','tkinter','turtledemo','site-packages'}}
         return denied
     shutil.copytree(source,target,ignore=ignore,dirs_exist_ok=merge,symlinks=False)
 
@@ -172,7 +172,7 @@ def main():
         raise RuntimeError('PYTHON_RUNTIME_LICENSE_FILE_REQUIRED_SET_EG_PYTHON_LICENSE_FILE')
     shutil.copy2(copyright_source,notice_root/'CPython-3.12-license.txt')
     publish_notice_index(notice_root,python_licenses,native_licenses,
-                         notice_root/'CPython-3.12-license.txt')
+                         notice_root/'CPython-3.12-license.txt',root/'LICENSE')
     verify_bundled_notices(root,STAGE/'requirements.lock')
     # Strip all runtime/test-only state including cached bytecode and collocated auth
     # state, leave only source/test code.

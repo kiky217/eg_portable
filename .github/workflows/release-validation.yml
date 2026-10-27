@@ -103,13 +103,23 @@ jobs:
         run: |
           PYTHONPATH=eg python - <<'PY'
           from pathlib import Path
-          import json
+          import json, tarfile
           from tools.license_compliance import verify_bundled_notices
-          version=(Path("eg/VERSION").read_text()).strip()
-          root=Path("dist") / ("eg-portable-"+version+"-linux-amd64")
-          result=verify_bundled_notices(root,Path("eg/requirements.lock"))
-          assert result["python_packages"]==17
-          print(json.dumps(result,sort_keys=True))
+          version=Path("eg/VERSION").read_text().strip()
+          package="eg-portable-"+version+"-linux-amd64"
+          root=Path("dist") / package
+          staged=verify_bundled_notices(root,Path("eg/requirements.lock"))
+          # Independently validate the exact compressed bytes to be published,
+          # not just the temporary builder directory.
+          extracted=Path("dist") / "_legal_archive_verification"
+          extracted.mkdir(parents=True,exist_ok=True)
+          with tarfile.open(Path("dist")/(package+".tar.gz"),"r:gz") as tar:
+              if any(not (m.isfile() or m.isdir()) for m in tar.getmembers()):
+                  raise RuntimeError("LICENSE_ARCHIVE_UNSAFE_MEMBER")
+              tar.extractall(path=extracted,filter="data")
+          shipped=verify_bundled_notices(extracted/package,Path("eg/requirements.lock"))
+          assert staged==shipped and shipped["python_packages"]==17
+          print(json.dumps({"staging":staged,"published_archive":shipped},sort_keys=True))
           PY
       - name: Verify offline relocation
         working-directory: eg
