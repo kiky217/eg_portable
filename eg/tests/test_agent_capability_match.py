@@ -7,6 +7,19 @@ from harness import CLIENT, HEAD, gw
 
 URL="/v1/agent/capability-match"
 
+def test_canonical_operations_match_without_legacy_class_parameter(monkeypatch):
+    monkeypatch.setattr(gw,"ADMISSION_MODE","enabled")
+    for operation in ("read","write","replace"):
+        response=CLIENT.get(URL,params={"action_type":operation,
+                                        "target":"/workspace/example.txt"},headers=HEAD)
+        assert response.status_code==200
+        assert response.json()["admission"] is False
+        assert response.json()["status"] in ("MATCHED_PRE_REQUIRED","CAPABILITY_UNPROVISIONED")
+    unsupported=CLIENT.get(URL,params={"action_type":"service_control",
+                                       "target":"/workspace/example.txt"},headers=HEAD)
+    assert unsupported.status_code==422
+
+
 def test_match_requires_authentication():
     assert CLIENT.get(URL,params={"effect_class":"E3","action_type":"operate","target":"/scope/a"}).status_code==401
 

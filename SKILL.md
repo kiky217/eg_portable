@@ -29,7 +29,7 @@ Before any physical action, check the authenticated gateway's available operatio
 - Distinguish logical evaluation from an actual physical effect; never relabel the immutable task contract.
 - Current bundled production worker handles bounded reads, exclusive **creation** and SHA-256 compare-and-swap **replacement** of existing worker-owned files in its protected output_root (each payload <= 512 KiB). Default suffixes remain `.txt` and valid `.json`.
 - The bundled worker does not perform arbitrary shell, service control, Git push or other unsupported host actions. Keep those unavailable rather than bypassing EG or mislabeling them as logical tasks.
-- Before claiming, match exact desired action, effect class, target, adapter identity and testable result to a live, independently trusted adapter. If missing, report `CAPABILITY_UNAVAILABLE` and specify required adapter contract. Do not use direct shell, CI fixture, a dummy key, fabricated receipt, or HITL as a substitute.
+- Before claiming, check `GET /v1/agent/capability-match?action_type=read&target=/workspace/example.txt` (or `write` / `replace` with the intended target), followed by the exact EG PRE. The internal operation class is inferred automatically. If unavailable, report `CAPABILITY_UNAVAILABLE`; never use direct shell, dummy evidence or a fabricated receipt.
 
 ## Portable capability model
 EG governs the same ordered workflow on any supported Linux host. Use only the actions actually returned by the live gateway and never create a new executor for each project. For the canonical installation, physical operations are limited to bounded reads, creation and replacement; unsupported operations remain unavailable.

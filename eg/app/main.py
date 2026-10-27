@@ -1530,8 +1530,10 @@ def agent_capabilities():
 
 
 @app.get("/v1/agent/capability-match", dependencies=[Depends(require_key)])
-def agent_capability_match(effect_class: str, action_type: str, target: str):
-    """Read-only typed/scope matching. Never grants capability or PRE."""
+def agent_capability_match(action_type: str, target: str, effect_class: str | None = None):
+    """Read-only operation/scope matching. Never grants capability or PRE."""
+    if effect_class is None:
+        effect_class = {"read": "E0", "write": "E2", "replace": "E2"}.get(action_type)
     if (effect_class not in ("E0","E2","E3","E4","E5")
         or not action_type or len(action_type)>128
         or not target.startswith("/") or len(target)>1024):
