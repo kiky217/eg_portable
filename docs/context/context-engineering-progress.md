@@ -54,7 +54,7 @@ docs/context/
 - Acceptance: all relative links resolve, only the 3 new Markdown files are added, review PR CI passes. Leave `main` and stable release untouched while phases are being reviewed.
 
 ### Phase 2 — Core architecture and component context: **NOT STARTED**
-- After explicit confirmation, document one [system design](architecture/system-design.md) backed by code flow and minimal component notes (evaluator/task registry, trusted worker/receipts, evidence/audit), without restating authoritative manuals.
+- After explicit confirmation, document one `architecture/system-design.md` backed by code flow and minimal component notes (evaluator/task registry, trusted worker/receipts, evidence/audit), without restating authoritative manuals.
 - Record additional ADRs **only if a real decision and evidence exist**. Mark unknown decisions as undecided rather than inventing history.
 - Validate links and update this tracker.
 
