@@ -11,7 +11,7 @@ import json
 import re
 import shutil
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # Reviewed at the exact locked versions; never infer MIT licensing for dependencies.
 REVIEWED_SPDX = {
@@ -24,6 +24,17 @@ REVIEWED_SPDX = {
     "click": "BSD-3-Clause", "h11": "MIT",
     "cryptography": "Apache-2.0 OR BSD-3-Clause",
     "cffi": "MIT", "pycparser": "BSD-3-Clause",
+}
+# License approval applies to exact package versions, not just package names.
+REVIEWED_VERSIONS = {
+    "fastapi": "0.142.2", "starlette": "1.7.0",
+    "pydantic": "2.13.5", "pydantic-core": "2.46.5",
+    "annotated-types": "0.8.0", "annotated-doc": "0.0.4",
+    "typing-extensions": "4.16.0", "typing-inspection": "0.4.4",
+    "opentelemetry-api": "1.44.0", "anyio": "4.13.0",
+    "idna": "3.17", "uvicorn": "0.54.0", "click": "8.1.8",
+    "h11": "0.16.0", "cryptography": "50.0.2",
+    "cffi": "2.0.0", "pycparser": "3.0",
 }
 # These optional GNU modules must not be shipped in an MIT-labelled portable
 # distribution without a separately documented GPL compliance programme.
@@ -48,7 +59,7 @@ def normalized(name: str) -> str:
 def locked_versions(path: Path) -> dict[str, str]:
     data = dict((normalized(name), version) for name, version in
                 re.findall(r"(?m)^([A-Za-z0-9_.-]+)==([^\\\s]+)", path.read_text()))
-    if not data or set(data) != set(REVIEWED_SPDX):
+    if not data or data != REVIEWED_VERSIONS or set(data) != set(REVIEWED_SPDX):
         raise RuntimeError("LICENSE_UNREVIEWED_LOCKED_PACKAGE_LIST")
     return data
 
@@ -82,6 +93,7 @@ def wheel_closure(site: Path, destination: Path, notice_root: Path,
         if not files:
             raise RuntimeError("LICENSE_WHEEL_RECORD_MISSING_" + name)
         copied_legal = []
+        legal_hashes = {}
         for file in files:
             source = Path(dist.locate_file(file))
             try:
@@ -108,11 +120,14 @@ def wheel_closure(site: Path, destination: Path, notice_root: Path,
                 subdir.mkdir(parents=True, exist_ok=True)
                 notice = subdir / (str(len(copied_legal)) + "-" + source.name)
                 notice.write_bytes(raw)
-                copied_legal.append(str(notice.relative_to(notice_root)))
+                rel_notice = str(notice.relative_to(notice_root))
+                copied_legal.append(rel_notice)
+                legal_hashes[rel_notice] = hashlib.sha256(raw).hexdigest()
         if not copied_legal:
             raise RuntimeError("LICENSE_TEXT_MISSING_" + name)
         inventory.append({"name": name, "version": expected_version,
-                          "reviewed_spdx": reviewed, "license_files": copied_legal})
+                          "reviewed_spdx": reviewed, "license_files": copied_legal,
+                          "license_sha256": legal_hashes})
     return inventory
 
 
@@ -148,19 +163,18 @@ def native_notice(soname: str, source: Path, notice_root: Path) -> dict:
     target.write_bytes(data)
     return {"soname": soname, "debian_package": pkg, "debian_version": version,
             "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-            "notice_path": str(target.relative_to(notice_root))}
+            "notice_path": str(target.relative_to(notice_root)),
+            "notice_sha256": hashlib.sha256(data).hexdigest()}
 
 
 def publish_notice_index(notice_root: Path, python: list[dict],
-                         native: list[dict], cpython_license: Path) -> None:
+                         native: list[dict], cpython_license: Path,
+                         project_license: Path) -> None:
     if not cpython_license.is_file() or cpython_license.stat().st_size < 1000:
         raise RuntimeError("LICENSE_CPYTHON_TEXT_MISSING")
-    manifest = {"format": 1, "scope": "exact bundled EG portable distribution",
-                "python_dependencies": python, "native_libraries": native,
-                "cpython_license": str(cpython_license.relative_to(notice_root))}
-    (notice_root / "LICENSES.json").write_text(
-        json.dumps(manifest, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    (notice_root / "NOTICE.md").write_text(
+    if not project_license.is_file() or project_license.stat().st_size < 500:
+        raise RuntimeError("LICENSE_PROJECT_MIT_TEXT_MISSING")
+    notice_text = (
         "# Third-party notices for EG Portable\n\n"
         "The EG application source is licensed under MIT (see /LICENSE). "
         "Bundled Python, Python packages, and native libraries retain their own "
@@ -170,31 +184,98 @@ def publish_notice_index(notice_root: Path, python: list[dict],
         "may contain terms for more than one component; retain them unmodified.\n\n"
         "This automated manifest checks copied metadata and attribution. "
         "It is not a legal opinion; copyleft/source-offer and export-law "
-        "obligations, if any, still require independent review before distribution.\n",
-        encoding="utf-8")
+        "obligations, if any, still require independent review before distribution.\n"
+    )
+    (notice_root / "NOTICE.md").write_text(notice_text, encoding="utf-8")
+    manifest = {
+        "format": 2,
+        "scope": "exact bundled EG portable distribution",
+        "python_dependencies": python,
+        "native_libraries": native,
+        "cpython_license": str(cpython_license.relative_to(notice_root)),
+        "cpython_sha256": hashlib.sha256(cpython_license.read_bytes()).hexdigest(),
+        "project_mit_sha256": hashlib.sha256(project_license.read_bytes()).hexdigest(),
+        "notice_sha256": hashlib.sha256(notice_text.encode("utf-8")).hexdigest(),
+    }
+    (notice_root / "LICENSES.json").write_text(
+        json.dumps(manifest, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+
+def _verified_file(base: Path, relative: str, expected_sha256: str,
+                   label: str) -> Path:
+    """Only accept present, unmodified, non-symlink attribution within base."""
+    if not isinstance(relative, str) or not isinstance(expected_sha256, str):
+        raise RuntimeError("LICENSE_BUNDLE_INVALID_ENTRY_" + label)
+    rel = PurePosixPath(relative)
+    if rel.is_absolute() or not rel.parts or ".." in rel.parts or "\\" in relative:
+        raise RuntimeError("LICENSE_BUNDLE_UNSAFE_PATH_" + label)
+    path = base.joinpath(*rel.parts)
+    for depth in range(1, len(rel.parts) + 1):
+        if base.joinpath(*rel.parts[:depth]).is_symlink():
+            raise RuntimeError("LICENSE_BUNDLE_SYMLINK_" + label)
+    if not path.is_file() or not 40 <= path.stat().st_size <= MAX_NOTICE:
+        raise RuntimeError("LICENSE_BUNDLE_NOTICE_MISSING_OR_INVALID_" + label)
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256) or actual != expected_sha256:
+        raise RuntimeError("LICENSE_BUNDLE_NOTICE_HASH_MISMATCH_" + label)
+    return path
 
 
 def verify_bundled_notices(root: Path, requirements: Path) -> dict:
     notices = root / "THIRD_PARTY_LICENSES"
-    obj = json.loads((notices / "LICENSES.json").read_text())
+    obj = json.loads((notices / "LICENSES.json").read_text(encoding="utf-8"))
+    if obj.get("format") != 2:
+        raise RuntimeError("LICENSE_BUNDLE_MANIFEST_FORMAT_UNSUPPORTED")
     expected = locked_versions(requirements)
-    found = {item["name"]: item["version"] for item in obj["python_dependencies"]}
-    if found != expected:
+    python_items = obj["python_dependencies"]
+    found = {item["name"]: item["version"] for item in python_items}
+    if len(python_items) != len(found) or found != expected:
         raise RuntimeError("LICENSE_BUNDLE_PYTHON_CLOSURE_DRIFT")
-    for item in obj["python_dependencies"]:
-        if item["reviewed_spdx"] != REVIEWED_SPDX[item["name"]]:
+    for item in python_items:
+        name = item["name"]
+        if item["reviewed_spdx"] != REVIEWED_SPDX[name]:
             raise RuntimeError("LICENSE_BUNDLE_SPDX_DRIFT")
-        for f in item["license_files"]:
-            if not (notices / f).is_file():
-                raise RuntimeError("LICENSE_BUNDLE_NOTICE_MISSING_" + f)
-    for item in obj["native_libraries"]:
-        if item["soname"] in BLOCKED_NATIVE:
+        files = item["license_files"]
+        hashes = item["license_sha256"]
+        if not files or len(set(files)) != len(files) or set(files) != set(hashes):
+            raise RuntimeError("LICENSE_BUNDLE_PYTHON_NOTICE_INDEX_DRIFT_" + name)
+        for rel in files:
+            if not rel.startswith("python/" + name + "-" + expected[name] + "/"):
+                raise RuntimeError("LICENSE_BUNDLE_PYTHON_NOTICE_PATH_DRIFT_" + name)
+            _verified_file(notices, rel, hashes[rel], name)
+    native_items = obj["native_libraries"]
+    native_found = {item["soname"]: item for item in native_items}
+    if len(native_items) != len(native_found):
+        raise RuntimeError("LICENSE_BUNDLE_DUPLICATE_NATIVE")
+    native_dir = root / "python" / "lib"
+    actual_native = {
+        f.name for f in native_dir.iterdir()
+        if f.is_file() and ".so" in f.name and not f.name.startswith("libpython3.12.so")
+    } if native_dir.is_dir() else set()
+    if set(native_found) != actual_native:
+        raise RuntimeError("LICENSE_BUNDLE_NATIVE_CLOSURE_DRIFT")
+    for soname, item in native_found.items():
+        if soname in BLOCKED_NATIVE:
             raise RuntimeError("LICENSE_BUNDLE_GPL_LIBRARY_DENIED")
-        if not (notices / item["notice_path"]).is_file():
-            raise RuntimeError("LICENSE_BUNDLE_NATIVE_NOTICE_MISSING")
-    for required in ("NOTICE.md", "CPython-3.12-license.txt"):
-        if not (notices / required).is_file():
-            raise RuntimeError("LICENSE_BUNDLE_REQUIRED_NOTICE_MISSING_" + required)
+        if DEBIAN_NATIVE_OWNERS.get(soname) != item["debian_package"]:
+            raise RuntimeError("LICENSE_BUNDLE_NATIVE_OWNER_DRIFT_" + soname)
+        if not item["debian_version"]:
+            raise RuntimeError("LICENSE_BUNDLE_NATIVE_VERSION_MISSING_" + soname)
+        binary = native_dir / soname
+        if binary.is_symlink():
+            raise RuntimeError("LICENSE_BUNDLE_NATIVE_SYMLINK_" + soname)
+        if hashlib.sha256(binary.read_bytes()).hexdigest() != item["source_sha256"]:
+            raise RuntimeError("LICENSE_BUNDLE_NATIVE_HASH_MISMATCH_" + soname)
+        if item["notice_path"] != "native/" + soname + "-" + item["debian_package"] + ".copyright":
+            raise RuntimeError("LICENSE_BUNDLE_NATIVE_NOTICE_PATH_DRIFT_" + soname)
+        _verified_file(notices, item["notice_path"], item["notice_sha256"], soname)
+    if obj["cpython_license"] != "CPython-3.12-license.txt":
+        raise RuntimeError("LICENSE_BUNDLE_CPYTHON_PATH_DRIFT")
+    _verified_file(notices, obj["cpython_license"], obj["cpython_sha256"], "cpython")
+    _verified_file(notices, "NOTICE.md", obj["notice_sha256"], "notice")
+    mit = _verified_file(root, "LICENSE", obj["project_mit_sha256"], "project_mit")
+    if not (root / "eg" / "LICENSE").is_file() or (root / "eg" / "LICENSE").read_bytes() != mit.read_bytes():
+        raise RuntimeError("LICENSE_BUNDLE_PROJECT_MIT_COPY_DRIFT")
     for blocked in BLOCKED_NATIVE:
         if (root / "python" / "lib" / blocked).exists():
             raise RuntimeError("LICENSE_BUNDLE_GPL_LIBRARY_PRESENT_" + blocked)
@@ -202,4 +283,4 @@ def verify_bundled_notices(root: Path, requirements: Path) -> dict:
         if list((root / "python/lib/python3.12/lib-dynload").glob(name + "*.so")):
             raise RuntimeError("LICENSE_BUNDLE_GNU_EXTENSION_PRESENT")
     return {"status": "PASS", "python_packages": len(found),
-            "native_libraries": len(obj["native_libraries"])}
+            "native_libraries": len(native_items)}
