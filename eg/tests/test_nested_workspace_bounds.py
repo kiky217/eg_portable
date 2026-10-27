@@ -1,7 +1,5 @@
 """Worker rejects ancestor symlinks, unsafe directories and path traversal."""
-from pathlib import Path
 import pytest
-from harness import gw
 from tools.trusted_execution_worker import TrustedWriter, WorkerDenied
 
 

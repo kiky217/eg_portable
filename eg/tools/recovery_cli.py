@@ -6,7 +6,6 @@ Run under the independently provisioned worker's private journal identity.
 """
 from __future__ import annotations
 import argparse,json,os,stat
-from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import Request
 from tools.no_redirect_http import urlopen

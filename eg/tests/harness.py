@@ -1,5 +1,5 @@
 """Shared test harness for the Evaluation Gateway test-suite (isolated runtime under tests/_runtime)."""
-import base64, hashlib, os, secrets, shutil, sys, time
+import base64, hashlib, os, secrets, sys, time
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat

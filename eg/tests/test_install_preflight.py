@@ -1,6 +1,4 @@
 """Generic installer preflight cannot mistake audit-only or source presence for readiness."""
-import base64
-import pathlib
 from tools.install_preflight import inspect
 
 

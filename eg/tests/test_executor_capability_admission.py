@@ -1,6 +1,6 @@
 """#8: only configured worker capabilities may authorize a new PRE gate."""
 import pytest
-from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,e2_action,WORKER_OUTPUT
+from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,e2_action
 
 @pytest.mark.parametrize("action_type,effect",[
     ("service_cutover","E3"),("delete","E2")])

@@ -3,7 +3,7 @@
 Does not initialize identities, approve actions, or replace protected state.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, socket, subprocess, sys, time, urllib.error, urllib.request
+import argparse, hashlib, json, os, socket, subprocess, time, urllib.error, urllib.request
 from dataclasses import asdict
 from pathlib import Path
 from tools.high_effect_admission import AdapterCapability

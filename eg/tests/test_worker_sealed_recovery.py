@@ -1,6 +1,5 @@
 """Issue #15: recover signed sealed journal after a failed POST without replay."""
 import base64
-from pathlib import Path
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
 import pytest
 import harness as H
