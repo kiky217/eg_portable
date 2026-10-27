@@ -1,72 +1,37 @@
-# Code Analysis & Cleanup — Progress and Handoff
+# Code Analysis & Cleanup — Progress, Results and Handoff
 
-## Workflow contract for subsequent chats
-Continue by reading this entire file first, re-fetching the GitHub `main` HEAD and comparing it against the frozen source SHA below. Use ONLY the GitHub connector. Do not access KNID, KNID-PC, inactive Colab or remote desktops. Initial analysis was on an **analysis-only** branch. Owner explicitly authorized cleanup on 2026-10-27 02:49 UTC, limited here to unused import bindings, retaining all functions, route handlers, dependencies, configuration semantics and workflows. Changes are isolated in `cleanup-unused-imports-20261027`. No other project-specific infrastructure is in scope. Report findings with file/line evidence and identify consumers, dynamic usage and regression risks before suggesting cleanup. Tests are not proof of unused code; analyze both source and external entrypoints. Keep GitHub `main` untouched. After each phase update this file on the analysis branch and preserve the complete instructions.
+## Verified snapshot (27 October 2026, 09:58 WIB)
+- **Status:** APPROVED CLEANUP COMPLETE; 39 unused-import bindings removed; GitHub CI, Docker smoke, offline portable relocation and license inventory **PASS**. This is **not evidence of an external production deployment**.
+- Repository: https://github.com/kiky217/eg_portable (default branch `main`).
+- Canonical cleanup commit: `7dc635ee4caf653471e775584809870b34a970f2` (PR [#181](https://github.com/kiky217/eg_portable/pull/181), merged).
+- Verified published release: [v3.1.140](https://github.com/kiky217/eg_portable/releases/tag/v3.1.140), 2026-10-27 02:57:40 UTC, release targets exactly `7dc635ee4caf653471e775584809870b34a970f2`.
+- Latest verified GitHub run: [40441239423](https://github.com/kiky217/eg_portable/actions/runs/40441239423), **completed SUCCESS**; **402 passed, 1 skipped, 0 failed**; staging/archive licenses PASS: **17 locked Python packages + 10 native libraries**.
+- Portable archive SHA-256: `697ea80bb5774d8f0076fe7880f4ee4be23994222a1f66f25709d7437498c667`.
+- Historical pre-cleanup rollback baseline: [v3.1.139](https://github.com/kiky217/eg_portable/releases/tag/v3.1.139), commit `8c1917387c33d84f53e598fd4ab3427b77b9a40e`; avoid downgrading a stateful live deployment without checking compatibility.
+- Source cleanup: 10 imports / 8 production Python files + 29 imports / 18 test modules; no functions, files, FastAPI routes, CLI entrypoints, dependencies, capabilities or license notices removed.
+- Complete original candidates and line references at pre-cleanup SHA: [code-analysis-findings.md](code-analysis-findings.md). This is a historical inventory; do not delete the same imports again.
 
-The owner's provided workflow is: discovery → systematic scanning for unused imports/dead code → analysis of reachability/dependency/impact → review and approval → incremental cleanup only if approved, with baseline/rollback and runtime/integration/regression verification. This document is the cross-chat checkpoint. Default scope: full project, conservative cleanup; include tests/config as consumers but avoid deleting test fixtures or generated artifacts as assumptions. No project path question needed: project is `kiky217/eg_portable`.
+## Full workflow for future chats
+When returning, read this progress document and the findings document **first**. Re-fetch the current `main` HEAD/release, reconcile any newer changes and only then proceed. Review all relevant code and consumers, including tests, decorators, FastAPI dependency injection, dynamically registered routes, shell/CLI/module entrypoints, Docker, public SKILL, docs, GitHub Actions, and the portable release. Do not use text-only reference counting as a dead-code proof. A CLI file can be live without Python import sites; a decorated function can be live without lexical calls.
 
-## Canonical project and source baseline
-- Repository: https://github.com/kiky217/eg_portable
-- Canonical default branch: `main`
-- Source HEAD at discovery: `8c1917387c33d84f53e598fd4ab3427b77b9a40e`
-- Latest verified published release: `v3.1.139`
-- Platform: Python 3.12, FastAPI/Starlette/Pydantic, SQLite; portable Linux x86-64. Production packages locked to exactly 17; Debian Bookworm bundle copies reviewed native libraries. Docker and GitHub Actions CI.
-- Previous release-validation workflow run: https://github.com/kiky217/eg_portable/actions/runs/40439313689 (success, 402 passed / 1 skipped).
-- Branch for reports only: `code-analysis-audit-20261027`; unmerged; code state identical to canonical baseline.
-- Structure from untruncated recursive GitHub tree: 118 tracked files (127 tree entries), 32 non-test Python source files (4 `eg/app`, 28 `eg/tools`), 61 Python test/harness files; 9 `eg/docs` files; 1 workflow. Largest source `eg/app/main.py` (130,673 bytes).
-- Files may have CLI entrypoints, framework-decorated routes, string-reflection, signed protocol consumers, or indirect public references. Treat these as live until disproven.
+Full process:
+1. Discovery: inventory repository files, stack, build/release entrypoints, source baseline.
+2. Scanning: Python AST/linter plus read-only inspection of imports, variables, function/class consumers, unreachable branches and potentially orphaned files; include tests/docs/config as consumers.
+3. Analysis: classify evidence by confidence, distinguish static unreferenced symbols from dynamically callable/public interfaces, map side effects and dependencies.
+4. Review: show exact path/line/diff, expected impact, estimated benefits, regressions, external consumers and rollback before any changes.
+5. Cleanup: **requires new explicit approval for anything beyond completed PR #181**. Make isolated branch, limited changes, exhaustive GitHub CI (test/API/Docker/offline/legal) and merge only on verified PASS; publish/source synchronization must be checked after merge.
+6. Update progress after each phase. No speculative deletion; no unrelated dependency/version change under the cleanup approval. Never claim external production health from CI alone.
 
-## Completed phases
-- [x] Discovery: GitHub tree and canonical commit verified (2026-10-27).
-- [x] Baseline: branch isolated from main; no code changes.
-- [x] Read-only lexical scan of 32 non-test Python source files (imports, top-level functions/classes; annotated false positives).\n- [x] Fetched and performed conservative lexical import scans for all 61 test/harness Python files.\n- [x] Selected root README/SKILL/security/operations and runtime documents, dependency names, CLI references, and FastAPI decorator exceptions cross-checked.\n- [ ] AST/Pyflakes/Ruff/control-flow reachability lint and runtime consumer verification (not available in GitHub read-only execution without modifying CI).
-- [ ] Complete deeper reachability / external public CLI consumer cross-check (partially sampled; no function or file proven dead).
-- [ ] Impact, prioritization, precise proposed diff (analysis only).
-- [ ] Owner review and explicit approval (required before cleanup).
-- [ ] Incremental cleanup/rollback/tests only after approval.
+## Project specifics and risk controls
+- Python 3.12; FastAPI/Starlette/Pydantic, SQLite, audit/notary/worker execution receipts, generic effect admission; portable Linux amd64.
+- Initial inventory: 118 tracked files including 32 production Python files and 61 test/harness Python files, one GitHub release workflow, and operational documentation.
+- High-risk core: `eg/app/main.py` (2,304 lines at initial scan); app routes and special handlers must be preserved, regardless of apparent low lexical reference counts.
+- The 2026-10-27 scan flagged the following decorated, actually registered handlers as **NOT DEAD**: `database_busy_handler`, `agent_capabilities`, `agent_capability_match`, `pause_task`, `resume_task`, `reconcile_task`, `abort_task`, `task_state`, `audit_verify`.
+- Dependency hypotheses `httpx2` (test) and `opentelemetry-api` (runtime) remain **UNVERIFIED** for safe removal. Resolve package dependency graph/metadata and full legal closure first; removal was not approved or performed.
+- No confirmed dead functions or orphan source files in the initial review. No full AST/control-flow analysis has been completed.
 
-## Findings / candidate log
-### 2026-10-27 — Initial source scan (conservative, not cleanup approval)
-Read all 32 Python application/tools files at frozen source SHA. Ten `import` tokens have no further lexical references in their defining file. These are **candidates** pending test, runtime, and dynamic import consumers:
-- `eg/app/execution_receipts.py:12` — `import math`.
-- `eg/tools/adapter_liveness.py:11` — `import os`.
-- `eg/tools/build_portable_bundle.py:9` — `argparse`, `tempfile`, `time`.
-- `eg/tools/ensure_gateway_service.py:6` — `sys`.
-- `eg/tools/recovery_cli.py:9` — `Path`.
-- `eg/tools/recovery_inspector.py:8` — `base64`.
-- `eg/tools/test_offline_portable.py:9` — `pwd`.
-- `eg/tools/trusted_execution_worker.py:27` — `HTTPError`.
-
-Method limitation: simple lexical usage scans are not full Python AST or Pyflakes/Ruff diagnostics; occurrences inside import blocks, multiline statements, strings, reflection or decorators need independent inspection.
-
-Explicitly PROTECTED: `eg/app/main.py` contains decorated FastAPI handlers `database_busy_handler:203`, `agent_capabilities:1497`, `agent_capability_match:1533`, `pause_task:2120`, `resume_task:2125`, `reconcile_task:2130`, `abort_task:2190`, `task_state:2230`, `audit_verify:2293`. Their function names appear once but framework registration makes them reachable; **not dead**. Do not delete them.
-
-No imports, code, tests, configurations or CI workflows modified. No cleanup allowed until explicit review approval.
-
-## Cleanup approval and implementation checkpoint — 2026-10-27
-- Owner approved cleanup at 2026-10-27 02:49 UTC.
-- Baseline commit `8c1917387c33d84f53e598fd4ab3427b77b9a40e` (`v3.1.139`); rollback to that tag/commit if needed.
-- Source cleanup prepared: precisely 10 lexical-unused imports in 8 production files and 29 in 18 test files. NO deletions of functions, API routes, files, packages, dependency pins or capabilities.
-- New release version: `v3.1.140`; Docker Compose tag kept in sync.
-- CI acceptance REQUIRED before merge: full regression + E2E + Docker import + portable archive relocation + license 17 wheel/10 native verification. Submission/build success is not accepted as production deployment.
-- Status at this checkpoint: CHANGES PREPARED; CI not yet verified. Next verify PR SHA/runs and update post-merge state in next session.
-
-## Phase 2 checkpoint — 2026-10-27
-- Report: [code-analysis-findings.md](code-analysis-findings.md) (39 lexical unused-import candidates, not approved).
-- Non-test: 10 candidate imported symbols across 8 source files.
-- Tests: 29 candidate symbols across 18 test/harness files.
-- Candidate package review: `httpx2` test-only and `opentelemetry-api` production appear only in manifests/documentation/license map via repository search; transitive dependencies/consumers **unverified**, not safe to remove.
-- Explicit false positive protection: nine decorated FastAPI handlers are registered API routes/exception handler, not dead code.
-- No confirmed dead functions, no confirmed orphan files, no source edits or runtime deployments.
-- Runtime baseline: GitHub workflow `40439313689`, 402 passed, 1 skipped; status from 2026-10-27. These results predate *no source changes* and are not fresh tests of any cleanup.
-
-## Analysis and safety rules
-1. Read complete source and code consumers; do not rely on a grep hit alone. Check `eg/app/main.py` routes, decorators, tool CLIs (`if __name__ == "__main__"`), imports, tests, docs, GitHub workflow, `SKILL.md`, portable bundles.
-2. Separate *unreferenced in scanned Python source*, *unused locally*, and *demonstrably unreachable*. Reflection/public API/installed tools may be used externally. Restrict high-confidence deletions to proven-unused private code.
-3. Prefer static detection plus manual verification. Record exact path, symbol, lines, usages, side effects, risk and estimated savings. Preserve all current functionality.
-4. Never call cleanup done merely because source, build or CI passes; require deployment/runtime evidence for live acceptance after approved changes.
-5. Any change to source requires explicit owner authorization; snapshot original SHA and provide rollback to exact previous HEAD. Avoid touching main until tests and approval.
-6. Keep responses in Indonesian, concise; use confirmed statuses.
-
-## Next checkpoint
-Reconcile `main` HEAD; review [code-analysis-findings.md](code-analysis-findings.md); run independently supported Python AST/linter verification **without modifying source** if tooling becomes available; assess dynamic/CLI entrypoints and dependency graph; present exact changes and obtain owner approval before any cleanup. On approval, work incrementally in a new branch, not `main`, with CI, E2E, legal gate and rollback. This audit branch contains documentation only. Update this file after each significant phase; do not perform code cleanup without approval.
+## Current/next step
+- **Completed:** full 93-file Python lexical scan; 39-import approved cleanup; PR #181 merged; v3.1.140 published and exact commit build validated.
+- **Pending only if asked:** further AST/Ruff/Pyflakes/static reachability and dependency-ownership audit; any additional deletions/refactors require separate owner approval.
+- **Branch hygiene:** obsolete `cleanup-unused-imports-20261027` and `code-analysis-audit-20261027` branches are not active development targets. The final verified checkpoint is stored here on `main`; if branch deletion API is unsupported, align stale refs with `main` to eliminate GitHub “Compare & pull request” divergences and report that refs remain.
+- All project operations in this workflow used the connected GitHub connector only; KNID, KNID-PC, Colab and external production environments were not accessed.
