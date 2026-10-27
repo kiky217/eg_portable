@@ -1,4 +1,4 @@
-**Update 2026-10-27: Owner approved import-only cleanup; 10 production and 29 test-only lexical candidates are included in a single controlled PR at v3.1.140. Other findings remain unapproved. Check PR and CI before asserting successful cleanup.**
+**Final status (2026-10-27): APPROVED CLEANUP COMPLETE.** The historical 39 import candidates listed below were removed by [PR #181](https://github.com/kiky217/eg_portable/pull/181) and released as [v3.1.140](https://github.com/kiky217/eg_portable/releases/tag/v3.1.140). GitHub Actions [40441239423](https://github.com/kiky217/eg_portable/actions/runs/40441239423) succeeded (402 passed, 1 skipped, 0 failed), with portable archive/license gate PASS (17 locked Python packages and 10 native libraries). **All original path/line references below refer to pre-cleanup SHA 8c191738, and must not be repeated as pending work.** Other candidate dependency changes remain unverified and unapproved; no function or file has been proven dead. External production deployment not inspected.
 
 # EG Portable — Conservative Static Code Cleanup Findings
 Snapshot: 2026-10-27 UTC; repository `kiky217/eg_portable`, pinned canonical source SHA `8c1917387c33d84f53e598fd4ab3427b77b9a40e`, release `v3.1.139`.
@@ -69,6 +69,6 @@ Likewise tools that appear import-free can be CLI entrypoints (e.g. `generate_no
 4. **D — major refactoring:** treat `main.py` decomposition as a distinct higher-risk project with API contracts and rollback, not routine cleanup.
 
 ## Completion and safety status
-Discovery PASS; source-file lexical scanning PASS (93/93 Python files fetched); conservative issue classification partially verified; dynamic/control-flow/independent lint still INCOMPLETE; code cleanup **NOT STARTED — pending owner approval**. No production deployment or unrelated infrastructure was accessed.
+Discovery PASS; source-file lexical scanning PASS (93/93); **39-import-only cleanup MERGED AND RELEASED in v3.1.140; CI PASS**. Dynamic/control-flow/independent linter and prospective dependency removals remain INCOMPLETE. External production deployment not inspected; no unrelated infrastructure accessed.
 
-Next chat instruction: first read [code-analysis-progress.md](code-analysis-progress.md), verify fresh `main` HEAD, and continue deeper dependency/dynamic verification. Do not turn lexical candidates into deletion instructions without evidence and approval.
+Next chat: read [code-analysis-progress.md](code-analysis-progress.md), verify fresh `main` HEAD, and continue deeper dependency/dynamic verification only on new instructions. Historic import candidates were already cleaned; no repeat cleanup without evidence and separate approval.
