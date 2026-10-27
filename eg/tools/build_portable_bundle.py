@@ -70,7 +70,7 @@ def copy_public_root_docs(source_root,target_root):
             raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_ROOT_DOC '+name)
         shutil.copy2(f,target_root/name)
 
-# Only nine reviewed AI context files are public portable docs. Never recurse
+# Only explicitly reviewed AI context files are public portable docs. Never recurse
 # blindly over docs/context: sidecars may hold private runtime/task material.
 PORTABLE_CONTEXT_DOCS = (
     'project-overview.md',
@@ -82,6 +82,7 @@ PORTABLE_CONTEXT_DOCS = (
     'components/evidence-audit-context.md',
     'workflows/development.md',
     'workflows/context-maintenance.md',
+    'workflows/error-handling-and-logging.md',
 )
 
 

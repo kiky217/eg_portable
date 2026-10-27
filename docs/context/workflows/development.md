@@ -45,6 +45,8 @@ Only report CI PASS when the **exact head SHA** is completed successfully. An ea
 - Keep a previous tagged release as rollback reference. For stateful production, first evaluate task/DB/audit/anchor compatibility and authorized restoration; a Git tag is not a production rollback action.
 - Preserve third-party license notices. EG's MIT source license does not relicense bundled dependencies. See [production promotion](../../../eg/docs/PRODUCTION_PROMOTION.md).
 
+For existing exception boundaries, structured-logging gaps and safe rollout priorities, see the [error-handling and logging review](error-handling-and-logging.md). Changes to runtime logging are **not** authorized by that descriptive review.
+
 ## 6. Documentation/context change checklist
 
 1. Update this [overview](../project-overview.md), [system design](../architecture/system-design.md), relevant [component](../components/gateway-evaluator-context.md) and [handoff checkpoint](../context-engineering-progress.md) **only** where the verified behavior changed.
