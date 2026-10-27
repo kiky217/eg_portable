@@ -72,3 +72,11 @@ def test_no_retired_installation_paths_in_docs_or_ci():
 def test_hash_bound_protocol_is_not_presented_as_installer():
     assert 'hash-bound' in (ROOT/'eg/docs/PORTABLE_RUNBOOK.md').read_text().lower()
     assert 'historical audit' in (ROOT/'README.md').read_text().lower()
+
+
+def test_docker_image_has_all_gateway_runtime_modules():
+    dockerfile = (ROOT/'eg/Dockerfile').read_text(encoding='utf-8')
+    for name in ('high_effect_admission', 'signed_hitl_approval', 'adapter_liveness',
+                 'runtime_source_fingerprint', 'capability_catalog',
+                 'operator_runtime_registry', 'operator_adapter_binding'):
+        assert f'tools/{name}.py' in dockerfile, name
