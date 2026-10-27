@@ -38,7 +38,7 @@ The arrows describe responsibility and evidence relationships, **not** a claim t
 | Bounded execution / durable intent | [eg/tools/trusted_execution_worker.py](../../../eg/tools/trusted_execution_worker.py) | Check exact live PRE, enforce path/size and worker-owned scope, execute once and seal receipt |
 | Single-agent sequence | [eg/tools/single_agent_workflow.py](../../../eg/tools/single_agent_workflow.py) | Register, PRE, one dispatch, independent POST; require explicit final task acceptance |
 | SQLite/audit anchor and verification | [eg/app/main.py](../../../eg/app/main.py) | Event chain, record MAC, anchor and materialized-state consistency checks |
-| Source/packaging | [release-validation.yml](../../../.github/workflows/release-validation.yml) | Exact-source CI, Docker smoke, immutable release, archive relocation and license inventory |
+| Source/packaging | [release-validation.yml](https://github.com/kiky217/eg_portable/blob/main/.github/workflows/release-validation.yml) | Exact-source CI, Docker smoke, immutable release, archive relocation and license inventory |
 
 Details are indexed in [component notes](../project-overview.md#quick-navigation-start-here): [gateway](../components/gateway-evaluator-context.md), [worker](../components/trusted-worker-receipts-context.md), [audit](../components/evidence-audit-context.md).
 

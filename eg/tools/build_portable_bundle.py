@@ -70,6 +70,46 @@ def copy_public_root_docs(source_root,target_root):
             raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_ROOT_DOC '+name)
         shutil.copy2(f,target_root/name)
 
+# Only nine reviewed AI context files are public portable docs. Never recurse
+# blindly over docs/context: sidecars may hold private runtime/task material.
+PORTABLE_CONTEXT_DOCS = (
+    'project-overview.md',
+    'context-engineering-progress.md',
+    'architecture/system-design.md',
+    'architecture/decisions/adr-001-generic-gateway-bounded-worker.md',
+    'components/gateway-evaluator-context.md',
+    'components/trusted-worker-receipts-context.md',
+    'components/evidence-audit-context.md',
+    'workflows/development.md',
+    'workflows/context-maintenance.md',
+)
+
+
+def copy_public_context_docs(source_root, target_root):
+    source_root = Path(source_root)
+    target_root = Path(target_root)
+    context = source_root / 'docs' / 'context'
+    if not context.is_dir() or context.is_symlink():
+        raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_CONTEXT_ROOT')
+    for name in PORTABLE_CONTEXT_DOCS:
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts or relative.suffix != '.md':
+            raise RuntimeError('INVALID_PUBLIC_CONTEXT_PATH ' + name)
+        path = context / relative
+        if path.is_symlink():
+            raise RuntimeError('UNSAFE_PUBLIC_CONTEXT_SYMLINK ' + name)
+        for parent in (context, *path.parents):
+            if parent == context.parent:
+                break
+            if parent.is_symlink():
+                raise RuntimeError('UNSAFE_PUBLIC_CONTEXT_SYMLINK ' + name)
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError('MISSING_OR_UNSAFE_PUBLIC_CONTEXT_DOC ' + name)
+        dest = target_root / 'docs' / 'context' / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dest)
+
+
 # Normalize only the already-allowlisted, public distribution staging tree.
 # shutil.copy2/copytree preserve source modes, which can make a valid archive
 # unreadable to the required independent non-root runtime identity.
@@ -153,6 +193,7 @@ def main():
                 native_licenses.append(native_notice(parts[0],source.resolve(),notice_root))
     copy_eg_source(STAGE,root/'eg')
     copy_public_root_docs(STAGE.parent,root)
+    copy_public_context_docs(STAGE.parent,root)
     # Include only explicitly reviewed public documentation artwork, never
     # arbitrary SVG or private sidecars from the source tree.
     for name in ('eg-step-review.svg','eg-workflow.svg'):

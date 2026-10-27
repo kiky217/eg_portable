@@ -33,7 +33,7 @@ The portable offline build/relocation needs the documented Linux container and i
 
 ## 4. GitHub Actions exact-SHA verification
 
-The [release workflow](../../../.github/workflows/release-validation.yml) runs for PRs and pushes to `main`: hash-locked dependencies, task/worker regression and isolated HTTP E2E, different OS identity evidence test, Docker import smoke, portable Linux/amd64 bundle, SHA-256 manifest, legal notice closure, relocatability and no-host-Python Debian smoke.
+The [release workflow](https://github.com/kiky217/eg_portable/blob/main/.github/workflows/release-validation.yml) runs for PRs and pushes to `main`: hash-locked dependencies, task/worker regression and isolated HTTP E2E, different OS identity evidence test, Docker import smoke, portable Linux/amd64 bundle, SHA-256 manifest, legal notice closure, relocatability and no-host-Python Debian smoke.
 
 Only report CI PASS when the **exact head SHA** is completed successfully. An earlier PASS on another SHA is not the same evidence. Always inspect failed job logs, not merely a red badge.
 

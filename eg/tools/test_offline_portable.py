@@ -6,7 +6,8 @@ test-only and is never used to claim root-protected isolation. Requires Linux
 root to impersonate a dedicated nonroot identity for disposable E2E.
 """
 from __future__ import annotations
-import base64,hashlib,json,os,secrets,shutil,subprocess,tarfile,tempfile,time
+import base64,hashlib,json,os,re,secrets,shutil,subprocess,tarfile,tempfile,time
+from build_portable_bundle import PORTABLE_CONTEXT_DOCS
 from pathlib import Path
 from urllib.request import Request,urlopen
 from urllib.error import URLError
@@ -94,6 +95,38 @@ def main():
     check('root_operational_docs_bundled',all(
         (extracted/name).is_file() and manifest['files'].get(name)==hexhash(extracted/name)
         for name in public_docs))
+    # Validate real extracted archive bytes, not a staging directory or README claim.
+    # Only explicitly reviewed context files may ship, each bound to the manifest.
+    source_context = Path(__file__).resolve().parents[2] / 'docs' / 'context'
+    shipped_context = extracted / 'docs' / 'context'
+    shipped_files = {p.relative_to(shipped_context).as_posix()
+                     for p in shipped_context.rglob('*') if p.is_file()}
+    check('exact_ai_context_docs_shipped',
+          shipped_files == set(PORTABLE_CONTEXT_DOCS))
+    check('ai_context_sources_sha256_match',
+          all((source_context / name).is_file()
+              and manifest['files'].get('docs/context/' + name) == hexhash(shipped_context / name)
+              and hexhash(source_context / name) == hexhash(shipped_context / name)
+              for name in PORTABLE_CONTEXT_DOCS))
+    # Every internal Markdown reference must stay inside the archive and
+    # resolve to a manifest-tracked file after extraction, even without network.
+    def context_local_links_valid():
+        for name in PORTABLE_CONTEXT_DOCS:
+            page = shipped_context / name
+            for hit in re.finditer(r'\]\(([^)]+)\)', page.read_text(encoding='utf-8')):
+                relative = hit.group(1).split('#', 1)[0].split('?', 1)[0]
+                if not relative or relative.startswith(
+                        ('https://', 'http://', 'mailto:', 'data:')):
+                    continue
+                if relative.startswith('/'):
+                    return False
+                target = (page.parent / relative).resolve()
+                if (not target.is_relative_to(extracted.resolve())
+                        or not target.is_file()
+                        or target.relative_to(extracted).as_posix() not in manifest['files']):
+                    return False
+        return True
+    check('ai_context_offline_links_resolve',context_local_links_valid())
     public_artwork=('eg-step-review.svg','eg-workflow.svg')
     check('linked_public_diagrams_bundled',all(
         (extracted/'eg/docs/assets'/name).is_file() and
@@ -201,6 +234,10 @@ def main():
     # Move installed application again while preserving external state.
     stop();C=ROOT/'third-location';shutil.move(str(B),str(C));C.chmod(0o755)
     boot(C,env)
+    check('relocated_ai_context_retained', all(
+        (C/'docs/context'/name).is_file() and
+        hexhash(C/'docs/context'/name)==manifest['files']['docs/context/'+name]
+        for name in PORTABLE_CONTEXT_DOCS))
     audit2=get('/v1/audit/verify',headers)
     check('relocation_restart_preserves_anchor',audit2['status']=='PASS'
           and audit2['head']==audit1['head'])

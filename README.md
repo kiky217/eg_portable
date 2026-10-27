@@ -140,6 +140,7 @@ and [generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
 | [Remediation protocol](eg/docs/REMEDIAL_PROTOCOL.md) | Failure handling and controlled repair |
 | [Production promotion](eg/docs/PRODUCTION_PROMOTION.md) | Software release versus live production readiness |
 | [Developer guide](eg/README.md) | Source layout, build, and test instructions |
+| [AI context index](docs/context/project-overview.md) | Source-mapped architecture, component notes and cross-chat handoff; nine files shipped in portable offline archive |
 | [Security policy](SECURITY.md) | Reporting security concerns |
 
 ## Contributing

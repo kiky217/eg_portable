@@ -17,7 +17,7 @@
 | New/changed API, task gate or schema | [gateway note](../components/gateway-evaluator-context.md), [system design](../architecture/system-design.md) | [main.py](../../../eg/app/main.py), [protocol](../../../eg/docs/EXECUTOR_PROTOCOL.md) |
 | Worker action, path bound, signature or retry | [worker note](../components/trusted-worker-receipts-context.md), [ADR-001](../architecture/decisions/adr-001-generic-gateway-bounded-worker.md) | [worker](../../../eg/tools/trusted_execution_worker.py), [SKILL](../../../SKILL.md) |
 | Evidence, notary, anchor, ledger or recovery | [audit note](../components/evidence-audit-context.md) | [main.py](../../../eg/app/main.py), [runbook](../../../eg/docs/PORTABLE_RUNBOOK.md) |
-| Dependency, CI, version or portable packaging | [development workflow](development.md), [master index](../project-overview.md) | [release workflow](../../../.github/workflows/release-validation.yml), [release guide](../../../eg/docs/PRODUCTION_PROMOTION.md) |
+| Dependency, CI, version or portable packaging | [development workflow](development.md), [master index](../project-overview.md) | [release workflow](https://github.com/kiky217/eg_portable/blob/main/.github/workflows/release-validation.yml), [release guide](../../../eg/docs/PRODUCTION_PROMOTION.md) |
 | Historical design decision with provenance | Add/mark a focused ADR | Verify dated source or actual decision record; **do not invent rationale or approvals** |
 
 ## Three-phase method and stop conditions
