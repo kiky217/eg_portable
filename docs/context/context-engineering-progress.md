@@ -45,13 +45,13 @@ docs/context/
 
 ## Phase status (max 3)
 
-### Phase 1 — Discovery & planning: **DOCUMENTS WRITTEN; REVIEW/PR CI PENDING**
+### Phase 1 — Discovery & planning: **DOCUMENTS WRITTEN; INITIAL REVIEW CI PASS; PR OPEN**
 - Inspected the complete Git tree (129 entries, untruncated) and primary README/SKILL/runbook/protocol, source API handlers, worker, dependencies, Docker and CI.
 - `docs/context/` **did not exist** in the baseline tree. The addition is additive: no preexisting files are overwritten.
 - New artifacts: [project-overview.md](project-overview.md), [ADR-001](architecture/decisions/adr-001-generic-gateway-bounded-worker.md), this tracker.
 - Key ambiguity guarded against: generic EG does **not** authorize all process/Git/service operations; a release is **not** verified production state.
 - Scope intentionally minimal: this is not a duplicate operator manual or production readiness certificate.
-- Acceptance: all relative links resolve, only the 3 new Markdown files are added, review PR CI passes. Leave `main` and stable release untouched while phases are being reviewed.
+- Acceptance: only three new Markdown files are added; 41 relative links inspected, one link into a not-yet-created Phase-2 page changed to plain text, no remaining unresolved internal links; initial PR head `9dd9ce758852cb80525e3f60265dfc08859e5c43` CI [40445249764](https://github.com/kiky217/eg_portable/actions/runs/40445249764) PASS (402 tests passed, 1 skipped, 0 failed; staged and archive licenses 17 Python/10 native PASS). PR [#184](https://github.com/kiky217/eg_portable/pull/184) is OPEN for review. Leave `main` and stable release untouched while phases are being reviewed.
 
 ### Phase 2 — Core architecture and component context: **NOT STARTED**
 - After explicit confirmation, document one `architecture/system-design.md` backed by code flow and minimal component notes (evaluator/task registry, trusted worker/receipts, evidence/audit), without restating authoritative manuals.
@@ -68,4 +68,4 @@ docs/context/
 
 ## Next checkpoint
 
-Verify the exact three-file diff and link targets, open a review PR, inspect CI, then request confirmation for **Phase 2**. Preserve the repository's current production code and v3.1.141 immutable release. If the branch is merged later, update this tracker to point to `main` after observing merge and CI rather than claiming it in advance.
+PR #184 preview has been opened, and its initial commit passed CI. This progress-file update itself creates a newer branch SHA; reconfirm CI for that SHA before claiming final PR validation. **Wait for explicit authorization before Phase 2 or merge into `main`**. Because the exact-source release contract is immutable, any future merge must coordinate an appropriate new version/tag rather than produce a known `VERSION_BUMP_REQUIRED` failing main run. Do not change release version or existing files solely to preview this phase. If merged later, update this tracker to reflect `main` only after actual merge/CI verification.
