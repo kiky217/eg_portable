@@ -1,14 +1,14 @@
 # EG operations — unified canonical deployment
 
-## MANDATORY FROM INSTALLATION — FULL CAPABILITY ACCEPTANCE
+## Canonical installation and step verification
 
 **"Install EG completely as a generic system and test it end-to-end until every supported, authorized capability is operational."**
 
 **Required for every installation, including staging:** Follow [SKILL](../../SKILL.md) and the [runbook](PORTABLE_RUNBOOK.md). Register before work; verify PRE, execution receipt and POST for each action. The canonical worker supports bounded file reads, exclusive creation and verified replacement. No additional process workers are required.
 
-**Mandatory acceptance for every authorized capability:** Demonstrate the original EG **REGISTER → PRE → independently authorized execution → signed receipt → POST → VERIFIED → task SATISFIED** with a real physical effect where applicable, independent result readback, and relevant denial, replay/idempotence, crash recovery, and rollback tests. High-effect signed HITL must be valid **before PRE admission**. **CI PASS, `/health: PASS`, source/build completion, and capabilities merely listed/configured are never proof of live E2E readiness.**
+**Mandatory acceptance:** For every admitted file operation, demonstrate **REGISTER → PRE → bounded execution → original signed receipt → fresh POST → VERIFIED → SATISFIED**, including evidence readback, denied operations and recovery. The rule applies to staging. CI, `/health`, source builds and listed capabilities do not prove a task completed.
 
-**Fail-closed completion rule:** Missing independent operator approval, worker/UID, signer, scoped policy, profile, credentials, registration, or live PRE/POST evidence means the requested full installation is **INCOMPLETE / BLOCKED**, not COMPLETED. Identify the exact prerequisite; never fabricate independent authority, self-approve, or bypass EG by running the effect directly. Generic means reusable implementations with **separately authorized privileges**, not an unrestricted shell.
+**Fail closed:** Missing task registration, matching bounded operation, trusted signer, original PRE, valid receipt or independently verified POST means **INCOMPLETE / BLOCKED**. Do not fabricate keys or claims and do not use a direct shell to turn an unsupported operation into EG-verified work.
 
 **One EG registry, one protocol, one runtime.**
 
@@ -25,10 +25,10 @@ active trusted RPC transport, original READY PRE and signed POST. Without these,
 
 - Install or extract the Linux/amd64 offline artifact from the single eg/
   source tree. No auxiliary `portable/bin` scripts are required.
-- Require a nonroot identity, durable external `EG_STATE_DIR`, owner-protected
-  credentials and evidence-notary trust root, and independently protected
-  trusted-executor public root. Never store private executor keys in the
-  same security domain as the agent.
+- The portable gateway accepts an authorized root or non-root host identity.
+  Use durable external `EG_STATE_DIR`, protected credentials, notary and
+  executor public roots. Root access to a host does **not** prove signing-key
+  independence; keep private signing keys outside the agent's control.
 - Use the bundle's `init.sh` once and `start.sh` thereafter. Both refuse
   unsafe modes. The same code defines the API, ledgers and evaluation logic.
 - Back up the SQLite database *transactionally* with its verified external
@@ -60,7 +60,7 @@ For a separately designated **historical/audit-only** instance, set
 `EVALUATION_GATEWAY_ADMISSION_MODE=disabled` **before** invoking the generated
 portable `init.sh`. The installer now accepts an empty executor public root in
 this explicit mode, while still requiring a valid independent evidence-notary
-public root and a non-root service identity. It persists `disabled` to
+public root. Root or non-root host identity is allowed, subject to protected state and signer boundaries. It persists `disabled` to
 `runtime.env`; the service must continue to deny concrete PRE/POST effects.
 The default `enabled` mode still requires a genuine independently provisioned
 executor public root. Audit-only readiness is **not** full capability acceptance.

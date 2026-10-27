@@ -129,15 +129,15 @@ separate machines and signers retain separate security domains.
 3. **Determine** the exact requested operation (bounded read, file creation or verified replacement),
    action, destination, least privilege, input schema, independent readback,
    recovery strategy and rollback requirements.
-4. **Select** one already admitted, live, exact-scope worker from the signed
-   registry. If absent, request operator onboarding of a bounded policy/profile.
-   Never add project-name branches to the evaluator or dispatch through an
-   ungoverned host shell. A new project does not imply a new executor module.
+4. **Select** the exact supported read, create or replace action from the live
+   gateway, then obtain its current-step PRE. If unavailable, report BLOCKED;
+   never dispatch through an ungoverned host shell. A new project never
+   requires a project-specific executor.
 5. **Register or resume** the original immutable task; bind original
    acceptance/preconditions separately and store returned `contract_hash`.
 6. **PRE** with fresh, independently notarized criteria and immutable
-   action/payload. Require actionable `READY_TO_EXECUTE` and, for high effects,
-   a separately signed, scoped approval. Admission diagnostics are not PRE.
+   action/payload. Require actionable `READY_TO_EXECUTE`; a capability listing
+   or readiness diagnostic is not authorization.
 7. **Dispatch once**, preserve original nonce/journal and signed receipt.
    Inspect the actual process/target after execution; do not infer outcome
    from command exit or RPC acknowledgement alone.
@@ -224,7 +224,7 @@ Use the single canonical gateway and bundled trusted file operations. Never prov
 | --- | --- |
 | No installed/matched capability | `CAPABILITY_UNPROVISIONED`; inspect operator policy, do not execute |
 | Typed match, no fresh signed PRE | Capability is **diagnostic only**; obtain exact PRE before dispatch |
-| Expired/denied HITL | Do not route, retry with changed identity or self-sign |
+| Expired or denied PRE | Do not dispatch; inspect the original gate and reconcile if needed |
 | Dispatch pending or timeout | Reconcile **original** nonce/journal/target before any retry |
 | Signed receipt and actual effect already present | Recover original receipt; submit POST, **never replay** effect |
 | Independent `NOT_EXECUTED` proof | Use canonical reconciliation; only then obtain fresh PRE |

@@ -8,9 +8,9 @@ the current version is already published. The release job alone may skip a tag
 that already exists; it never replaces historical assets.
 
 A stable software release is distinct from a running production service.
-The previous Colab session expired; this is only a historical fact. Each
-new deployment discovers its own DB, anchor, evidence, signing authority,
-current task/checkpoint, and authenticated audit.
+Each deployment discovers its own database, anchor, evidence, signing authority,
+current task/checkpoint, and authenticated audit. A source release does not imply
+that any previous Colab deployment is available or current.
 
 ## Stable source acceptance
 
@@ -25,13 +25,12 @@ current task/checkpoint, and authenticated audit.
 
 A production deployment separately needs a trusted executor with independently
 protected Ed25519 private key, distinct notary root, valid PRE/POST receipts,
-durable backed-up SQLite and anchor, nonroot service, and verified health/audit.
+durable backed-up SQLite and anchor, an operator-selected root or non-root host identity, and verified health/audit. Host root access does not itself establish independent signing authority.
 Unsupported capabilities remain fail-closed. A GitHub release never implies
 a live server is deployed or a historic task is retrospectively VERIFIED.
 
-The archived 2026-10-15 Colab case had 12/16 VERIFIED at checkpoint 26;
-this historical state is not inherited by new deployments or retroactively
-made SATISFIED by a software release.
+Historical task states are not inherited by a new deployment and cannot be
+made SATISFIED retroactively by a software release.
 
 ## Generic worker promotion
 

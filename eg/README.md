@@ -69,8 +69,6 @@ python -m venv .venv-test
 python -m pip install --only-binary=:all: --require-hashes -r requirements.lock
 python -m pip install --only-binary=:all: -r requirements-test.txt
 PYTHONPATH=.:tests python -m pytest -q -p no:cacheprovider tests
-PYTHONPATH=. python tools/run_trusted_e2e.py
-PYTHONPATH=. python tools/run_remedial_e2e.py
 python tests/live_e2e.py
 python tools/build_portable_bundle.py
 python tools/test_offline_portable.py
@@ -84,7 +82,7 @@ runtime stays separate in either approach.
 
 `requirements-test.txt` (pytest, httpx, httpx2) is for development/testing **only**; do not put these packages in `requirements.lock`, Docker production images or the portable bundle. A full root-run may show deliberate non-root-only SKIPs; rerun those tests with eligible unprivileged user identities instead of calling SKIPs a PASS.
 
-The E2E scripts use isolated test-only instances. They do not take ownership of a production task or replace the current gateway's authenticated state.
+The E2E tests use isolated test-only instances. They do not take ownership of a production task or replace the current gateway's authenticated state.
 
 ## Project structure
 

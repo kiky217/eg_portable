@@ -92,7 +92,7 @@ The offline distribution also bundles the root `SKILL.md`, README, security
 policy, license and referenced workflow diagrams; linked historical archives
 remain available from the canonical GitHub repository.
 
-**2. Check what your environment can actually do.** For an agent integration, start with the complete [operational SKILL.md](SKILL.md), the [source-verified agent operations reference](eg/docs/PORTABLE_RUNBOOK.md), and the [agent quickstart](eg/docs/PORTABLE_RUNBOOK.md). A local, read-only preflight can be run from the repository root:
+**2. Check what the installation supports.** Follow [SKILL.md](SKILL.md) for agent actions and the [portable runbook](eg/docs/PORTABLE_RUNBOOK.md) for installation and recovery. From the repository root, the following read-only preflight checks file creation configuration:
 
 ```sh
 python eg/tools/agent_readiness.py --action write
@@ -113,7 +113,7 @@ For examples of the required gated workflow, see the [single-agent tests](eg/tes
 
 ## Current boundaries
 
-EG is a **generic, provider-neutral work governance system**, not a remote root shell. Preapproved catalog profiles can serve many projects without adding code for each tool or provider.
+EG is a **generic, provider-neutral work governance system**, not a remote root shell. The same bounded file worker can serve multiple projects without adding project-specific executors. This does not authorize service management, arbitrary shell commands or Git pushes.
 
 The canonical portable installation supports **bounded file reading, exclusive creation and verified replacement** in its configured workspace. Other actions are not claimed as available or silently substituted.
 
@@ -135,11 +135,8 @@ and [generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
 | --- | --- |
 | [Portable runbook](eg/docs/PORTABLE_RUNBOOK.md) | Installation, daily operation, staging, recovery, and rollback |
 | [Agent SKILL](SKILL.md) | Discover, register, PRE, dispatch once, recover, POST, and finalize |
-| [Agent operations reference](eg/docs/PORTABLE_RUNBOOK.md) | Actual API, typed workers, recovery and common blockers |
-| [Agent quickstart](eg/docs/PORTABLE_RUNBOOK.md) | Readiness checks, admitted capabilities, and safe agent usage |
-| [Executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Exact PRE/POST contracts, evidence, and receipts |
-| [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md) | Reusable workflow and verification across projects |
-| [Architecture](eg/docs/PORTABLE_RUNBOOK.md) | Components, isolation, and trust boundaries |
+| [Protocol contract](eg/docs/EXECUTOR_PROTOCOL.md) | Hash-bound technical contract for current and historical audit; older capability codes here are not installation instructions |
+| [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md) | Reusable workflow and supported operations across projects |
 | [Remediation protocol](eg/docs/REMEDIAL_PROTOCOL.md) | Failure handling and controlled repair |
 | [Production promotion](eg/docs/PRODUCTION_PROMOTION.md) | Software release versus live production readiness |
 | [Developer guide](eg/README.md) | Source layout, build, and test instructions |

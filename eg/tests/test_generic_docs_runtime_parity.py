@@ -45,3 +45,30 @@ def test_current_entrypoints_do_not_require_retired_operator_workers():
         assert 'register' in beginning and 'pre' in beginning
         assert 'post' in beginning and 'staging' in beginning
         assert 'provision/register/activate the **generic**' not in beginning
+
+
+def test_documented_local_python_commands_exist():
+    guides = [ROOT/'README.md', ROOT/'SKILL.md', ROOT/'eg/README.md',
+              *(ROOT/'eg/docs').glob('*.md')]
+    for guide in guides:
+        for relative in re.findall(r'(?:eg/)?(?:tools|tests)/[\w./-]+\.py',
+                                   guide.read_text(encoding='utf-8')):
+            source = ROOT/relative if relative.startswith('eg/') else ROOT/'eg'/relative
+            assert source.is_file(), (guide.relative_to(ROOT), relative)
+
+
+def test_no_retired_installation_paths_in_docs_or_ci():
+    assert not (ROOT/'eg/tools/run_remedial_e2e.py').exists()
+    assert not (ROOT/'eg/docker-compose.external-adapter.yml').exists()
+    text = '\n'.join(p.read_text(encoding='utf-8')
+                     for p in [ROOT/'README.md', ROOT/'SKILL.md', ROOT/'eg/README.md',
+                               ROOT/'.github/workflows/release-validation.yml',
+                               *(ROOT/'eg/docs').glob('*.md')])
+    for obsolete in ('run_remedial_e2e.py', 'run_trusted_e2e.py',
+                     'docker-compose.external-adapter.yml'):
+        assert obsolete not in text, obsolete
+
+
+def test_hash_bound_protocol_is_not_presented_as_installer():
+    assert 'hash-bound' in (ROOT/'eg/docs/PORTABLE_RUNBOOK.md').read_text().lower()
+    assert 'historical audit' in (ROOT/'README.md').read_text().lower()
