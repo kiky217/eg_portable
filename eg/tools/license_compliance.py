@@ -243,6 +243,15 @@ def verify_bundled_notices(root: Path, requirements: Path) -> dict:
             if not rel.startswith("python/" + name + "-" + expected[name] + "/"):
                 raise RuntimeError("LICENSE_BUNDLE_PYTHON_NOTICE_PATH_DRIFT_" + name)
             _verified_file(notices, rel, hashes[rel], name)
+    # Presence of seventeen notices does not prove the bundle contains only
+    # those seventeen distributions. Audit the *actual* copied site-packages.
+    site = root / "python/lib/python3.12/site-packages"
+    copied_dists = list(metadata.distributions(path=[str(site)]))
+    actual_wheels = {
+        normalized(d.metadata.get("Name", "")): d.version for d in copied_dists
+    }
+    if (len(copied_dists) != len(actual_wheels) or actual_wheels != expected):
+        raise RuntimeError("LICENSE_BUNDLE_UNREVIEWED_INSTALLED_WHEEL")
     native_items = obj["native_libraries"]
     native_found = {item["soname"]: item for item in native_items}
     if len(native_items) != len(native_found):
