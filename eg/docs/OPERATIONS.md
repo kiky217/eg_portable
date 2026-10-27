@@ -60,8 +60,9 @@ For a separately designated **historical/audit-only** instance, set
 `EVALUATION_GATEWAY_ADMISSION_MODE=disabled` **before** invoking the generated
 portable `init.sh`. The installer now accepts an empty executor public root in
 this explicit mode, while still requiring a valid independent evidence-notary
-public root. Root or non-root host identity is allowed, subject to protected state and signer boundaries. It persists `disabled` to
-`runtime.env`; the service must continue to deny concrete PRE/POST effects.
+public root. Root or non-root host identity is allowed, subject to protected
+state and signer boundaries. It persists `disabled` to `runtime.env`; the
+service must continue to deny concrete PRE/POST effects.
 The default `enabled` mode still requires a genuine independently provisioned
 executor public root. Audit-only readiness is **not** full capability acceptance.
 Missing authorization for a supported operation remains a blocker until it is configured and independently verified. Never invent signing keys or mark an incomplete task satisfied.

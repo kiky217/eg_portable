@@ -1,275 +1,121 @@
-# Evaluation Gateway Hardened Executor Protocol 3.1
+# Evaluation Gateway Executor Protocol 3.1
 
-Normative rules. "MUST" violations are rejected fail-closed by the gateway.
+This is the current, hash-bound contract for Evaluation Gateway (EG). All MUST
+requirements are enforced fail-closed. Read [the canonical runbook](PORTABLE_RUNBOOK.md)
+for installation; this document is a verification contract, **not** an
+instruction to install optional execution adapters.
 
-## Contracts and hierarchy
-1. Every task MUST be registered before evaluation with an immutable protocol-bound contract.
-2. Every task MUST use hierarchical numeric step keys; every hierarchy node is required and execution follows canonical post-order.
-3. Every criterion of the current step MUST be covered exactly once. `Claim.claim` MUST exactly equal the registered criterion text at its index.
-4. Request bodies are strict: unknown fields are rejected (HTTP 422). In particular a client can NOT supply an evidence matcher or a freshness window.
+## Scope and authority
 
-## Evidence (signed manifest v4)
-5. Every authoritative claim MUST be supported by fresh Ed25519-notarized manifest-v4 evidence. The signed bindings MUST contain exactly one binding whose identity equals what the gateway requires: task, step, criterion index, exact criterion text, **phase** and **checkpoint reference** (below).
-6. The assertion applied to `stdout.log` is the `matcher` (`contains` / `not_contains` / `equals`) carried **inside the signed binding**. It is never client-supplied.
-7. Checkpoint reference (`checkpoint_no` inside a binding): `PRE_EXECUTION` and `FACT_CHECK` use the request `checkpoint_no`; `POST_EXECUTION` uses the `gate_checkpoint_no` of the `READY_TO_EXECUTE` PRE gate being closed. Evidence for one phase/checkpoint can therefore never satisfy another.
-8. POST evidence MUST have finished at or after the creation of its PRE gate (minus the configured clock skew); evidence that predates the gate is rejected.
-9. Freshness is server policy (`EVALUATION_GATEWAY_EVIDENCE_MAX_AGE_SECONDS`, default 300 s); future timestamps beyond the clock-skew allowance and non-finite timestamps are rejected.
-10. Task-global acceptance criteria are independently mandatory at finalization and require exact signed `task_criterion` bindings (phase `POST_EXECUTION`, checkpoint reference = gate of the final step).
-11. Manual/self-declared evidence is never authoritative. Legacy manifests (any version other than 4) are rejected.
+- The canonical portable installation admits bounded file **read**, exclusive
+  **write** (create), and SHA-256 compare-and-swap **replace** only, inside the
+  configured private worker output root. Default allowed suffixes are
+  `.txt` and validated `.json`. Operator-approved additional suffixes change
+  file eligibility, not execution privileges.
+- There is one gateway, task registry, audit chain, and authoritative evaluator.
+  Other host operations (shell, service control, Git push and deployment cutover)
+  are **not** bundled capabilities; a successful external command cannot be
+  claimed as an EG-governed execution.
+- Task-gate authority, independent evidence-notary authority, and the bounded
+  worker's receipt signer have separate cryptographic purposes. No agent may
+  invent signer keys, self-approve unavailable actions or retroactively mint
+  proof of execution.
 
-## Execution gates
-12. Every step MUST obtain a `READY_TO_EXECUTE` `PRE_EXECUTION` gate before `POST_EXECUTION`. An outstanding actionable READY gate MUST NOT be superseded by any later PRE. The original gate must be closed by same-gate signed POST (including fresh POST evidence after a failed POST), or by independently signed `NOT_EXECUTED` reconciliation which consumes the old gate without verifying the step and permits a fresh PRE. An UNKNOWN effect remains BLOCKED; no retry or new PRE may authorize the action. A logical no-action gate does not authorize an effect; a failed/not-READY PRE never authorizes execution.
-13. PRE and POST MUST use the identical full action fingerprint (including proofs). The action cannot be changed, omitted, or substituted after PRE.
-14. A failed POST does NOT consume the gate. Verification is retried with `POST_EXECUTION` against the SAME gate (new fresh evidence, latest `checkpoint_no`); the action MUST NOT be authorized or executed again. Failed POSTs still count towards the remediation threshold.
-15. E2 readiness requires exactly one notarized `sandbox_pass`, `rollback_ready`, and `reversible` proof, each with a signed `action_proof` binding to task, step, purpose, action-intent fingerprint, phase `PRE_EXECUTION` and the PRE request checkpoint.
-16. E3-E5 and all real-world effects require the separate HITL key. The ordinary API key cannot supply HITL authorization.
-17. `FACT_CHECK` is read-only: it never advances a checkpoint, closes a step, authorizes an action or finalizes a task.
-18. `POST_EXECUTION` is the only phase that may verify/close a step. The final step MUST explicitly finalize the task and verify all task-global criteria.
+## Task registration and ordered steps
 
-## State, audit and integrity
-19. Every mutating evaluation uses the exact latest checkpoint number; stale continuation is rejected. Event IDs are idempotent and request-hash bound.
-20. Audit history is a SHA-256 hash chain with a gap-free sequence, plus a separate HMAC-SHA256 record authenticator bound to the sequence number.
-21. The ledger head is mirrored to an external, HMAC-authenticated **audit anchor** in a different directory/volume. Every mutating request and every integrity check compares the ledger with the anchor; whole-database rollback or tail truncation is rejected (HTTP 503 / 409).
-22. Materialized task, step, checkpoint, execution-gate, evidence, lifecycle, remediation, abort and terminal state are reconstructed from authenticated audit history in a single consistent read snapshot.
-23. Evidence materialization identity is namespaced by task + step + criterion/purpose + verified evidence fingerprint.
-24. Evidence is accepted only from the trusted evidence root with secure ownership/mode/path checks (root, evidence directory and files must not be group/other writable; owner = trusted UID) and bounded `state.json`, `stdout.log`, `evidence.json` sizes.
-25. A task that cannot proceed is terminated only by an audited, HITL-authorized `POST /v1/tasks/{task_id}/abort`; an original task with an open remedial MUST abort the remedial first.
+1. REGISTER MUST precede work. A task binds its original instructions,
+   immutable acceptance criteria, ordered hierarchical step keys and protocol
+   digest. Steps execute in canonical post-order; every required hierarchy
+   node must be satisfied.
+2. Each new step MUST explicitly declare `execution_required`. A physical
+   step additionally requires separate `preconditions` and
+   `acceptance_criteria`; an optional `invariants` set must hold in PRE and
+   POST. A logical step does not grant authority for a physical side effect.
+3. Every current-step criterion MUST be claimed at its registered index with
+   identical text. A request MUST NOT inject matchers or freshness policies.
+   Unknown request fields are rejected.
+4. FACT_CHECK is read-only; it MUST NOT close a step, authorize an operation,
+   advance a checkpoint or finalize a task.
 
-## Service surface
-26. `GET /health` is unauthenticated and reveals only `PASS`/`FAIL`; its cost is bounded by a single-flight verification cache. Detailed status is available only from the authenticated `GET /v1/audit/verify`.
-27. Requests are bounded by actual streamed bytes before parsing. Swagger/ReDoc/OpenAPI are disabled.
-28. Fail closed on weak, placeholder or equal secrets, protocol mismatch, database/audit/anchor/state inconsistency, evidence/signature/binding errors, unsafe evidence paths, or trust-boundary errors.
-29. Remediation is bounded and linked; historical VERIFIED state is reconstructed from authenticated history and cannot be silently rolled back.
+## BEFORE execution: original PRE
 
-## vNext mandatory execution proof and continuity (beta)
-30. EVERY POST containing a concrete E0/E2 action MUST include independent Ed25519 executor receipt bound to task, step, exact PRE gate, immutable full action fingerprint, target, output digest and executor identity. Signed claim evidence alone is INSUFFICIENT.
-31. Receipt trust root MUST be distinct from evidence notary trust root, and private signing authority belongs only to the restricted trusted executor; it signs AFTER actual work and independent readback, not retrospectively.
-32. PAUSED task has no deadline and no task execution; checkpoint remains durable. RESUME with outstanding PRE transitions RECOVERY_PENDING. New PRE is forbidden until the existing effect is reconciled; duplicate WRITE is forbidden.
-33. A sealed execution receipt may remain valid after a lengthy pause, but newly claimed state still requires fresh signed POST criterion evidence. Authorization leases remain bounded independently of task lifetime.
-34. Remedial LOCAL_REPAIR and REPLAN MUST preserve immutable original acceptance, use linked tasks and obey all PRE/POST and signed-receipt controls; owner authorization is needed to change baseline or acceptance.
-35. This protocol governs registered gateway/worker operations only. Host root, ungoverned shell commands and other external effects require independent isolation, not merely a policy declaration.
+5. An execution-required step MUST obtain actionable `READY_TO_EXECUTE`
+   PRE before dispatch. PRE checks exact target, capability, payload, criteria,
+   permissions, resource lease and independently notarized readiness.
+6. PRE and FACT_CHECK evidence MUST have been produced after task registration.
+   Every authoritative evidence claim has exactly the signed manifest-v4
+   binding for its task, step, criterion or proof purpose, phase and checkpoint.
+   Evidence producer labels alone carry no authority.
+7. File creation and replacement PRE MUST bind lowercase
+   `payload_sha256` and `payload_bytes` for the exact proposed content
+   (1..524288 bytes); replacement also binds the original
+   `previous_sha256`. The applicable signed `sandbox_pass`,
+   `rollback_ready` and `reversible` proofs bind action intent, step,
+   phase and PRE request checkpoint.
+8. An outstanding actionable READY gate MUST NOT be superseded by later PRE.
+   An expired gate, missing worker, invalid signature or unavailable action
+   remains BLOCKED rather than enabling direct shell fallback.
 
-## Immutable E2 write payload admission (v3.1.7 extension)
+## Execution, recovery and original POST
 
-- Every new `write/E2` PRE MUST include `payload_sha256` (lowercase SHA-256)
-  and `payload_bytes` (1..524288) of the exact bytes to be written.
-- Both fields bind the action fingerprint and the notary-verified
-  `action_intent_fingerprint` for sandbox, rollback and reversibility proofs.
-- The worker MUST compare bytes and digest BEFORE new journal or filesystem
-  effects. Payload mismatch or absent commitment is denied fail-closed.
-- An older already-sealed receipt may only be recovered by independently
-  validating the original signer, target, output and existing gate.
-  No older PRE may be reused to start an uncommitted write.
+9. The admitted worker verifies the exact PRE and executes only its bounded
+   authorized operation. It checks file type, permitted suffix, ownership,
+   symlink safety, payload and (for replacement) preimage before mutation.
+   The worker persists the original journal and issues an independent signed
+   receipt after committed work and target readback.
+10. Every POST for a concrete file operation MUST carry the **same** complete
+    action fingerprint and the original signed execution receipt tied to task,
+    step, PRE gate, target and output. Claim evidence alone is insufficient.
+    Logical no-action steps have no physical execution receipt to fabricate.
+11. POST evidence MUST be newly obtained after the original PRE gate and
+    bind its `gate_checkpoint_no`. PRE/FACT_CHECK evidence instead binds the
+    request checkpoint. Evidence from another phase or checkpoint is rejected.
+    Independent manifest-v4 signatures and `stdout.log` assertions
+    (`contains`, `not_contains`, `equals`) are verified against the signed
+    binding, never against a caller-supplied matcher.
+12. A failed POST does **not** consume a READY gate. The agent may submit
+    fresh POST evidence against the SAME gate and original receipt, but MUST
+    NOT execute the operation again. UNKNOWN effect remains BLOCKED.
+13. On timeout or crash, reconcile the ORIGINAL gate, durable journal, receipt
+    and target. If the effect occurred, recover the sealed original receipt.
+    Only independently signed `NOT_EXECUTED` reconciliation may consume the
+    old gate without verifying a step, permitting a fresh PRE. Missing response
+    alone does not prove non-execution.
+14. Only verified POST closes the step. Advance only after `VERIFIED_PASS`;
+    final `SATISFIED` also requires separately signed task-global acceptance
+    and authenticated audit integrity. Never register work afterward merely
+    to claim that completed work had been governed.
 
-## Reversible E2 replacement with compare-and-swap preimage
+## Integrity, lifecycle, remediation
 
-- The built-in worker may replace an existing regular worker-owned file in its
-  private output root using the bounded `replace/E2` action. All existing PRE,
-  separately signed receipt and POST gates remain mandatory.
-- `previous_sha256` commits the exact expected existing file bytes; the new
-  `payload_sha256` and `payload_bytes` commit the proposed replacement.
-- Before any effect, the worker checks ownership, the exact preimage digest,
-  allowed suffixes and size. It persists the preimage in the protected durable
-  journal, performs an atomic same-directory replacement and reads back the new
-  bytes before signing a receipt.
-- Recovery may only reuse a sealed matching receipt. A changed or unknown
-  preimage never authorizes replay. Restoring a prior version requires its own
-  separately authorized step; journal presence alone is not rollback execution.
-- A staging runner may enable admission only for its freshly provisioned,
-  isolated gateway/worker identities. This does not enable admission in any
-  existing or production EG runtime.
+15. Mutations MUST supply the latest checkpoint and immutable contract/protocol
+    identity. Event IDs are idempotent and request-hash bound; a different
+    payload cannot reuse an event ID.
+16. The audit ledger MUST remain a gap-free SHA-256 chain authenticated with
+    sequence-bound HMAC and a separately authenticated external anchor.
+    Database rollback, audit truncation, modified materialized state, unsafe
+    evidence paths or invalid signatures fail closed.
+17. Evidence access MUST enforce safe ownership, file mode, size and path
+    limits. The notarized evidence manifest format remains version 4; manually
+    declared results and unsigned/older manifest formats are not authoritative.
+18. PAUSE keeps a durable checkpoint; RESUME with an outstanding gate enters
+    recovery. Remediation is linked to the same original task and acceptance
+    criteria and never replaces the original verified history. Aborts and
+    sensitive baseline changes require their existing separate authorization.
+19. These rules apply equally to development, staging, testing, recovery and
+    production. CI/build success and healthy service responses are **not**
+    permission to bypass PRE, receipts, POST or final acceptance.
 
-## Protocol identity and compatibility (stable)
+## Protocol identity and historical tasks
 
-Software version (SemVer) comes from `eg/VERSION`; the protocol human label
-is `3.1`, while its authoritative identity is SHA-256 of this exact
-UTF-8 file as returned by `GET /v1/protocol`. The Ed25519 evidence manifest
-format is version 4. The signed executor receipt envelope has an independent
-version number; it does not specify a replacement protocol.
-
-New tasks bind the current hash. Existing tasks remain bound to their original
-signed TASK_INTAKE hash and are interpreted under the current stringent
-evaluator; legacy contracts are neither re-signed nor assigned a new hash.
-Updating this file intentionally creates a new protocol digest for new
-registrations, requiring regression and signed E2E validation before release.
-
-The only currently provisionable built-in concrete actions are read E0 and
-restricted reversible write/replace E2 in an independently secured output root.
-New write PRE binds exact payload SHA-256 and size plus signed sandbox and
-rollback proofs. Unsupported cutover remains BLOCKED. Pending UNKNOWN effect
-must not be replayed or treated as NOT_EXECUTED without signed independent
-reconciliation (implemented under issue #6).
-
-
-## Explicit step execution classification (new task intake)
-
-Every new plan step must explicitly declare `execution_required` as a boolean.
-For `true`, the immutable plan also requires distinct `preconditions`;
-PRE must validate readiness, trusted capability and bound action parameters,
-while POST must validate postconditions with the original executor-signed
-receipt. Supplying `action=null` for that step is rejected without checkpoint
-advancement. `false` is an explicit logical classification, not permission
-to report a physical side effect as completed. Historical task contracts stay
-immutable and keep their intake protocol hash. Do not backfill or rewrite old
-TASK_INTAKE events. Unsupported cutovers must use a registered adapter before
-PRE can advertise executable readiness.
-
-## Signed high-effect sandbox admission and production boundary (v3.1.37)
-36. E3-E5 require a verified, scoped Ed25519 approval from the separate
-    `EVALUATION_GATEWAY_HITL_PUBLIC_KEY_B64` authority. The legacy
-    `X-Evaluation-HITL-Key` header alone MUST NOT convert high effect to READY.
-37. Approval must bind exact task, step, PRE checkpoint, immutable full action,
-    adapter identity, nonce, expiry and signed decision. A durable nonce claim
-    is not proof that the physical effect occurred.
-38. The verified PRE must record its selected high-effect executor identity,
-    public signing key, immutable action fingerprint and signed approval nonce
-    in the authenticated audit response. POST and NOT_EXECUTED reconciliation
-    validate the receipt/proof against that **original** PRE signer, never
-    a rotated mutable registry or the global E0/E2 worker key.
-39. E3-E5 disposable sandbox adapters and `dispatch_disposable_ci` are
-    **repository CI-only**. No bundled production high-effect worker is
-    provisioned by this portable distribution. A JSON registry, boolean
-    `isolated=true` and signed HITL alone MUST NOT advertise online/live
-    execution or grant real-world READY. Admission remains fail-closed pending
-    independently protected worker transport and attestation.
-40. On independently proven NOT_EXECUTED, reconcile the original gate without
-    claiming step VERIFIED. Claimed, uncertain or unproven physical effects
-    remain UNKNOWN/BLOCKED; no duplicate effect or automatic fresh PRE.
-41. E3/E4 compensation requires its own canonical PRE, signed scoped approval,
-    exact rollback operation digest/length, durable single-use claim and signed
-    POST. E5 compensation remains forbidden.
-
-## Immutable logical/physical admission hardening (v3.1.46)
-42. For new PRE requests, an action of **any** concrete effect class E0–E5
-    MUST be bound to a registered step whose immutable `execution_required`
-    is `true`, with separately signed precondition evidence. A logical
-    `execution_required=false` step cannot be relabelled via `evaluate.action`.
-43. Historic actionable PRE gates retain their immutable registration and
-    original signer; this change MUST NOT retroactively invalidate legitimate
-    same-gate POST or rewrite audit records. New PRE requires current policy.
-
-## Issue #26: read-only remote liveness prototype (v3.1.48)
-`tools.adapter_liveness.probe_unix` sends a bounded, random-nonce,
-gate/action/capability-scoped challenge to a separate Unix-socket process and
-verifies a domain-separated Ed25519 response against the configured key.
-Wrong key, stale response, different nonce/scope and offline process fail closed.
-This attests **current key possession only**, not OS isolation, transport
-authorization, physical execution, EG READY or production cutover.
-Production E3–E5 dispatch is opt-in and requires independently provisioned worker
-admission, auditable effect journal and live promotion are separately proven.
-
-## Issue #26: deployable read-only attester (v3.1.49)
-Run `python -m tools.adapter_attestation_worker --socket PRIVATE_SOCKET
---private-key WORKER_PEM --adapter-id trusted-adapter-ID
---capability-sha256 PINNED_SHA256` as the **worker OS identity**.
-The containing socket directory must be owned by that UID and mode 0700;
-the private Ed25519 PEM must be owned by that UID and mode 0600.
-Socket RPC permits only `attest`, with signed task/step/gate/action/capability
-challenge. All other operations are denied; no physical actions are exposed.
-A successful challenge proves signing-key possession, NOT independent
-production executor authorization, effect journaling, or EG VERIFIED.
-
-## Linux peer credential boundary (v3.1.50)
-The attest-only worker CLI now requires `--controller-uid`, enforced via
-kernel `SO_PEERCRED`. A controller can independently pin `expected_worker_uid`
-when calling `probe_unix`; mismatched UIDs fail closed **before sending** a challenge.
-The worker's original private 0700 directory and 0600 socket still allow only
-same-UID access. Inter-UID access requires a separate audited owner/group ACL
-layout and distinct identity smoke tests; do not open directory or key permissions
-to make a missing transport work. Neither peer credentials nor signed liveness
-grant E3–E5 production execution.
-
-## Cross-UID attestation socket deployment (v3.1.51)
-For Linux with separate worker/controller UIDs, provision a dedicated private
-shared group to both processes. Create the worker-owned socket parent with
-mode `2710` (group execute-only, no read/write); keep the Ed25519 private
-key `0600`, worker UID-owned. Start the worker with `--controller-uid`
-and `--controller-gid`. It verifies the connecting controller's UID using
-kernel SO_PEERCRED before handling messages; the client must pass
-`expected_worker_uid` to verify the other direction. Socket `0660`
-permits connection only to that private group, which does not confer
-authorization without UID verification. A separate GitHub Actions **root-run
-live test** forks worker, controller, and rogue as three distinct Linux UIDs
-and verifies signed liveness, denied rogue access and private-key isolation.
-This still grants **no E3–E5 effect execution**.
-
-## Out-of-process CI-only high-effect RPC acceptance (v3.1.52)
-`tools.disposable_rpc_worker` is an **isolated GitHub CI sandbox fixture**,
-not a production service adapter. It reads original PRE state and checkpoints
-from authenticated EG over HTTP rather than trusting caller-supplied READY,
-accepts only bounded E3/E4/E5 JSON creation/compensation and no-effect
-reconciliation through `DisposableAdapter`, and returns a separately signed
-receipt to be submitted to EG POST. It has no shell or host-service RPC.
-Regression executes a live Unix-socket subprocess plus real authenticated EG
-read-only HTTP proxy for E3/E4/E5: REGISTER → signed HITL PRE → effect journal
-and readback → signed receipt → EG POST → SATISFIED, with wrong-action denial.
-This is strong **CI E2E evidence only**. Independent production provision,
-real application cutover and live promotion (#26) are still required.
-
-## Durable signed receipt restart semantics (v3.1.53)
-The CI sandbox ledger now seals the original Ed25519 receipt in synchronous
-SQLite after effect readback/transaction commit. After worker crash/restart,
-an already claimed effect is **never applied twice**: original target readback
-and durable provenance are checked, and the identical signed receipt is
-returned. An uncertain effect remains UNKNOWN and BLOCKED. Live out-of-process
-E3/E4/E5 regression restarts the worker between effect and POST and checks the
-same signed receipt, target inode and payload before EG POST/SATISFIED. This
-does not authorize unprovisioned production E3–E5 cutovers.
-
-## Worker-side immutable PRE signer enforcement (v3.1.54)
-Authenticated `GET /v1/tasks/{task_id}/state` now includes the original
-audit-authenticated high-effect PRE signer pin on a pending READY gate.
-Before any sandbox high-effect RPC operation, the separate worker compares
-its actual Ed25519 public key, adapter identity, action fingerprint and
-signed HITL approval nonce to the **original** PRE record. An absent,
-different or substituted signing identity is denied before a physical effect.
-A malicious/mismatched worker must not cause an effect and wait for POST
-to reject its receipt. This is still **CI-only** execution, not production
-admission of arbitrary resources.
-
-## Same independent executor liveness required before CI PRE (v3.1.55)
-In the opt-in internal CI test mode EG sends a fresh gate, action and capability
-scoped Ed25519 challenge to the same IPC socket that will execute E3/E4/E5.
-The worker fingerprints its actual typed adapter policy and signs with its
-execution receipt key. Wrong UID/key/capability or an offline worker keeps
-PRE at REQUIRES_HITL. Tests prove E3/E4/E5 PRE -> live executor -> signed
-effect -> durable restart recovery -> POST/SATISFIED. Production remains
-fail-closed until a separately provisioned real-world adapter is proven.
-
-## Re-verifiable canonical PRE live attestation evidence (v3.1.56)
-For isolated CI E3/E4/E5 admissions, the response/audit now records
-`high_effect_liveness` containing the complete signed challenge-response,
-the challenge digest, action/gate/capability binding and worker-UID pin
-enforcement. Offline/unpinned workers fail closed. The original immutable
-audit stores this evidence; historical gate hashes and previously recorded
-task intakes are not rewritten. The evidence is **key possession at PRE**,
-not proof of a real-world production cutover.
-
-## Reusable generic worker catalog — current operational contract
-
-The single provider-neutral `governed_agent_dispatcher.dispatch_action` routes
-E0/E2 to the restricted file worker and E3–E5 to independently admitted typed
-external workers. The **same** multi-profile process-catalog implementation is usable for
-operator-pinned **E3, E4 or E5** bounded actions. The root-owned first-run
-policy may select a matching `effect_class` and `action_type`; it creates a
-separate class-bound signed worker and matching independent HITL policy.
-It does not grant arbitrary provider API calls, dynamic shell commands or
-privilege escalation. E4 requires `reversible=true`; E5 requires
-`reversible=false` and forbids compensation.
-
-An independent operator may provision 1–32 exact, unique `/tasks/...` targets
-under one signed class-bound E3/E4/E5 process adapter with one worker identity, one Unix socket
-and one durable nonce ledger. The protected worker configuration requires
-explicit `effect_class`, `action_type` and `profiles` and rejects the removed
-single-target format.
-Each profile pins executable, fixed arguments and bounded runtime/output. The
-agent supplies only the originally bound action payload over stdin; it cannot
-change executable or arguments. No per-project worker implementation is
-required for new tasks already covered by approved profiles.
-
-An operator-approved action **still** requires live worker attestation, the
-original authenticated PRE and action fingerprint, independently signed HITL,
-exactly-once durable nonce, signed receipt, independent readback and canonical
-POST. A new permission or separate host trust domain may require operator
-policy/bootstrap; **it does not imply provider-specific EG source code**.
-Read [Generic execution model](GENERIC_EXECUTION_MODEL.md).
+- The human protocol label is `3.1`; the authoritative current identifier is
+  SHA-256 of the **exact bytes of this document**, returned by
+  `GET /v1/protocol`. New tasks MUST bind the current digest.
+- An existing task MUST retain the original protocol hash authenticated in
+  its signed `TASK_INTAKE` event. The current evaluator validates that
+  historical task under current fail-closed controls without rewriting its
+  record, re-signing its evidence or dispatching a legacy implementation.
+- Earlier protocol text, including obsolete effect-class identifiers and
+  optional adapter onboarding instructions, is preserved in Git history for
+  forensic audit only. Those historical instructions are **not** required by
+  the canonical installation.

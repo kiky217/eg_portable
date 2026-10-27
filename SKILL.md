@@ -55,8 +55,8 @@ An operation outside the canonical read/create/replace boundary is not an EG cap
 - **Source default:** unset `EVALUATION_GATEWAY_ADMISSION_MODE` means `enabled` in `eg/app/main.py`. Preserve that default unless an operator deliberately selects audit-only mode; do not infer live worker availability from this flag.
 - `EVALUATION_GATEWAY_ADMISSION_MODE=disabled`: explicitly selected historical audit/reconciliation mode; **all concrete PRE/POST** are fail-closed, regardless of service health.
 - `enabled` is only a configuration condition; it does not provision the executor, signers, capability, root isolation, authenticated effect RPC or a live valid PRE. With no worker output root, `/v1/agent/capabilities` still reports built-in effects `UNAVAILABLE`.
-- Current portable `init.sh` requires an independently supplied executor **public** root and notary public root at fresh initialization even if `disabled` is selected. If either is missing, do not invent one; see [operator/audit-only bootstrap limitation](eg/docs/OPERATIONS.md#safe-historical-task-migration).
-- Run `python eg/tools/agent_readiness.py --action write` from the repo root for a **local, read-only configuration preflight**. It prints a diagnostic, not proof of live authorization. For Rust build/Git or unsupported effects, diagnostics must identify the missing production adapter rather than claim success.
+- For `enabled` installation, portable `init.sh` requires separately supplied executor and notary **public** roots. Explicit audit-only `disabled` installation requires the notary public root but accepts an absent executor root; it cannot perform file effects. See [audit-only initialization](eg/docs/OPERATIONS.md#safe-historical-task-migration).
+- Run `python eg/tools/agent_readiness.py --action write` from the repo root for a **local, read-only configuration preflight**. It prints a diagnostic, not proof of live authorization. Rust builds, Git pushes and other unsupported host operations remain outside the canonical worker; do not mistake their absence for an instruction to install a new executor.
 - Never set admission enabled merely to clear a blocker. Provision and independently verify trusted worker and key isolation first.
 
 
@@ -94,7 +94,7 @@ With `--url` and an authorized `EVALUATION_GATEWAY_API_KEY`, the readiness tool 
 ## Failure reconciliation and acceptance states
 
 - `ADMISSION_DISABLED` or `TRUSTED_EXECUTOR_UNAVAILABLE_FAIL_CLOSED`: retain historical audit, provision separate trust; do not set admission enabled just for a green status.
-- `CAPABILITY_UNPROVISIONED`, `AMBIGUOUS_OR_MISSING_OPERATOR_ADAPTER`: resolve precise external worker and operator trust; do not claim a configured catalog entry is execution.
+- `CAPABILITY_UNPROVISIONED`: the requested bounded operation has no admitted live worker. Do not provision retired process adapters or report a configured catalog as execution.
 - `EG_PRE_NOT_READY`, `EG_GATE_OR_ACTION_MISMATCH`, stale checkpoint or 409: reread the **original** gate before any new action.
 - `RECEIPT_VERIFIED_POST_REQUIRED`: signed receipt available, independently verify target and submit POST. Already verified → **no replay**.
 - Timeout / `RECOVERY_PENDING` / ambiguous journal: **UNKNOWN** until exact old task/gate/journal/target reconciliation; recover a sealed original receipt or independently signed `NOT_EXECUTED` through canonical `/reconcile`; no blind retry or new task to evade denial.
@@ -106,7 +106,7 @@ Never confuse CREATED, SUBMITTED, RUNNING, COMPLETED, VERIFIED or UNKNOWN. Befor
 ## Reporting
 State exactly: target instance, software/version, timestamp, task/step/checkpoint, source state, admission, claimed capability, worker state, execution state, canonical verdict, unresolved blocker. Separate `SOURCE PASS`, `BUILD PASS`, `RUNTIME PASS`, `CANONICAL VERIFIED`. Cite actual logs/receipts/checkpoints; never infer them.
 
-References: [complete API/operations reference](eg/docs/PORTABLE_RUNBOOK.md), [agent onboarding](eg/docs/PORTABLE_RUNBOOK.md), [operations](eg/docs/OPERATIONS.md), [executor protocol](eg/docs/EXECUTOR_PROTOCOL.md).
+References: [portable runbook](eg/docs/PORTABLE_RUNBOOK.md), [operations and migration](eg/docs/OPERATIONS.md), [verification protocol](eg/docs/EXECUTOR_PROTOCOL.md).
 
 ## Provider-neutral operational cookbook (normative for new work)
 

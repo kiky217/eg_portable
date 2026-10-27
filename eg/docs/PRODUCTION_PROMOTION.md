@@ -16,7 +16,7 @@ that any previous Colab deployment is available or current.
 
 - Single canonical implementation `eg/` from protected `main`
 - Hash-locked Python 3.12 dependencies and regression suite
-- Trusted-executor signing and remedial E2E tests
+- Signed bounded-worker receipts, PRE/POST, and remedial/recovery regression tests
 - Linux/amd64 portable build, verified SHA-256, and offline relocation test
 - Immutable stable release tied to tested SHA, preserving historical beta
 - No private keys, API tokens, audit databases, or runtime secrets in bundle

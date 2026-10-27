@@ -10,12 +10,12 @@
 
 **Fail closed:** Without registration, current-step PRE, signed action receipt or verifiable POST, the step stays BLOCKED. A healthy gateway or passing CI never proves task completion. Operations outside EG are not governed or eligible for retroactive acceptance.
 
-This document applies to **new deployments and active runtimes**, not to a
-historical Colab session. One registry, one current evaluator, one writer.
+This runbook applies to every deployment. Discover its actual running state;
+never reuse a historical notebook session or silently start a second writer.
 
 ## Reconnect / idempotent service startup
 
-With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.136-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash, **running app/tools source fingerprint**, admission mode and full capability fingerprints (including target scope, payload limit and worker public key) before reusing a live process. A new bundle with unchanged protocol documentation but different runtime code cannot silently reuse the old process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
+With an already initialized state, set `EG_BUNDLE` to the extracted, versioned bundle directory and run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle "$EG_BUNDLE" --state "$EG_STATE_DIR"` from the repository root. This checks the authenticated protocol hash, **running app/tools source fingerprint**, admission mode and full capability fingerprints (including target scope, payload limit and worker public key) before reusing a live process. A new bundle with unchanged protocol documentation but different runtime code cannot silently reuse the old process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
 
 ## Read-only capability health
 Check the authenticated gateway health, audit, task state and currently admitted actions. A listed capability is not execution authorization.
@@ -60,10 +60,13 @@ supported/authorized target. See [operations](OPERATIONS.md#safe-historical-task
 | Evidence manifest | Signed v4 envelope | Verify original criterion bindings |
 | Execution receipt | Signed, independently keyed envelope | Bind step, PRE, target, action and output |
 
-The protocol document is hash-bound. It retains legacy codes and historical compatibility clauses; these are **not** instructions to install retired process workers. The currently installed worker supports only bounded reads, file creation and verified replacement. Changing the current protocol file changes its digest for *future* tasks.
-An existing registered task retains the original authenticated hash while
-the current hardened evaluator remains authoritative; no legacy evaluator or
-retroactive approval is enabled.
+The [current verification protocol](EXECUTOR_PROTOCOL.md) documents only the
+canonical bounded operations. Older protocol versions and retired adapter
+instructions remain retrievable in Git history for forensic audit, **not**
+as installation procedures. The protocol file is hash-bound: a change creates
+a new digest for **new** task registrations. Existing tasks retain their original
+signed `TASK_INTAKE` hash and the current evaluator's fail-closed checks; no
+historical task, evidence or ledger entry is rewritten.
 
 ## Mandatory step-by-step lifecycle — staging is included
 
@@ -151,9 +154,9 @@ rollback archive hash, canonical checkpoint/audit head and all restored member
 hashes. The verifier performs an actual isolated extraction and byte readback;
 missing or changed evidence is denied. The attestor key must not be supplied
 by the report or the agent controlling it. This is verification of the
-reported cutover evidence; it does NOT authorize an unsupported retired external operation service
-cutover, restore a historical Colab session, or waive the independent EG
-step/capability/runtime checks for a new deployment.
+reported cutover evidence; it does NOT authorize service cutover, restore
+a historical notebook runtime, or waive current EG step, capability and
+runtime checks.
 
 
 ## Bounded cutover archive verification

@@ -34,9 +34,36 @@ def test_active_guides_never_expose_internal_effect_class_codes():
                  'eg/docs/PRODUCTION_PROMOTION.md','eg/.env.example'):
         content = (ROOT/name).read_text(encoding='utf-8')
         assert not re.search(r'\bE[0-9]+\b', content), name
-    # The immutable EXECUTOR_PROTOCOL.md is retained byte-for-byte for
-    # existing audit-bound contracts, not presented as installation steps.
+    # Historical protocol versions stay in Git history; this document is current.
 
+
+
+
+def test_all_markdown_guides_exclude_retired_effect_codes():
+    """No historical class codes in any shipped Markdown documentation."""
+    for path in (ROOT/'README.md', ROOT/'SKILL.md', ROOT/'SECURITY.md',
+                 ROOT/'eg/README.md', *(ROOT/'eg/docs').glob('*.md')):
+        text=path.read_text(encoding='utf-8')
+        assert not re.search(r'\bE[0-9]+\b', text), path
+
+
+def test_historical_contract_resumes_without_replacing_original_digest():
+    protocol=(ROOT/'eg/docs/EXECUTOR_PROTOCOL.md').read_text(encoding='utf-8')
+    assert 'original protocol hash authenticated' in protocol
+    assert 'Git history' in protocol
+    assert 'New tasks MUST bind the current digest' in protocol
+    assert 'historical task, evidence or ledger entry is rewritten' in (ROOT/'eg/docs/PORTABLE_RUNBOOK.md').read_text(encoding='utf-8')
+
+
+def test_installation_guides_agree_on_worker_identity_and_audit_only_mode():
+    skill=(ROOT/'SKILL.md').read_text(encoding='utf-8')
+    ops=(ROOT/'eg/docs/OPERATIONS.md').read_text(encoding='utf-8')
+    runbook=(ROOT/'eg/docs/PORTABLE_RUNBOOK.md').read_text(encoding='utf-8')
+    assert 'audit-only `disabled` installation' in skill
+    assert 'accepts an absent executor root' in skill
+    for doc in (ops,runbook):
+        assert 'root or non-root' in doc
+    assert 'REGISTER' in runbook and 'POST' in runbook and 'staging' in runbook
 
 def test_current_entrypoints_do_not_require_retired_operator_workers():
     for name in ('README.md', 'SKILL.md', 'eg/README.md'):
@@ -71,7 +98,7 @@ def test_no_retired_installation_paths_in_docs_or_ci():
 
 def test_hash_bound_protocol_is_not_presented_as_installer():
     assert 'hash-bound' in (ROOT/'eg/docs/PORTABLE_RUNBOOK.md').read_text().lower()
-    assert 'historical audit' in (ROOT/'README.md').read_text().lower()
+    assert 'previous contracts remain in Git history' in (ROOT/'README.md').read_text()
 
 
 def test_docker_image_has_all_gateway_runtime_modules():

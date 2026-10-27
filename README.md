@@ -135,7 +135,7 @@ and [generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
 | --- | --- |
 | [Portable runbook](eg/docs/PORTABLE_RUNBOOK.md) | Installation, daily operation, staging, recovery, and rollback |
 | [Agent SKILL](SKILL.md) | Discover, register, PRE, dispatch once, recover, POST, and finalize |
-| [Protocol contract](eg/docs/EXECUTOR_PROTOCOL.md) | Hash-bound technical contract for current and historical audit; older capability codes here are not installation instructions |
+| [Verification protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Current hash-bound PRE/POST and receipt requirements; previous contracts remain in Git history |
 | [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md) | Reusable workflow and supported operations across projects |
 | [Remediation protocol](eg/docs/REMEDIAL_PROTOCOL.md) | Failure handling and controlled repair |
 | [Production promotion](eg/docs/PRODUCTION_PROMOTION.md) | Software release versus live production readiness |
