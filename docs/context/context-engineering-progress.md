@@ -1,71 +1,71 @@
-# Context Engineering — Progress and Multi-Chat Handoff
+# Context Engineering — Complete Three-Phase Progress and Multi-Chat Handoff
 
-**Project:** `kiky217/eg_portable` (Evaluation Gateway portable).  
-**Source snapshot:** `main@5a56e9b9ddf0d74479590075d166d4293c79366f`, `v3.1.141`, 2026-10-27.  
-**Workspace:** Repository `docs/context/`, with all new documents isolated in `docs/context-engineering-phase1-20261027` for review.  
-**Method:** GitHub repository reading/writing only. No Desktop Commander, KNID, VPS, KNID-PC, Colab, or production state accessed.
+**Project:** `kiky217/eg_portable`, portable Evaluation Gateway.  
+**Initial discovery snapshot:** `main@5a56e9b9ddf0d74479590075d166d4293c79366f`, released v3.1.141 on 2026-10-27.  
+**Context engineering target release:** v3.1.142; release/main commit SHA MUST be read back from GitHub after merge and publishing—do not assume initial snapshot is latest.  
+**Owner approval:** proceed through all three phases and end-to-end verification on 2026-10-27 (after initial phase-one review).  
+**Scope:** `docs/context/` plus one additive documentation regression test; version + Compose tag synchronized to avoid reusing an existing immutable published tag. No modification of gateway, worker, task state, existing normative guides, secret material or production deployment. GitHub connector only.
 
-## Complete instructions for any subsequent chat
+## Contract for every future chat
 
-**Mission:** Build a small, accurate, AI-readable repository context system that improves understanding of the actual code and canonical EG procedures without modifying source behavior, operational authority, licenses or existing normative documentation.
+**Read this entire document first**, then [project-overview.md](project-overview.md), [SKILL](../../SKILL.md), [EXECUTOR_PROTOCOL.md](../../eg/docs/EXECUTOR_PROTOCOL.md), [runbook](../../eg/docs/PORTABLE_RUNBOOK.md), [system design](architecture/system-design.md) and task-specific [component](components/gateway-evaluator-context.md) or [workflow](workflows/development.md) notes.
 
-1. **First read this entire file** and [project-overview.md](project-overview.md), then the canonical [SKILL](../../SKILL.md), [protocol](../../eg/docs/EXECUTOR_PROTOCOL.md) and [runbook](../../eg/docs/PORTABLE_RUNBOOK.md).
-2. Check the fresh GitHub `main` HEAD, release/tag, current PR/CI status and exact tree before resuming. If baseline changed, reconcile and update this file first; do not assume this snapshot is current.
-3. Follow **maximum three phases** and finish only the currently agreed phase. After each major milestone, update this file with exact files, findings, source SHA, CI evidence, risks and next step. Confirm before proceeding to the **next** phase.
-4. Preserve source truth and terminology. The canonical installed worker supports bounded read, exclusive create, verified replace; no arbitrary shell, service operation or Git push. PRE/receipt/POST applies to staging as well. Older metadata is historical, not permission.
-5. **New docs first.** Never delete existing docs, reorganize an existing docs hierarchy, overwrite major existing content or change templates without separate owner confirmation and preview. Keep a rollback SHA for every branch change. Never commit credentials or private task/audit material.
-6. Keep Markdown human-readable, short, focused, with relative links checked against the real tree. Treat all context files as explanatory; the protocol/SKILL/runtime remain authoritative.
-7. A PR can validate documentation, but merging to `main` with an already-published `eg/VERSION` **requires immutable release planning**. Previous docs-only main commit with an unchanged release tag failed `publish_stable` (`VERSION_BUMP_REQUIRED`); do not repeat or bypass that gate. Preserve existing v3.1.141 tag/assets. Do not change the workflow to suppress a legitimate version mismatch.
-8. CI PASS never proves live production acceptance. Do not access unrelated machines or claim live task state.
+1. Fetch latest protected `main` HEAD, `eg/VERSION`, matching release tag SHA and GitHub Actions results. Reconcile any intervening commits; never treat the historical SHA above as the current installation.
+2. Keep all context files **descriptive**. The real runtime, normative protocol and authenticated live deployment state supersede this summary. Context documentation grants no permissions.
+3. For governed physical actions, use **REGISTER → original PRE → admitted single execution → exact signed receipt → fresh independent POST → VERIFIED → task SATISFIED**. A healthy service or release CI does not certify a live task. Staging has the same gate requirements.
+4. Canonical bundled physical operations remain bounded **read**, exclusive file **create** (`write`) and exact SHA-256-verified **replace** within the worker private root. Historical optional adapter classes, arbitrary shell/command runners, Git operations and service management are not bundled privileges.
+5. Preserve independent notary/executor trust roots, immutable historical task intake, durable intent and no-blind-retry handling. An UNKNOWN write remains UNKNOWN until original journal/target/receipt is reconciled.
+6. When code/docs change, map affected components via [context-maintenance.md](workflows/context-maintenance.md), update only supporting context, check relative Markdown paths and run `eg/tests/test_context_docs_consistency.py` and the full regressions. Never commit live secrets, task DBs or evidence.
+7. Use an isolated branch and reviewed PR for new changes; do not overwrite/delete/restructure existing canonical documentation without owner authorization. Source/contract changes require separate substantive approval.
+8. **Release immutability:** any new `main` SHA that is published must have a new `eg/VERSION` plus synchronized Docker Compose tag. GitHub will fail `publish_stable` rather than retarget an old tag. Verify exact SHA of the published release, archive SHA and legally complete notices after merge; do not weaken this gate.
+9. Clearly distinguish SOURCE/CI PASS, published archive PASS, external runtime readiness and canonical task VERIFIED; none imply another.
 
-## Standard file organization
+## Methodology and retained source facts
 
-```text
-docs/context/
-├── project-overview.md                   # master AI entry and navigation
-├── context-engineering-progress.md       # handoff / phase tracker
-├── architecture/
-│   ├── decisions/
-│   │   └── adr-001-generic-gateway-bounded-worker.md
-│   └── system-design.md                  # planned phase 2 (not created)
-├── components/                           # planned phase 2 (not created)
-└── workflows/                            # planned phase 3 (not created)
-```
+Three phases only: discovery and planning → core documentation → integration and workflows. Create focused summaries and real ADRs where supported, avoid fictitious approvals/alternatives, and place further documentation only when a real change requires it.
 
-**Naming guidelines:** `adr-NNN-short-title.md`, `<component>-context.md`, `<workflow-name>.md`. Favor small semantic files; don't duplicate a normative manual.
+**Technical baseline:** Python 3.12, FastAPI/Starlette, Pydantic schemas, SQLite WAL + authenticated chain/anchor, Ed25519 evidence/receipt signatures, SHA-256-bound actions, fixed-hash runtime dependencies, Docker and relocatable Linux/amd64 Python bundle. Gateway API and evaluator: `eg/app/main.py`; worker: `eg/tools/trusted_execution_worker.py`; receipts: `eg/app/execution_receipts.py`; one-agent helper: `eg/tools/single_agent_workflow.py`. Reference [source mapped architecture](architecture/system-design.md).
 
-## Project specification / architecture facts
+**Important reality:** Historical source test fixtures may simulate optional capabilities, but no separate project-specific executor or broad host shell is part of canonical portable worker. A module imported only by FastAPI decorators or external CLI is not dead code.
 
-- Python 3.12, FastAPI, Starlette, Pydantic, SQLite, Ed25519, SHA-256; hash-locked runtime closure and a Linux/amd64 portable archive.
-- Canonical HTTP evaluator and task registry: `eg/app/main.py`; receipt checking: `eg/app/execution_receipts.py`; bounded worker: `eg/tools/trusted_execution_worker.py`; one-agent orchestration: `eg/tools/single_agent_workflow.py`.
-- `REGISTER → signed PRE → exact admitted dispatch once → receipt → independent fresh POST → VERIFIED → SATISFIED`. Fail closed and reconcile UNKNOWN effects without replay.
-- Active endpoint contract: `/health`, `/v1/protocol`, `/v1/agent/capabilities`, `/v1/agent/capability-match`, `/v1/tasks/register`, `/v1/evaluate`, `/v1/tasks/{task_id}/state`, pause/resume/reconcile/abort, `/v1/audit/verify`.
-- Source under MIT; third parties retain individual license obligations; CI verifies packaged notices.
-- Existing canonical docs must not be reorganized as part of this effort.
+## Phases and artifacts
 
-## Phase status (max 3)
+### Phase 1 — Discovery and planning: COMPLETE
 
-### Phase 1 — Discovery & planning: **DOCUMENTS WRITTEN; INITIAL REVIEW CI PASS; PR OPEN**
-- Inspected the complete Git tree (129 entries, untruncated) and primary README/SKILL/runbook/protocol, source API handlers, worker, dependencies, Docker and CI.
-- `docs/context/` **did not exist** in the baseline tree. The addition is additive: no preexisting files are overwritten.
-- New artifacts: [project-overview.md](project-overview.md), [ADR-001](architecture/decisions/adr-001-generic-gateway-bounded-worker.md), this tracker.
-- Key ambiguity guarded against: generic EG does **not** authorize all process/Git/service operations; a release is **not** verified production state.
-- Scope intentionally minimal: this is not a duplicate operator manual or production readiness certificate.
-- Acceptance: only three new Markdown files are added; 41 relative links inspected, one link into a not-yet-created Phase-2 page changed to plain text, no remaining unresolved internal links; initial PR head `9dd9ce758852cb80525e3f60265dfc08859e5c43` CI [40445249764](https://github.com/kiky217/eg_portable/actions/runs/40445249764) PASS (402 tests passed, 1 skipped, 0 failed; staged and archive licenses 17 Python/10 native PASS). PR [#184](https://github.com/kiky217/eg_portable/pull/184) is OPEN for review. Leave `main` and stable release untouched while phases are being reviewed.
+- Audited untruncated Git tree and current README, SKILL, operational runbook, protocol, Docker/release workflows, core Python source and tests at original v3.1.141 snapshot.
+- Created [AI master overview](project-overview.md), [ADR-001](architecture/decisions/adr-001-generic-gateway-bounded-worker.md) (marked descriptive, not a fabricated original design vote), and this progress/handoff tracker.
+- Early PR [#184](https://github.com/kiky217/eg_portable/pull/184) initial CI [40445492662](https://github.com/kiky217/eg_portable/actions/runs/40445492662) PASS on phase-one-only SHA `80f6a2d60d7b5865083c3a45b1ce38f76bade85a`; full final CI must be tied to the **new final head SHA**, not this older one.
 
-### Phase 2 — Core architecture and component context: **NOT STARTED**
-- After explicit confirmation, document one `architecture/system-design.md` backed by code flow and minimal component notes (evaluator/task registry, trusted worker/receipts, evidence/audit), without restating authoritative manuals.
-- Record additional ADRs **only if a real decision and evidence exist**. Mark unknown decisions as undecided rather than inventing history.
-- Validate links and update this tracker.
+### Phase 2 — Core system architecture and component notes: AUTHORED
 
-### Phase 3 — Integration & workflows: **NOT STARTED**
-- After explicit confirmation, add focused `workflows/development.md` for contribution, CI, immutable release/promotion and a context update checklist; optionally a short operational decision tree referencing existing SKILL/runbook rather than duplicating them.
-- Verify cross-chat handoff, doc links, tests and release requirements. Present a final review before any merge that would change the protected `main`.
+- [System design](architecture/system-design.md): responsibilities, flow, trust boundaries, data path, deployment assumptions and impact map.
+- [Gateway/evaluator](components/gateway-evaluator-context.md): canonical API, strict task schemas, registry, checkpoints and admission.
+- [Worker/receipts](components/trusted-worker-receipts-context.md): private bounded worker, original PRE, sealed receipt, readback, no replay.
+- [Evidence/audit](components/evidence-audit-context.md): notary identity, ledger, anchor, reconciliation and remedial task.
+- All references are to inspected canonical source and tests; other ADRs deferred because original architecture-decision provenance was not established.
 
-## Future-chat continuation prompt
+### Phase 3 — Integration and workflows: AUTHORED
 
-> Lanjutkan context engineering EG Portable. Baca `docs/context/context-engineering-progress.md` dan `docs/context/project-overview.md` pada branch `docs/context-engineering-phase1-20261027`. Rekonsiliasi dengan HEAD `main`, cek status PR/CI, kemudian kerjakan fase berikutnya yang saya setujui. Jangan menimpa dokumentasi atau mengubah source tanpa persetujuan.
+- [Development/CI/immutable releases](workflows/development.md): baseline verification, regression, Docker/offline/legal gate, versioning, rollback and context updates.
+- [Context maintenance](workflows/context-maintenance.md): minimal per-chat entrypoint, trigger-to-document mapping, precise handoff fields and E2E closure criteria.
+- Additive [test_context_docs_consistency.py](../../eg/tests/test_context_docs_consistency.py) verifies required files, every local Markdown link and observable source/authority boundaries. It tests documentation/source, **not live production capability**.
+- [Master index](project-overview.md) updated to link all phase-two and phase-three docs.
+- `eg/VERSION` and `eg/docker-compose.yml` advanced together from 3.1.141 to **3.1.142**, only to support the preexisting immutable-exact-SHA release workflow. No other existing code or docs modified.
 
-## Next checkpoint
+## End-to-end acceptance and evidence policy
 
-PR #184 preview has been opened, and its initial commit passed CI. This progress-file update itself creates a newer branch SHA; reconfirm CI for that SHA before claiming final PR validation. **Wait for explicit authorization before Phase 2 or merge into `main`**. Because the exact-source release contract is immutable, any future merge must coordinate an appropriate new version/tag rather than produce a known `VERSION_BUMP_REQUIRED` failing main run. Do not change release version or existing files solely to preview this phase. If merged later, update this tracker to reflect `main` only after actual merge/CI verification.
+**Do not mark this effort production VERIFIED.** Context engineering E2E is complete only after all of the following:
+
+1. Each of the nine `docs/context/` Markdown files exists, links stay inside the repository and resolve; no references to uncreated templates or deprecated active capabilities.
+2. `eg/tests/test_context_docs_consistency.py` passes in the complete Python regression suite; test-only isolated API E2E, notary separation, portable relocation, Docker imports and packaged third-party license verification all pass.
+3. Reviewed [PR #184](https://github.com/kiky217/eg_portable/pull/184) merges only after a **PASS on the exact PR head SHA**. Do not blindly merge after an older commit's PASS.
+4. GitHub protected `main` points to merged version 3.1.142, GitHub workflow jobs `validate` and `publish_stable` both PASS, release v3.1.142 resolves to **exact same SHA**, published archive checksum is recorded. Preserve the immutable v3.1.141 tag.
+5. Reconcile any now-stale context branch ref against final `main` to prevent GitHub “Compare & pull request” banner. Branch deletion is only possible if a supported tool/action exists; do not claim it was deleted if merely aligned.
+
+**Snapshot status when authored:** all three phases documented and E2E guards prepared; the pending PR/merge/publication outcome is determined by live GitHub readback after this commit and **must not be inferred from this static file**. Final status should be taken from current GitHub Actions/Release and the corresponding completion report, not from an earlier checkpoint.
+
+## Future chat continuation
+
+> Lanjutkan pekerjaan EG Portable dari `docs/context/context-engineering-progress.md` dan `docs/context/project-overview.md` di `main`. Verifikasi SHA, rilis, CI, dan operasional live terlebih dahulu. Jangan ubah source atau dokumentasi operasional tanpa persetujuan. Jika tiga fase sudah PASS dan rilis identik dengan `main`, jangan ulang pekerjaan yang selesai.
+
+**Rollback:** prior published v3.1.141 at `5a56e9b9ddf0d74479590075d166d4293c79366f`; do not downgrade persistent task/ledger deployment without independent compatibility and state backup verification.
