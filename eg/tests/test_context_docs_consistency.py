@@ -19,6 +19,7 @@ REQUIRED = (
     "components/evidence-audit-context.md",
     "workflows/development.md",
     "workflows/context-maintenance.md",
+    "workflows/error-handling-and-logging.md",
 )
 
 
@@ -62,3 +63,11 @@ def test_context_boundaries_match_canonical_runtime():
     # Keep retired internal effect classifications out of AI-facing context.
     for document in CONTEXT.rglob("*.md"):
         assert not re.search(r"\bE[0-9]+\b", document.read_text(encoding="utf-8")), document
+
+
+def test_logging_review_separates_observability_from_authorization():
+    review = (CONTEXT / "workflows/error-handling-and-logging.md").read_text(encoding="utf-8").lower()
+    for term in ("fail-closed", "structured", "correlation", "retry",
+                 "journal", "receipt", "redact", "retention", "audit", "log"):
+        assert term in review, term
+    assert "no runtime logging or error-handling behavior is changed" in review

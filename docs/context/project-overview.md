@@ -21,10 +21,11 @@
 | Why the primary execution model exists | [ADR-001](architecture/decisions/adr-001-generic-gateway-bounded-worker.md) |
 | System architecture and source-mapped component notes | [System design](architecture/system-design.md) |
 | Development, CI and immutable release | [Development workflow](workflows/development.md) |
+| Error handling, logging, recovery and improvement plan | [Error-handling and logging review](workflows/error-handling-and-logging.md) |
 | Ongoing AI documentation updates | [Context maintenance](workflows/context-maintenance.md) |
 | Cross-chat context-engineering status | [context-engineering-progress.md](context-engineering-progress.md) |
 
-**Completed context set:** [system design](architecture/system-design.md), [gateway/evaluator](components/gateway-evaluator-context.md), [trusted worker/receipts](components/trusted-worker-receipts-context.md), [evidence/audit](components/evidence-audit-context.md), [development and release](workflows/development.md) and [context maintenance](workflows/context-maintenance.md). The [progress tracker](context-engineering-progress.md) is the complete three-phase multi-chat handoff. Source snapshot above records the initial discovery baseline; for the currently installed release, check the live repository version and deployed instance.
+**Completed context set:** [system design](architecture/system-design.md), [gateway/evaluator](components/gateway-evaluator-context.md), [trusted worker/receipts](components/trusted-worker-receipts-context.md), [evidence/audit](components/evidence-audit-context.md), [development and release](workflows/development.md) and [context maintenance](workflows/context-maintenance.md). For current failure diagnosis and future observability design, read the [error-handling and logging review](workflows/error-handling-and-logging.md). The [progress tracker](context-engineering-progress.md) is the complete three-phase multi-chat handoff. Source snapshot above records the initial discovery baseline; for the currently installed release, check the live repository version and deployed instance.
 
 ## Project essentials
 

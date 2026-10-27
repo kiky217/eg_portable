@@ -86,7 +86,7 @@ def test_source_public_docs_and_explicit_assets_are_packaged_in_bundle():
         assert (base/'eg/docs/assets'/name).is_file()
 
 
-def test_ai_context_allowlist_bundles_only_nine_reviewed_docs(tmp_path):
+def test_ai_context_allowlist_bundles_only_reviewed_docs(tmp_path):
     root = tmp_path / 'repo'
     context = root / 'docs/context'
     context.mkdir(parents=True)
@@ -102,6 +102,7 @@ def test_ai_context_allowlist_bundles_only_nine_reviewed_docs(tmp_path):
     copy_public_context_docs(root, dest)
     out = dest / 'docs/context'
     files = {p.relative_to(out).as_posix() for p in out.rglob('*') if p.is_file()}
+    assert len(PORTABLE_CONTEXT_DOCS) == 10
     assert files == set(PORTABLE_CONTEXT_DOCS)
     assert all('SECRET-CANARY' not in p.read_text() for p in out.rglob('*.md'))
 

@@ -69,3 +69,11 @@ Three phases only: discovery and planning → core documentation → integration
 > Lanjutkan pekerjaan EG Portable dari `docs/context/context-engineering-progress.md` dan `docs/context/project-overview.md` di `main`. Verifikasi SHA, rilis, CI, dan operasional live terlebih dahulu. Jangan ubah source atau dokumentasi operasional tanpa persetujuan. Jika tiga fase sudah PASS dan rilis identik dengan `main`, jangan ulang pekerjaan yang selesai.
 
 **Rollback:** prior published v3.1.141 at `5a56e9b9ddf0d74479590075d166d4293c79366f`; do not downgrade persistent task/ledger deployment without independent compatibility and state backup verification.
+
+## Subsequent documented review — Error handling and logging (2026-10-27 UTC)
+
+- Owner requested an error-handling and logging analysis, with the user-facing summary in Indonesian and **all repository documentation in English**.
+- Source baseline for this follow-up is immutable v3.1.143 at `908a490157d5472019ffdb54cc329448539af021`. New [error-handling and logging review](workflows/error-handling-and-logging.md) records verified gateway/worker/CLI/API/SQLite/journal patterns and prioritizes structured redacted events, safe worker denial codes, bounded log retention and diagnostic correlation. These are **proposals only**; no existing error/recovery/logging behavior is changed.
+- Packaging: explicitly allowlist the newly reviewed 10th context Markdown document for inclusion in the portable archive; update the repository consistency check and sealed distribution link/manifest/relocation tests. Preserve all pre-existing nine documents and their semantics.
+- Planned immutable source release: **v3.1.144**, with `eg/VERSION` and Docker Compose image tag synchronized. Actual release target, CI and merged commit must be checked live; do not infer success from this static file. Former v3.1.143 remains immutable.
+- Next chats: read this checkpoint, current `main`, live release/tag, CI and [review](workflows/error-handling-and-logging.md) before proposing an authorized source modification. No production credentials or runtime deployment accessed.
