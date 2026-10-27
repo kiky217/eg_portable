@@ -17,7 +17,7 @@
 | Recovery and remedial task handling | [Remedial protocol](../../eg/docs/REMEDIAL_PROTOCOL.md) |
 | Release vs live promotion and isolation | [Production promotion](../../eg/docs/PRODUCTION_PROMOTION.md) |
 | Security limits and key handling | [SECURITY.md](../../SECURITY.md) |
-| Verified previous cleanup and future code-analysis checkpoint | [code-analysis-progress.md](../../code-analysis-progress.md) |
+| Verified previous cleanup and future code-analysis checkpoint | [historical cleanup checkpoint (GitHub, online)](https://github.com/kiky217/eg_portable/blob/main/code-analysis-progress.md) |
 | Why the primary execution model exists | [ADR-001](architecture/decisions/adr-001-generic-gateway-bounded-worker.md) |
 | System architecture and source-mapped component notes | [System design](architecture/system-design.md) |
 | Development, CI and immutable release | [Development workflow](workflows/development.md) |
@@ -31,10 +31,10 @@
 - **Purpose:** Generic, provider-neutral verification of ordered tasks, signed PRE readiness, admitted execution, signed receipts, independent POST evidence, audited checkpoints and final acceptance. Logical task coordination is not permission to perform physical actions.
 - **Canonical application:** Python 3.12; FastAPI HTTP service with Pydantic schemas, SQLite durable task/audit state, Ed25519 verification/signatures and SHA-256 binding. HTTP is served by Uvicorn. Runtime direct dependencies are pinned in [eg/requirements.txt](../../eg/requirements.txt); exact redistributable closure and hashes are in [eg/requirements.lock](../../eg/requirements.lock).
 - **Structure:** [eg/app/main.py](../../eg/app/main.py) is the canonical API and evaluator; [eg/app/execution_receipts.py](../../eg/app/execution_receipts.py) checks executor receipts; [eg/tools/trusted_execution_worker.py](../../eg/tools/trusted_execution_worker.py) implements bounded physical file effects; [eg/tools/single_agent_workflow.py](../../eg/tools/single_agent_workflow.py) coordinates one agent's gate/dispatch/verification flow; [isolated single-agent test](../../eg/tests/test_single_agent_workflow.py) holds regression and E2E tests.
-- **Packaging:** Versioned Linux x86-64 portable offline archive targeting a CPython 3.12-compatible glibc environment; an optional Docker build is described in [eg/Dockerfile](../../eg/Dockerfile) and [eg/docker-compose.yml](../../eg/docker-compose.yml).
+- **Packaging:** Versioned Linux x86-64 portable offline archive with these nine AI context documents and their internal relative links, targeting a CPython 3.12-compatible glibc environment; an optional Docker build is described in [eg/Dockerfile](../../eg/Dockerfile) and [eg/docker-compose.yml](../../eg/docker-compose.yml).
 - **Capabilities in canonical distribution:** bounded file **read**, **exclusive create**, and SHA-256-verified **replace**, within configured private worker `output_root`. Max content size 512 KiB. Defaults are `.txt` and validated `.json`; additional extensions require the operator's matching gateway + independently trusted worker policies. **No arbitrary shell, service management, Git push, broad host-write authority or project-specific executor is implied.**
 - **Trust:** Gateway/evaluator, independent evidence-notary authority and bounded worker receipt signer are distinct purposes. A configured mode, healthy server, installed source, or listed capability cannot replace independently provisioned live signing roots and actual admission.
-- **License:** EG source uses MIT; dependencies retain their own terms and notices. [Release workflow](../../.github/workflows/release-validation.yml) checks hash-locked dependencies, portable archive and third-party notices. This is not a legal opinion.
+- **License:** EG source uses MIT; dependencies retain their own terms and notices. [Release workflow](https://github.com/kiky217/eg_portable/blob/main/.github/workflows/release-validation.yml) checks hash-locked dependencies, portable archive and third-party notices. This is not a legal opinion.
 
 ## Canonical workflow and API
 
@@ -60,7 +60,7 @@ python tools/build_portable_bundle.py
 python tools/test_offline_portable.py
 ```
 
-The last two commands require the documented Linux build/root prerequisites; see [developer guide](../../eg/README.md#build-and-test). The [GitHub Actions workflow](../../.github/workflows/release-validation.yml) additionally checks Docker imports, isolated identities, relocatable archives and third-party license closure. **CI does not certify an external production deployment.**
+The last two commands require the documented Linux build/root prerequisites; see [developer guide](../../eg/README.md#build-and-test). The [GitHub Actions workflow](https://github.com/kiky217/eg_portable/blob/main/.github/workflows/release-validation.yml) additionally checks Docker imports, isolated identities, relocatable archives and third-party license closure. **CI does not certify an external production deployment.**
 
 ## AI collaboration guardrails
 

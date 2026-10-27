@@ -1,6 +1,7 @@
 """Regression test for issue #11."""
 import pytest
-from tools.build_portable_bundle import copy_eg_source, copy_public_root_docs
+from tools.build_portable_bundle import (copy_eg_source, copy_public_root_docs,
+                                         copy_public_context_docs, PORTABLE_CONTEXT_DOCS)
 
 def make_source(source):
     source.mkdir()
@@ -83,3 +84,70 @@ def test_source_public_docs_and_explicit_assets_are_packaged_in_bundle():
         assert (base/name).is_file()
     for name in ('eg-step-review.svg','eg-workflow.svg'):
         assert (base/'eg/docs/assets'/name).is_file()
+
+
+def test_ai_context_allowlist_bundles_only_nine_reviewed_docs(tmp_path):
+    root = tmp_path / 'repo'
+    context = root / 'docs/context'
+    context.mkdir(parents=True)
+    for name in PORTABLE_CONTEXT_DOCS:
+        page = context / name
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text('# Public ' + name, encoding='utf-8')
+    (context/'private.key').write_text('SECRET-CANARY')
+    (context/'runtime.env').write_text('SECRET-CANARY')
+    (context/'unreviewed.md').write_text('SECRET-CANARY')
+    (context/'data.db').write_text('SECRET-CANARY')
+    dest = tmp_path / 'bundle'
+    copy_public_context_docs(root, dest)
+    out = dest / 'docs/context'
+    files = {p.relative_to(out).as_posix() for p in out.rglob('*') if p.is_file()}
+    assert files == set(PORTABLE_CONTEXT_DOCS)
+    assert all('SECRET-CANARY' not in p.read_text() for p in out.rglob('*.md'))
+
+
+def test_ai_context_missing_required_doc_fails_closed(tmp_path):
+    root = tmp_path / 'repo'
+    context = root / 'docs/context'
+    context.mkdir(parents=True)
+    for name in PORTABLE_CONTEXT_DOCS[1:]:
+        page = context / name
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text('# Public', encoding='utf-8')
+    with pytest.raises(RuntimeError, match='MISSING_OR_UNSAFE_PUBLIC_CONTEXT_DOC'):
+        copy_public_context_docs(root, tmp_path / 'bundle')
+
+
+def test_ai_context_symlinked_doc_and_parent_denied(tmp_path):
+    root = tmp_path / 'repo'
+    context = root / 'docs/context'
+    context.mkdir(parents=True)
+    for name in PORTABLE_CONTEXT_DOCS:
+        page = context / name
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text('# Public', encoding='utf-8')
+    target = tmp_path / 'secret.md'
+    target.write_text('PRIVATE-CANARY')
+    page = context / PORTABLE_CONTEXT_DOCS[0]
+    page.unlink()
+    page.symlink_to(target)
+    with pytest.raises(RuntimeError, match='UNSAFE_PUBLIC_CONTEXT_SYMLINK'):
+        copy_public_context_docs(root, tmp_path / 'bundle')
+
+    page.unlink()
+    page.write_text('# Public')
+    parent = context / 'components'
+    for child in parent.iterdir():
+        child.unlink()
+    parent.rmdir()
+    parent.symlink_to(tmp_path / 'secret-dir')
+    with pytest.raises(RuntimeError, match='UNSAFE_PUBLIC_CONTEXT_SYMLINK'):
+        copy_public_context_docs(root, tmp_path / 'bundle2')
+
+
+def test_ai_context_allowlist_covers_live_index():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    files = {(p.relative_to(root/'docs/context')).as_posix()
+             for p in (root/'docs/context').rglob('*.md')}
+    assert files == set(PORTABLE_CONTEXT_DOCS)
