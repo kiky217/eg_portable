@@ -4,9 +4,7 @@ All tests use ONE EG instance and local isolated test fixture DB. Historical
 contract hashes never select an older evaluator implementation or bypass
 independent executor receipt verification.
 """
-import hashlib
-import harness as H
-from harness import gw,CLIENT,HEAD,register,do_pre,raw_eval,claim,step_ref,eid,e2_action
+from harness import gw,CLIENT,HEAD,register,raw_eval,claim,step_ref,eid
 
 
 def test_registered_legacy_hash_still_uses_same_new_evaluator(monkeypatch):

@@ -6,7 +6,7 @@ test-only and is never used to claim root-protected isolation. Requires Linux
 root to impersonate a dedicated nonroot identity for disposable E2E.
 """
 from __future__ import annotations
-import base64,hashlib,json,os,pwd,secrets,shutil,subprocess,tarfile,tempfile,time
+import base64,hashlib,json,os,secrets,shutil,subprocess,tarfile,tempfile,time
 from pathlib import Path
 from urllib.request import Request,urlopen
 from urllib.error import URLError

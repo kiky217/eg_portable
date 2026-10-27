@@ -1,5 +1,4 @@
 """Runtime source identity is stable across relocation and changes with code."""
-from pathlib import Path
 import pytest
 from tools.runtime_source_fingerprint import fingerprint
 

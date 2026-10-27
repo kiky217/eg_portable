@@ -1,5 +1,5 @@
 """Independent execution receipt security regressions for EG vNext."""
-import base64,time,datetime,secrets
+import time,secrets
 import pytest
 import harness as H
 from harness import gw,CLIENT,HEAD,register,do_pre,do_post,e2_action,claim,step_ref,raw_eval

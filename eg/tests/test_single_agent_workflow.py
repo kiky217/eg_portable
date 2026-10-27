@@ -1,8 +1,6 @@
 """One agent orchestrates a real signed E2 file creation; no simulated receipt."""
 import base64
-import hashlib
 import json
-from pathlib import Path
 import pytest
 import harness as H
 from tools import trusted_execution_worker as worker

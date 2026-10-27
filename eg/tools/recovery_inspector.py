@@ -5,7 +5,6 @@ checkpoint detail and its own private ledger. This NEVER mutates canonical EG,
 grants a new effect, or fabricates evidence after an ambiguous commit.
 """
 from __future__ import annotations
-import base64
 from app.execution_receipts import verify as verify_receipt
 from tools.high_effect_admission import action_fingerprint
 from tools.generic_recovery import classify_recovery

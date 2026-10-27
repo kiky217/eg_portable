@@ -1,5 +1,5 @@
 """Issue #5: physical gates cannot be superseded without reconciliation."""
-from harness import gw,CLIENT,HEAD,register,do_pre,do_post,e2_action,eid,claim,step_ref,raw_eval
+from harness import CLIENT,HEAD,register,do_pre,do_post,e2_action,claim,step_ref,raw_eval
 from test_vnext_suspend import req as suspend
 
 

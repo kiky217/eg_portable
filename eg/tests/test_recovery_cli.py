@@ -1,8 +1,7 @@
-import json,os
+import json
 import pytest
 from tools import recovery_cli
 from tools.high_effect_admission import action_fingerprint
-from tools.durable_hitl_ledger import ApprovalLedger
 
 def setup(tmp_path):
     journal=tmp_path/"journal";journal.mkdir(mode=0o700)

@@ -1,5 +1,4 @@
 """Test #7 historical protocol resume, #9 fail-closed integrity across APIs."""
-import harness as H
 from harness import gw,CLIENT,HEAD,eid,register,step_ref,claim,raw_eval
 
 

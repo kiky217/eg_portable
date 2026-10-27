@@ -6,7 +6,7 @@ included. Immutable tarball and SHA-256 manifest. Supports CPython 3.12 Linux
 x86_64 matching the build ABI; no pip, network or apt needed to launch.
 """
 from __future__ import annotations
-import argparse,hashlib,json,os,platform,re,shutil,subprocess,tarfile,tempfile,time,sys,sysconfig
+import hashlib,json,os,platform,re,shutil,subprocess,tarfile,sys,sysconfig
 from pathlib import Path
 from license_compliance import (wheel_closure, prune_optional_gnu_extensions,
                                 native_notice, publish_notice_index,

@@ -3,7 +3,6 @@ import base64
 import hashlib
 from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,NoEncryption
 import pytest
-import harness as H
 from harness import CLIENT,HEAD,gw,eid,register,e2_action,do_pre,do_post,EXEC_PRIV
 from tools import trusted_execution_worker as worker
 

@@ -1,5 +1,5 @@
 """Reconciliation is audited and never replays a physical effect."""
-from harness import CLIENT, HEAD, gw, eid, register, e2_action, do_pre, EXEC_PRIV, CRIT
+from harness import CLIENT, HEAD, gw, eid, register, e2_action, do_pre, EXEC_PRIV
 from app.no_effect_receipts import sign_no_effect
 
 def test_signed_no_effect_closes_gate_without_advancing_step():

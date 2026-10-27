@@ -6,7 +6,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 
-from harness import gw,PRIV,PUB,evp,step_ref,sb,eid
+from harness import gw,PUB,evp,step_ref,eid
 
 def pub(key):
     return base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()

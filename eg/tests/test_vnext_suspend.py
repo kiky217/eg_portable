@@ -1,6 +1,4 @@
 """New EG vNext regression tests: indefinite PAUSED/RESUMING and safe recovery."""
-import pytest
-import harness as H
 from harness import gw,CLIENT,HEAD,register,do_pre,do_post,raw_eval,claim,step_ref,eid
 
 def req(task,ch,cp,phase,event=None):
