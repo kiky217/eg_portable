@@ -95,27 +95,36 @@ def diagnose_live(effect: str, action: str, *, url: str, api_key: str) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--effect", required=True, choices=["E0", "E2", "E3", "E4", "E5"])
+    parser.add_argument("--effect", choices=["E0", "E2", "E3", "E4", "E5"], help=argparse.SUPPRESS)
     parser.add_argument("--action", required=True, help="Typed action name, e.g. read, write, service_control")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable diagnostics")
     parser.add_argument("--catalog", type=Path, help="Optional untrusted local JSON capability catalog")
     parser.add_argument("--url", help="Live EG URL (HTTPS or local loopback HTTP only)")
     args = parser.parse_args(argv)
+    effect = args.effect or {"read": "E0", "write": "E2", "replace": "E2"}.get(args.action, "unsupported")
     try:
         catalog = parse_catalog(args.catalog.read_text(encoding="utf-8")) if args.catalog else ()
     except (OSError, CatalogError) as exc:
         parser.error(f"catalog rejected: {exc}")
     try:
-        report = (diagnose_live(args.effect, args.action, url=args.url,
+        report = (diagnose_live(effect, args.action, url=args.url,
                                 api_key=os.getenv("EVALUATION_GATEWAY_API_KEY", ""))
-                  if args.url else diagnose(args.effect, args.action, dict(os.environ), catalog))
+                  if args.url else diagnose(effect, args.action, dict(os.environ), catalog))
     except (OSError, ValueError) as exc:
         parser.error(f"live capability discovery failed: {type(exc).__name__}")
+    if args.effect is None:
+        # Human-facing CLI uses operation names; legacy wire class stays internal.
+        report.pop("effect", None)
+        report["operation"] = args.action
+        for field in ("candidates", "discovered_candidates"):
+            if field in report:
+                report[field] = [({k: v for k, v in row.items() if k != "effect_class"}
+                                  if isinstance(row, dict) else row) for row in report[field]]
     if args.json:
         print(json.dumps(report, sort_keys=True))
     else:
         print(f"EG agent preflight: {report['preflight']} (not live authorization)")
-        print(f"admission={report['admission_mode']} effect={args.effect} action={args.action}")
+        print(f"admission={report['admission_mode']} operation={args.action}")
         print("Reasons: " + ", ".join(report.get("reasons", ["LIVE_PRE_REQUIRED"])))
     return 0 if report["preflight"] in ("REQUIRES_LIVE_VERIFICATION","REQUIRES_LIVE_PRE") else 2
 

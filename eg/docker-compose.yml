@@ -1,7 +1,7 @@
 services:
   evaluation-gateway-local:
     build: .
-    image: evaluation-gateway-local:3.1.133
+    image: evaluation-gateway-local:3.1.135
     user: "${EVALUATION_GATEWAY_UID:-10001}:${EVALUATION_GATEWAY_GID:-10001}"
     read_only: true
     restart: unless-stopped
@@ -20,7 +20,7 @@ services:
       EVALUATION_GATEWAY_ANCHOR_PATH: /anchor/audit.anchor
       EVALUATION_GATEWAY_EVIDENCE_ROOT: /evidence
       EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID: ${EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID:-10001}
-      # E3-E5 high-effect metadata is NOT forwarded: no independently
+      # retired external operations high-effect metadata is NOT forwarded: no independently
       # attested production high-effect transport exists in this distribution.
       # CI-only DisposableAdapter must never be auto-enabled in Compose.
       # Optional tunables: passed through only when set in the host environment / .env (defaults live in app/main.py).

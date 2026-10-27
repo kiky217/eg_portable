@@ -23,7 +23,7 @@ Apply to **every** task governed by Evaluation Gateway. Read this file before at
 3. Record whether service is live, admission is enabled, independently protected signing root is provisioned, required adapter exists, and action is presently PRE-authorized. Those are **separate** facts. A running production service does not imply unrestricted execution.
 
 ## Live capability discovery (current runtime)
-Call authenticated `GET /v1/agent/capabilities` on the **actual** EG instance before planning physical actions. It distinguishes installed bundled transport from untrusted capability declarations. `CONFIGURED_NEEDS_LIVE_PRE` is not worker attestation; `UNVERIFIED_NOT_AUTHORIZED` must never be dispatched. `EVALUATION_GATEWAY_AGENT_CATALOG_JSON` is a bounded optional JSON catalog (schema_version 1, capabilities with id/effect_class/action_type/adapter_id). It is diagnostic-only and does not affect immutable task contract or PRE admission. If missing or invalid, use the bundled worker or independently provision an approved adapter, not a shell bypass.
+Before any physical action, check the authenticated gateway's available operations and current step. Configuration or discovery does not grant execution permission; only a valid PRE for the exact supported operation does. This installation provides bounded file reading, creation and verified replacement. Do not use an external command as a substitute for an unavailable operation.
 
 ## Select capability before claiming a step
 - Distinguish logical evaluation from an actual physical effect; never relabel the immutable task contract.
@@ -56,7 +56,7 @@ An operation outside the canonical read/create/replace boundary is not an EG cap
 - `EVALUATION_GATEWAY_ADMISSION_MODE=disabled`: explicitly selected historical audit/reconciliation mode; **all concrete PRE/POST** are fail-closed, regardless of service health.
 - `enabled` is only a configuration condition; it does not provision the executor, signers, capability, root isolation, authenticated effect RPC or a live valid PRE. With no worker output root, `/v1/agent/capabilities` still reports built-in effects `UNAVAILABLE`.
 - Current portable `init.sh` requires an independently supplied executor **public** root and notary public root at fresh initialization even if `disabled` is selected. If either is missing, do not invent one; see [operator/audit-only bootstrap limitation](eg/docs/OPERATIONS.md#safe-historical-task-migration).
-- Run `python eg/tools/agent_readiness.py --effect E2 --action write` from the repo root for a **local, read-only configuration preflight**. It prints a diagnostic, not proof of live authorization. For Rust build/Git or unsupported effects, diagnostics must identify the missing production adapter rather than claim success.
+- Run `python eg/tools/agent_readiness.py --action write` from the repo root for a **local, read-only configuration preflight**. It prints a diagnostic, not proof of live authorization. For Rust build/Git or unsupported effects, diagnostics must identify the missing production adapter rather than claim success.
 - Never set admission enabled merely to clear a blocker. Provision and independently verify trusted worker and key isolation first.
 
 
@@ -74,7 +74,7 @@ Keep a single original task and its event history; an agent can operate it witho
 | `POST /v1/evaluate` | `PRE_EXECUTION` → original worker → `POST_EXECUTION`; `FACT_CHECK` is non-advancing; only final POST may set `finalize_task` and submit `task_claims` |
 | `POST /v1/tasks/{task_id}/pause`, `/resume`, `/reconcile`, `/abort` | Audit-controlled suspension, signed no-effect recovery, and separately HITL-authorized abort |
 
-An `EvalRequest` includes original task/contract/protocol, event ID, checkpoint, step key, agent, phase, criterion-indexed independently notarized `claims`, plus immutable `action` and `execution_receipt` where required. E2 action binds payload SHA-256 and size; E2 replace additionally binds the **previous** file SHA-256. Do not invent signing material, evidence references or replayed claim results. [Exact fields and operational decision table](eg/docs/PORTABLE_RUNBOOK.md).
+An `EvalRequest` includes original task/contract/protocol, event ID, checkpoint, step key, agent, phase, criterion-indexed independently notarized `claims`, plus immutable `action` and `execution_receipt` where required. File creation/replacement binds payload SHA-256 and size; replacement additionally binds the **previous** file SHA-256. Do not invent signing material, evidence references or replayed claim results. [Exact fields and operational decision table](eg/docs/PORTABLE_RUNBOOK.md).
 
 Use [the canonical single-agent workflow](eg/tools/single_agent_workflow.py) through `run_step` or `run_task`. Provide `pre_request(checkpoint)`, a bounded trusted worker callback `dispatch_once`, and `post_evidence(pre, receipt)` backed by independent result readback. Dispatch status `RECEIPT_VERIFIED_POST_REQUIRED` is **not** a verified task. After each `VERIFIED_PASS`, reread the current step/receipt; after final task-wide criteria require `contract_status=SATISFIED` and `GET /v1/audit/verify` PASS. Never infer a completed task from an intermediate checkpoint.
 
@@ -85,12 +85,11 @@ For current portable installations use [the canonical runbook](eg/docs/PORTABLE_
 Local source-only check (no live authorization), from repository root:
 
 ```sh
-python eg/tools/agent_readiness.py --effect E2 --action write
-python eg/tools/agent_readiness.py --effect E2 --action replace
-python eg/tools/agent_readiness.py --effect E3 --action bounded_process_run --json
+python eg/tools/agent_readiness.py --action write
+python eg/tools/agent_readiness.py --action replace
 ```
 
-With `--url` and an authorized `EVALUATION_GATEWAY_API_KEY`, the readiness tool makes read-only live capability queries. For local development, from `eg/`, run `python -m pytest -q tests`; see `tests/test_single_agent_workflow.py`, `tests/test_process_external_e2e.py` and `tests/test_trusted_process_catalog.py` for generic signed-worker and recovery E2E. Portable runtime supports Linux x86-64 with CPython 3.12-compatible glibc; use [portable startup, backup, restore and rollback guide](eg/docs/PORTABLE_RUNBOOK.md). CI, file creation and build success never substitute for live E2E, current protocol admission or [production promotion](eg/docs/PRODUCTION_PROMOTION.md).
+With `--url` and an authorized `EVALUATION_GATEWAY_API_KEY`, the readiness tool makes read-only live capability queries. For local development, from `eg/`, run `python -m pytest -q tests`; see `tests/test_single_agent_workflow.py` and `tests/test_real_physical_pre_post_e2e.py` for verified step ordering and signed receipts. Portable runtime supports Linux x86-64 with CPython 3.12-compatible glibc; use [portable startup, backup, restore and rollback guide](eg/docs/PORTABLE_RUNBOOK.md). CI, file creation and build success never substitute for live E2E, current protocol admission or [production promotion](eg/docs/PRODUCTION_PROMOTION.md).
 
 ## Failure reconciliation and acceptance states
 
@@ -127,7 +126,7 @@ separate machines and signers retain separate security domains.
    For an existing task also fetch `/v1/tasks/{task_id}` and `/state`.
    Missing task or deployment identity is a discovery blocker, never a reason
    to register a replacement task.
-3. **Determine** the exact requested physical effect, class E0, E2, or E3–E5 (E1 is not implemented), typed
+3. **Determine** the exact requested operation (bounded read, file creation or verified replacement),
    action, destination, least privilege, input schema, independent readback,
    recovery strategy and rollback requirements.
 4. **Select** one already admitted, live, exact-scope worker from the signed
@@ -202,20 +201,6 @@ matcher. `manual` is accepted as an untrusted label but never authoritative.
 Malformed labels are rejected by request schema validation. Do not transform
 signed or audited historical records merely to rename a producer.
 
-An E3 example **action** (illustrative, not an executable PRE or approval):
-
-```json
-{
-  "action_type": "bounded_process_run",
-  "target": "/tasks/workflow/check",
-  "effect_class": "E3",
-  "reversible": false,
-  "real_world_effect": true,
-  "payload_sha256": "REPLACE_WITH_64_HEX_SHA256",
-  "payload_bytes": 128
-}
-```
-
 For `POST /v1/evaluate`, use the same original `event_id` on idempotent
 request replay and a **new** event ID for a genuinely new PRE/POST. Required
 fields are `task_id`, `contract_hash`, `protocol_hash`,
@@ -248,23 +233,15 @@ Use the single canonical gateway and bundled trusted file operations. Never prov
 | Task `SATISFIED`, audit PASS | Verify affected regressions and rollback; then report task VERIFIED |
 
 On any failure distinguish file/source changes from command/runtime effects,
-check the *same* original task and job, and bound retries. For E3 run independent
-signed PRE→worker→POST and an unapproved-target rejection through the same
-catalog. For cross-UID behavior run privileged isolated tests under legitimate
-test-root; SKIP in an unprivileged suite is not PASS and must be covered by a
-separate actually executed CI job. CI cannot certify a deployed production
-worker or a particular destination's external effects.
+check the *same* original task and job, and bound retries. A skipped test is not a PASS; release verification must preserve original task evidence and the authenticated audit.
 
 ### Concrete acceptance for a provider-neutral release
 
 - Source contains no project/provider-dependent **execution branches** in
   evaluator, dispatcher or worker catalog. Diagnostics, historical archives
   and example *data* are not runtime dispatch contracts.
-- Three or more unrelated approved target profiles execute through the same
-  catalog class/worker identity and durable journal; unknown target fails
-  before physical execution.
-- New deployment reuses operator bootstrap; new project reuses active typed
-  profiles unless a genuinely new permission is requested.
+- Supported read/create/replace operations use the same bounded worker and durable receipt journal; unknown targets fail before physical execution.
+- New projects reuse the portable gateway; no new per-project executor.
 - Evidence labels cannot bypass notarization; historical valid source labels
   remain verifiable. No signed historical audit/data is rewritten.
 - Docs, `SKILL.md`, schemas, examples and runnable integration tests agree.

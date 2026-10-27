@@ -236,7 +236,9 @@ class ActionProof(Strict):
 class Action(Strict):
     action_type: str = Field(min_length=1, max_length=200)
     target: str = Field(min_length=1, max_length=500)
-    effect_class: Literal["E0", "E2", "E3", "E4", "E5"]
+    # Optional for the canonical read/write/replace operations. Retain the
+    # serialized legacy field so historical action hashes remain identical.
+    effect_class: Literal["E0", "E2", "E3", "E4", "E5"] | None = None
     reversible: bool = False
     real_world_effect: bool = False
     payload_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
@@ -248,6 +250,11 @@ class Action(Strict):
 
     @model_validator(mode="after")
     def unique_proof_purposes(self):
+        if self.effect_class is None:
+            inferred = {"read": "E0", "write": "E2", "replace": "E2"}.get(self.action_type)
+            if inferred is None:
+                raise ValueError("operation is not supported by the canonical worker")
+            self.effect_class = inferred
         purposes = [p.purpose for p in self.proofs]
         if len(purposes) != len(set(purposes)):
             raise ValueError("duplicate action proof purpose")

@@ -4,7 +4,7 @@
 
 **"Install EG completely as a generic system and test it end-to-end until every supported, authorized capability is operational."**
 
-**Required for every fresh installation and upgrade (including staging):** Read the [canonical agent SKILL](../../SKILL.md) first. Inventory **E0, E2, E3, E4, and E5**. Install the EG gateway and durable audit/evidence state, configure independently protected credentials and trust roots, bring the built-in E0/E2 worker online, and provision/register/activate the **generic** E3/E4/E5 process catalog workers and independently administered scoped HITL signers for every effect class and target profile the operator has actually authorized. Verify live socket/UID identity, signed operator binding, exact typed capability match, and liveness. **Do not build project-specific executor code or infer privileges from the presence of source code.**
+**Required for every installation, including staging:** Follow [SKILL](../../SKILL.md) and the [runbook](PORTABLE_RUNBOOK.md). Register before work; verify PRE, execution receipt and POST for each action. The canonical worker supports bounded file reads, exclusive creation and verified replacement. No additional process workers are required.
 
 **Mandatory acceptance for every authorized capability:** Demonstrate the original EG **REGISTER → PRE → independently authorized execution → signed receipt → POST → VERIFIED → task SATISFIED** with a real physical effect where applicable, independent result readback, and relevant denial, replay/idempotence, crash recovery, and rollback tests. High-effect signed HITL must be valid **before PRE admission**. **CI PASS, `/health: PASS`, source/build completion, and capabilities merely listed/configured are never proof of live E2E readiness.**
 
@@ -15,7 +15,7 @@
 **Actual admission default:** `eg/app/main.py` uses
 `EVALUATION_GATEWAY_ADMISSION_MODE=enabled` when the variable is unset.
 Preserve this default unless the operator explicitly selects an audit-only
-instance. `enabled` alone is **not** physical execution readiness: the E0/E2
+instance. `enabled` alone is **not** physical execution readiness: the read/create/replace
 worker also needs an operator-provisioned output root, distinct protected signer,
 active trusted RPC transport, original READY PRE and signed POST. Without these,
 `GET /v1/agent/capabilities` can correctly return `UNAVAILABLE` while
@@ -64,9 +64,7 @@ public root and a non-root service identity. It persists `disabled` to
 `runtime.env`; the service must continue to deny concrete PRE/POST effects.
 The default `enabled` mode still requires a genuine independently provisioned
 executor public root. Audit-only readiness is **not** full capability acceptance.
-Missing independently authorized E0/E2 and E3–E5 workers remains a live
-capability-specific blocker until provisioned and verified, rather than a
-reason to fabricate a key or mark the complete installation PASS.
+Missing authorization for a supported operation remains a blocker until it is configured and independently verified. Never invent signing keys or mark an incomplete task satisfied.
 
 
 ## Rehearse migration without cutover
@@ -105,9 +103,7 @@ passed.
 
 For current source/runbook use [PORTABLE_RUNBOOK.md](PORTABLE_RUNBOOK.md).
 Every staging and cutover mutation still requires REGISTER → PRE → independent
-authorized execution → signed POST → VERIFIED. Unsupported E3 cutover remains
-BLOCKED without a separately verified capable worker; direct shell is not a
-fallback.
+authorized execution → signed POST → VERIFIED. Service cutover remains outside the canonical gateway operations; direct shell is not a fallback.
 
 Historical acceptance snapshots have been removed from the active source tree; Git commit history retains provenance. No previous cutover report or partial historical task acceptance authorizes a new deployment. Reconcile the actual target's signed task ledger.
 

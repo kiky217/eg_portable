@@ -9,6 +9,17 @@ _SPEC.loader.exec_module(_MODULE)
 diagnose = _MODULE.diagnose
 
 
+def test_plain_cli_uses_operation_name_not_legacy_effect_code(monkeypatch, capsys):
+    import json
+    monkeypatch.setenv("EVALUATION_GATEWAY_ADMISSION_MODE", "enabled")
+    monkeypatch.delenv("EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64", raising=False)
+    assert _MODULE.main(["--action", "write", "--json"]) == 2
+    data = json.loads(capsys.readouterr().out)
+    assert data["operation"] == "write" and "effect" not in data
+    assert "E2" not in json.dumps(data)
+
+
 def test_disabled_rejects_even_with_key():
     report = diagnose("E2", "write", {
         "EVALUATION_GATEWAY_ADMISSION_MODE": "disabled",

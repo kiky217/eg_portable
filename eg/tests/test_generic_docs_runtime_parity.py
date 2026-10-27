@@ -28,6 +28,16 @@ def test_no_broken_local_markdown_links():
                 path.relative_to(ROOT), target)
 
 
+def test_active_guides_never_expose_internal_effect_class_codes():
+    for name in ('README.md','SKILL.md','eg/README.md',
+                 'eg/docs/PORTABLE_RUNBOOK.md','eg/docs/OPERATIONS.md',
+                 'eg/docs/PRODUCTION_PROMOTION.md','eg/.env.example'):
+        content = (ROOT/name).read_text(encoding='utf-8')
+        assert not re.search(r'\bE[0-9]+\b', content), name
+    # The immutable EXECUTOR_PROTOCOL.md is retained byte-for-byte for
+    # existing audit-bound contracts, not presented as installation steps.
+
+
 def test_current_entrypoints_do_not_require_retired_operator_workers():
     for name in ('README.md', 'SKILL.md', 'eg/README.md'):
         guide = (ROOT/name).read_text().splitlines()

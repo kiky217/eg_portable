@@ -38,7 +38,7 @@ A new project does **not** require a project-specific executor. Use the same por
 
 EG provides a task registry, hierarchical step ordering, evidence validation, explicit PRE/POST checkpoints, authenticated audit history, pause/resume, failure escalation, linked remediation, and controlled recovery. A separate cutover checker can verify signed provenance and rehearse restoration, but this does **not** by itself certify a production service cutover.
 
-The built-in worker admits only restricted **E0 reads** and reversible **E2 exclusive file creation and compare-and-swap replacement** inside its private `output_root`, with a maximum content size of 512 KiB. Defaults remain `.txt` and valid `.json`; an operator may opt in additional file suffixes (for example `.py`, `.rs`, `.toml`) through the identical strict allowlist enforced by EG and the separate worker. This expands eligible file suffixes only; E2 replacement requires an existing worker-owned file, an exact prior SHA-256 commitment and a separately signed execution receipt. Arbitrary host-file overwrites, directories, shell execution and high-effect privileges remain unsupported. The canonical installation provides bounded reading, exclusive creation and compare-and-swap replacement; no external process workers are installed. Other host operations remain outside the gateway's admitted scope and must not be treated as verified.
+The built-in worker admits only restricted **bounded reads** and reversible **exclusive file creation and compare-and-swap replacement** inside its private `output_root`, with a maximum content size of 512 KiB. Defaults remain `.txt` and valid `.json`; an operator may opt in additional file suffixes (for example `.py`, `.rs`, `.toml`) through the identical strict allowlist enforced by EG and the separate worker. This expands eligible file suffixes only; file replacement requires an existing worker-owned file, an exact prior SHA-256 commitment and a separately signed execution receipt. Arbitrary host-file overwrites, directories, shell execution and high-effect privileges remain unsupported. The canonical installation provides bounded reading, exclusive creation and compare-and-swap replacement; no external process workers are installed. Other host operations remain outside the gateway's admitted scope and must not be treated as verified.
 
 A production instance requires external durable state, protected signing keys, and worker privileges isolated from the agent. Neither a GitHub release nor local tests prove that a specific external instance is production-ready.
 
@@ -48,7 +48,7 @@ provider-specific executors and confer **no** evidence authority without the
 unchanged manifest-v4 independent signature, path/UID, checkpoint and
 criterion checks. New tasks use the same provider-neutral source contract.
 The [root SKILL operational cookbook](../SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work)
-includes registration examples, bootstrap, E0/E2/E3–E5 capability limits, dispatcher
+includes registration examples, bootstrap, read/create/replace capability limits, dispatcher
 inputs, recovery and acceptance.
 
 ## Environment and operations
@@ -92,7 +92,7 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 | --- | --- |
 | `app/main.py` | Canonical API, evaluation logic, task and audit state |
 | `app/execution_receipts.py` | Signed executor receipt verification |
-| `tools/trusted_execution_worker.py` | Bounded worker for admitted E0/E2 effects |
+| `tools/trusted_execution_worker.py` | Bounded worker for admitted read/create/replace effects |
 | `tools/check_live_cutover_readiness.py` | Read-only cutover readiness and provenance checks |
 | `tests/` | Regression and E2E tests |
 | `docs/` | Operational runbook, protocol, architecture, and release criteria |
@@ -100,4 +100,4 @@ The E2E scripts use isolated test-only instances. They do not take ownership of 
 
 EG has **one canonical task registry and evaluator**. The trusted worker is an execution adapter, not an alternative evaluator.
 
-For multiple admitted external E3/E4/E5 adapters on the same gateway, configure independently authorized class-bound signer public roots with `EVALUATION_GATEWAY_HIGH_EFFECT_HITL_PUBLIC_KEYS_JSON` as documented in [operator bootstrap](docs/PORTABLE_RUNBOOK.md). A shared legacy signer key does not establish per-class independent approval.
+The installed gateway accepts only operations admitted by its bundled worker. Old registry and signer metadata do not enable execution.

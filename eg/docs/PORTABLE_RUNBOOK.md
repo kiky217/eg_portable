@@ -15,18 +15,18 @@ historical Colab session. One registry, one current evaluator, one writer.
 
 ## Reconnect / idempotent service startup
 
-With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.134-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash, **running app/tools source fingerprint**, admission mode and full capability fingerprints (including target scope, payload limit and worker public key) before reusing a live process. A new bundle with unchanged protocol documentation but different runtime code cannot silently reuse the old process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
+With an already initialized state, run `PYTHONPATH=eg python3.12 -m tools.ensure_gateway_service --bundle /path/to/eg-portable-3.1.135-linux-amd64 --state "$EG_STATE_DIR"`. This checks the authenticated protocol hash, **running app/tools source fingerprint**, admission mode and full capability fingerprints (including target scope, payload limit and worker public key) before reusing a live process. A new bundle with unchanged protocol documentation but different runtime code cannot silently reuse the old process. If the running catalog differs from runtime.env, it reports `RUNNING_GATEWAY_CONFIG_DRIFT_RESTART_REQUIRED` instead of falsely claiming readiness or terminating a process with unresolved effects. It starts only when no gateway responds, and refuses a foreign process occupying the port. It never provisions authority or changes capability grants. Re-run after a container restart; a Colab notebook runtime is not permanently running merely because its state is mounted.
 
 ## Read-only capability health
 Check the authenticated gateway health, audit, task state and currently admitted actions. A listed capability is not execution authorization.
 
 ## Host identity neutrality
 
-Portable gateway init.sh and run.sh support root and non-root host accounts. Explicit single-host mode is also available for a typed E3–E5 process catalog, without claiming separate OS security domains. Host identity alone does not authorize an effect: task registration, PRE, valid execution receipt, POST and independent verification remain mandatory. High-effect policy and authorization still apply. State must remain outside source with private permissions.
+The portable gateway starts under an authorized root or non-root host account. Keep durable state outside the source with private permissions. Registration, PRE, signed receipt, POST and independent verification are required regardless of environment.
 
 ## Installation preflight (read-only, any supported host)
 
-Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `HOST_IDENTITY`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live E0/E2/E3–E5 acceptance; a passing preflight never means capabilities are operational.
+Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `HOST_IDENTITY`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live read/create/replace acceptance; a passing preflight never means capabilities are operational.
 
 ## Resolve actual state, never copied defaults
 
@@ -45,7 +45,7 @@ Operators may select `disabled` for a separately designated audit-only
 service. The generated portable `init.sh` accepts this explicit mode without an
 executor public key, **but still requires** a valid independently administered
 notary public key. Root and non-root host accounts are supported. It writes the audit-only setting into
-the runtime env. This never enables E0/E2/E3–E5 physical effects. Full acceptance
+the runtime env. This never enables read/create/replace physical effects. Full acceptance
 still requires independent authorized workers and signed admission for each
 supported/authorized target. See [operations](OPERATIONS.md#safe-historical-task-migration).
 
@@ -74,7 +74,7 @@ receipt → POST → VERIFIED → next step**.
    effects. Identify the current canonical step, immutable task contract,
    current checkpoint and valid permissions.
 2. PRE must verify phase-appropriate evidence, capability, target and bounds,
-   exact payload SHA-256/size for new E2 writes, sandbox and rollback proof.
+   exact payload SHA-256/size for new file writes, sandbox and rollback proof.
    No READY gate means no new action.
 3. Execute exactly once through the independent registered worker and
    maintain its durable intent and receipt. On a lost response, reconcile
@@ -89,12 +89,7 @@ No staging action is exempt from this lifecycle.
 
 ## Cutover and rollback
 
-Current built-in worker supports bounded E0 reads, E2 new-file creation and SHA-256 compare-and-swap E2 replacement only;
-real-world service cutover/E3 and shell remain BLOCKED until a separately
-trusted, deployed executor adapter is admitted. The isolated disposable E3–E5
-CI-only adapters are regression fixtures, not production service transports. Replan into bounded steps only
-if each step actually uses a supported capability; never mislabel E3 as a
-logical check to bypass admission.
+The bundled worker supports bounded reads, exclusive creation and SHA-256-bound replacement. Service control, shell and arbitrary external effects are not supported by this installation. Never relabel unsupported work as a logical check to bypass the EG gate.
 
 A permitted cutover project separately verifies baseline, transactionally
 consistent SQLite and external-anchor/evidence backups, restore rehearsal,
@@ -137,7 +132,7 @@ from `acceptance_criteria`; immutable `invariants`, when supplied, are
 checked in both PRE and POST. A physical step cannot be recast as logical by
 omitting `action` at evaluation. Historical registrations are not rewritten.
 
-When a reversible E2 write is interrupted, use the *same registered worker*
+When a reversible file write is interrupted, use the *same registered worker*
 `reconcile_no_effect` operation (not the normal WRITE RPC). It checks the
 canonical `RECOVERY_PENDING` gate, protected journal and target. Absent
 journal/target yields a signed `NOT_EXECUTED` proof. A durable journal without
@@ -156,7 +151,7 @@ rollback archive hash, canonical checkpoint/audit head and all restored member
 hashes. The verifier performs an actual isolated extraction and byte readback;
 missing or changed evidence is denied. The attestor key must not be supplied
 by the report or the agent controlling it. This is verification of the
-reported cutover evidence; it does NOT authorize an unsupported E3 service
+reported cutover evidence; it does NOT authorize an unsupported retired external operation service
 cutover, restore a historical Colab session, or waive the independent EG
 step/capability/runtime checks for a new deployment.
 
@@ -206,7 +201,7 @@ and audit integrity on a fresh isolated instance before deployment.
 
 ## Operator-controlled bounded source creation
 
-A protected E2 worker can create (but never overwrite) small source files in its isolated, private, single-level output root. EG defaults to `.txt,.json` for backward compatibility. For a project that legitimately creates other source types, the operator must set the following matching policy before starting new physical tasks:
+A protected file change worker can create (but never overwrite) small source files in its isolated, private, single-level output root. EG defaults to `.txt,.json` for backward compatibility. For a project that legitimately creates other source types, the operator must set the following matching policy before starting new physical tasks:
 
 ```sh
 # Gateway process environment, configured by the operator

@@ -20,6 +20,21 @@ def test_outside_worker_scope_rejected(target):
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
 
+@pytest.mark.parametrize("action_type", ["read", "write", "replace"])
+def test_canonical_action_can_omit_internal_class_without_changing_signed_payload(action_type):
+    legacy={"action_type":action_type,"target":"workspace/example.txt",
+            "effect_class":("E0" if action_type=="read" else "E2"),
+            "reversible":action_type!="read"}
+    plain={k:v for k,v in legacy.items() if k!="effect_class"}
+    assert gw.Action.model_validate(plain).model_dump(mode="json")==gw.Action.model_validate(legacy).model_dump(mode="json")
+
+
+def test_unknown_action_without_class_is_rejected():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError,match="operation is not supported"):
+        gw.Action.model_validate({"action_type":"service_control","target":"server"})
+
+
 def test_e1_unimplemented_class_rejected_at_action_schema():
     from pydantic import ValidationError
     with pytest.raises(ValidationError):

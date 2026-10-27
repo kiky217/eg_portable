@@ -95,7 +95,7 @@ remain available from the canonical GitHub repository.
 **2. Check what your environment can actually do.** For an agent integration, start with the complete [operational SKILL.md](SKILL.md), the [source-verified agent operations reference](eg/docs/PORTABLE_RUNBOOK.md), and the [agent quickstart](eg/docs/PORTABLE_RUNBOOK.md). A local, read-only preflight can be run from the repository root:
 
 ```sh
-python eg/tools/agent_readiness.py --effect E2 --action write
+python eg/tools/agent_readiness.py --action write
 ```
 
 This preflight is **not** execution authorization. The evaluator defaults to
@@ -138,8 +138,7 @@ and [generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md).
 | [Agent operations reference](eg/docs/PORTABLE_RUNBOOK.md) | Actual API, typed workers, recovery and common blockers |
 | [Agent quickstart](eg/docs/PORTABLE_RUNBOOK.md) | Readiness checks, admitted capabilities, and safe agent usage |
 | [Executor protocol](eg/docs/EXECUTOR_PROTOCOL.md) | Exact PRE/POST contracts, evidence, and receipts |
-| [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md) | One multi-target process catalog shared across projects and environments |
-| [Independent E3 process worker](eg/docs/PORTABLE_RUNBOOK.md) | One-time operator provisioning for reusable fixed-operation profiles |
+| [Generic execution model](eg/docs/GENERIC_EXECUTION_MODEL.md) | Reusable workflow and verification across projects |
 | [Architecture](eg/docs/PORTABLE_RUNBOOK.md) | Components, isolation, and trust boundaries |
 | [Remediation protocol](eg/docs/REMEDIAL_PROTOCOL.md) | Failure handling and controlled repair |
 | [Production promotion](eg/docs/PRODUCTION_PROMOTION.md) | Software release versus live production readiness |
