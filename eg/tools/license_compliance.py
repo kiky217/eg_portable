@@ -23,7 +23,7 @@ REVIEWED_SPDX = {
     "idna": "BSD-3-Clause", "uvicorn": "BSD-3-Clause",
     "click": "BSD-3-Clause", "h11": "MIT",
     "cryptography": "Apache-2.0 OR BSD-3-Clause",
-    "cffi": "MIT-0", "pycparser": "BSD-3-Clause",
+    "cffi": "MIT", "pycparser": "BSD-3-Clause",
 }
 # These optional GNU modules must not be shipped in an MIT-labelled portable
 # distribution without a separately documented GPL compliance programme.
