@@ -161,9 +161,13 @@ The portable Linux bundle includes `THIRD_PARTY_LICENSES/NOTICE.md`,
 `THIRD_PARTY_LICENSES/LICENSES.json`, full available license texts for
 the 17 exact pinned Python wheels, the CPython license, and Debian package
 copyright texts for native libraries copied into the archive. Its
-build and GitHub release gate fail closed when a pinned package changes
-without review, a required text is missing, or GNU Readline/GDBM components
-are accidentally shipped.
+build and GitHub release gate fail closed when a pinned package version
+changes without explicit review, a license text is missing or modified,
+an unreviewed wheel or native shared library appears in the archive, or
+GNU Readline/GDBM components are accidentally shipped. The validator checks
+cryptographic hashes of actual notice texts, native binaries and the EG MIT
+license **inside the final compressed distribution**. The build isolates
+the exact 17 locked wheels instead of copying the build host's site-packages.
 
 Licenses and attribution are separate from security and operational readiness.
 Automated checks do not replace qualified legal review, including any
