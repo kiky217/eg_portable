@@ -38,7 +38,7 @@ independent private key and corresponding gateway public root, a signed
 reusable adapter binding, and a separate HITL signer. The worker does not
 generate or substitute those authorities.
 
-Root and non-root host identities are supported. Neither identity itself
+Root and non-root host identities are supported concurrently on separate EG instances. Neither identity itself
 proves signing-key independence. The pinned executable must be trusted;
 process limits do not form a kernel filesystem or network sandbox. Do not
 approve unknown binaries as generic profiles.
