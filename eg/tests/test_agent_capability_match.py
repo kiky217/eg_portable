@@ -106,3 +106,25 @@ def test_signed_operator_binding_discovery_is_read_only_and_actionable(monkeypat
     reg.revoke(revoke(operator,signed),adapter_id=cap.adapter_id)
     revoked=CLIENT.get(URL,params=params,headers=HEAD).json()
     assert revoked["candidates"][0]["status"]=="OPERATOR_BINDING_REQUIRED"
+
+
+def test_missing_root_cannot_match_builtin_operations(monkeypatch, tmp_path):
+    monkeypatch.setattr(gw, "ADMISSION_MODE", "enabled")
+    monkeypatch.setattr(gw, "EXECUTOR_OUTPUT_ROOT", str(tmp_path / "missing"))
+    for operation in ("read", "write", "replace"):
+        result = CLIENT.get(URL, params={
+            "action_type": operation, "target": str(tmp_path / "missing" / "example.txt")
+        }, headers=HEAD).json()
+        assert result["status"] == "CAPABILITY_UNPROVISIONED"
+        assert result["admission"] is False
+
+
+def test_existing_root_matches_replace_but_requires_real_pre(monkeypatch, tmp_path):
+    monkeypatch.setattr(gw, "ADMISSION_MODE", "enabled")
+    monkeypatch.setattr(gw, "EXECUTOR_OUTPUT_ROOT", str(tmp_path))
+    result = CLIENT.get(URL, params={
+        "action_type": "replace", "target": str(tmp_path / "existing.txt")
+    }, headers=HEAD).json()
+    assert result["status"] == "MATCHED_PRE_REQUIRED"
+    assert result["admission"] is False
+    assert result["candidates"][0]["status"] == "LIVE_PRE_REQUIRED"

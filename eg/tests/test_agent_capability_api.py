@@ -61,3 +61,14 @@ def test_registered_external_adapter_discovered_but_not_self_admitted(monkeypatc
     monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","disabled")
     inactive=CLIENT.get("/v1/agent/capabilities",headers=HEAD).json()
     assert not [r for r in inactive["capabilities"] if r["adapter_id"]==cap["adapter_id"]]
+
+
+def test_missing_worker_directory_is_unavailable(monkeypatch, tmp_path):
+    missing = tmp_path / "not-provisioned"
+    monkeypatch.setattr(gw, "EXECUTOR_OUTPUT_ROOT", str(missing))
+    monkeypatch.setattr(gw, "ADMISSION_MODE", "enabled")
+    data = CLIENT.get("/v1/agent/capabilities", headers=HEAD).json()
+    assert [x["status"] for x in data["capabilities"][:3]] == ["UNAVAILABLE"] * 3
+    protocol = CLIENT.get("/v1/protocol", headers=HEAD).json()
+    assert protocol["executor_target_root_provisioned"] is False
+    assert protocol["executor_capabilities"] == []

@@ -1476,6 +1476,14 @@ def health():
     return {"status": "PASS"}
 
 
+def builtin_worker_root_ready() -> bool:
+    """Local directory presence is necessary, never sufficient, for worker admission."""
+    if not EXECUTOR_OUTPUT_ROOT:
+        return False
+    root = Path(EXECUTOR_OUTPUT_ROOT)
+    return root.is_absolute() and not root.is_symlink() and root.is_dir()
+
+
 @app.get("/v1/protocol", dependencies=[Depends(require_key)])
 def protocol():
     return {"version": PROTOCOL_VERSION, "hash": protocol_hash(),
@@ -1484,11 +1492,11 @@ def protocol():
             "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
                                        {"action_type":"write","effect_class":"E2"},
                                        {"action_type":"replace","effect_class":"E2"}]
-                                      if ADMISSION_MODE=="enabled" and EXECUTOR_OUTPUT_ROOT else []),
+                                      if ADMISSION_MODE=="enabled" and builtin_worker_root_ready() else []),
             "high_effect_execution_mode": ("CI_DISPOSABLE_ONLY" if HIGH_EFFECT_CI_FIXTURE_ENABLED
                                            else "UNPROVISIONED_FAIL_CLOSED"),
             "high_effect_capability_catalog": high_effect_catalog(),
-            "executor_target_root_provisioned":bool(EXECUTOR_OUTPUT_ROOT),
+            "executor_target_root_provisioned":builtin_worker_root_ready(),
             "executor_target_suffixes":list(parse_suffixes(os.getenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES"))),
             "document": PROTOCOL_PATH.read_text(encoding="utf-8")}
 
@@ -1506,7 +1514,7 @@ def agent_capabilities():
             configured = parse_catalog(catalog_raw)
         except (CatalogError, UnicodeError):
             invalid = True
-    bundled = bool(ADMISSION_MODE == "enabled" and EXECUTOR_PUBLIC_KEY_B64 and EXECUTOR_OUTPUT_ROOT)
+    bundled = bool(ADMISSION_MODE == "enabled" and EXECUTOR_PUBLIC_KEY_B64 and builtin_worker_root_ready())
     entries = [{"id": "builtin.read", "effect_class": "E0", "action_type": "read",
                 "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"},
                {"id": "builtin.write", "effect_class": "E2", "action_type": "write",
@@ -1553,7 +1561,8 @@ def agent_capability_match(action_type: str, target: str, effect_class: str | No
             candidate=Action(action_type=action_type,target=target,effect_class=effect_class,
                              reversible=(effect_class=="E2"),real_world_effect=False,
                              payload_sha256=("0"*64 if effect_class=="E2" else None),
-                             payload_bytes=(1 if effect_class=="E2" else None))
+                             payload_bytes=(1 if effect_class=="E2" else None),
+                             previous_sha256=("0"*64 if action_type=="replace" else None))
             supported,_=worker_capability(candidate)
             if supported:
                 matches.append({"adapter_id":"builtin.worker","version":1,
@@ -1721,7 +1730,7 @@ def worker_capability(action: Action) -> tuple[bool,str]:
         return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
     if action.action_type=="replace" and not action.previous_sha256:
         return False,"EXPECTED_PREVIOUS_DIGEST_REQUIRED"
-    if not EXECUTOR_OUTPUT_ROOT:
+    if not builtin_worker_root_ready():
         return False,"EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
     root=Path(EXECUTOR_OUTPUT_ROOT)
     target=Path(action.target)
