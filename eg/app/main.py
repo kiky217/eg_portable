@@ -1516,9 +1516,9 @@ def agent_capabilities():
     entries.extend({"id": row["id"], "effect_class": row["effect_class"],
                     "action_type": row["action_type"], "adapter_id": row["adapter_id"],
                     "status": "UNVERIFIED_NOT_AUTHORIZED"} for row in configured)
-    # The authoritative scoped E3-E5 registry is separate from the diagnostic
+    # The authoritative scoped adapter registry is separate from the diagnostic
     # agent-submitted catalog. Neither constitutes per-action PRE authorization.
-    entries.extend({"id": "registered."+cap["adapter_id"]+"."+cap["action_type"]+"."+cap["effect_class"],
+    entries.extend({"id": "registered."+cap["adapter_id"]+"."+cap["action_type"]+"."+cap["capability_sha256"][:16],
                     "effect_class": cap["effect_class"], "action_type": cap["action_type"],
                     "adapter_id": cap["adapter_id"], "status": cap["availability"]}
                    for cap in high_effect_catalog())
