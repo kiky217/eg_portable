@@ -6,6 +6,8 @@
 
 **Portable and generic:** One gateway, built-in bounded file operations, no new executor per project or staging environment. Workflow gates—not worker setup—determine when an agent may proceed.
 
+**Host identities:** The gateway and its reusable file worker can run as authorized root or non-root identities. Runtime UID choice is not an execution grant and cannot substitute for independently verified signing authority and the original PRE/POST evidence.
+
 **Required for every fresh installation and upgrade (including staging):** Read the [canonical agent SKILL](SKILL.md) first. Install one portable gateway with durable task/audit state and the built-in read, create and replace operations. Require task registration before any work and a verified PRE, exact execution receipt where an action occurs, independently checked POST, and completion of each step before starting the next; staging is not exempt. **Do not build project-specific executor code or infer privileges from the presence of source code.**
 
 **Mandatory verification:** REGISTER → signed PRE → admitted action → signed receipt → independently checked POST → VERIFIED → next step → SATISFIED. No work before PRE, no retrospective claims, no staging exceptions.

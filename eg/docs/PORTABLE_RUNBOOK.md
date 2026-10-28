@@ -22,7 +22,7 @@ Check the authenticated gateway health, audit, task state and currently admitted
 
 ## Host identity neutrality
 
-The portable gateway starts under an authorized root or non-root host account. Keep durable state outside the source with private permissions. Registration, PRE, signed receipt, POST and independent verification are required regardless of environment.
+The portable gateway and its bundled generic file worker each support authorized root or non-root host accounts. The runtime identity does not itself grant execution or prove signer independence; a root-controlled worker requires separate evidence of key custody and authorization. Keep durable state outside the source with private permissions. Registration, PRE, signed receipt, POST and independent verification are required regardless of environment.
 
 ## Installation preflight (read-only, any supported host)
 
