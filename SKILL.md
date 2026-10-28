@@ -108,14 +108,14 @@ State exactly: target instance, software/version, timestamp, task/step/checkpoin
 
 References: [portable runbook](eg/docs/PORTABLE_RUNBOOK.md), [operations and migration](eg/docs/OPERATIONS.md), [verification protocol](eg/docs/EXECUTOR_PROTOCOL.md).
 
-## Optional generic E3 source candidate (not installed or trusted by default)
+## Optional generic high-effect process source candidate (not installed or trusted by default)
 
 `eg/tools/generic_bounded_process_adapter.py` and
 `eg/tools/generic_bounded_process_service.py` provide an optional
 **provider-neutral source implementation** of an operator-controlled bounded
 process worker. One signed fixed-profile installation can be reused across
 different tasks; it is never a project-specific executor. The code is **not**
-an automatic capability grant, a live authorized adapter, or an E3 signed
+an automatic capability grant, a live authorized adapter, or an high-effect process signed
 production receipt. See `eg/docs/GENERIC_EXECUTION_MODEL.md` for mandatory
 non-root isolation, externally held operator and HITL keys, exact PRE, signed
 receipt, and POST requirements. The canonical bundled worker remains file-only.

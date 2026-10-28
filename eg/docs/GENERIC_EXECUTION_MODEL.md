@@ -30,8 +30,8 @@ The default portable installation remains the **single canonical EG evaluator pl
 the bundled file worker**. The new source-only optional modules
 `tools/generic_bounded_process_adapter.py` and
 `tools/generic_bounded_process_service.py` define **one reusable provider-neutral
-E3 `bounded_process_run` worker per operator-provisioned environment**, not one
-worker per application or task. Installing the package does **not** activate E3.
+high-effect process `bounded_process_run` worker per operator-provisioned environment**, not one
+worker per application or task. Installing the package does **not** activate high-effect process.
 
 An independently appointed operator must provision and pin a signature-verifiable
 profile manifest with a fixed root-owned executable SHA256, immutable arguments,
