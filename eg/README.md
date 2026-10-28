@@ -47,6 +47,8 @@ Evidence provenance is independent of project identity. Bounded
 provider-specific executors and confer **no** evidence authority without the
 unchanged manifest-v4 independent signature, path/UID, checkpoint and
 criterion checks. New tasks use the same provider-neutral source contract.
+**Optional generic E3 source candidate (not part of the active portable worker):** The repository contains an experimental, provider-neutral fixed-profile process worker at `tools/generic_bounded_process_adapter.py` and `tools/generic_bounded_process_service.py`. It is **not** started or trusted by the default installation. A separately authorized operator must provision a signed reusable profile policy, independent non-root worker identity, Ed25519 signer, signed HITL and canonical PRE/POST receipts before E3 can be admitted; existing project-specific/retired adapters remain unsupported. See [the generic execution model](docs/GENERIC_EXECUTION_MODEL.md).
+
 The [root SKILL operational cookbook](../SKILL.md#provider-neutral-operational-cookbook-normative-for-new-work)
 includes registration examples, bootstrap, read/create/replace capability limits, dispatcher
 inputs, recovery and acceptance.
