@@ -113,7 +113,7 @@ def copy_public_context_docs(source_root, target_root):
 
 # Normalize only the already-allowlisted, public distribution staging tree.
 # shutil.copy2/copytree preserve source modes, which can make a valid archive
-# unreadable to the required independent non-root runtime identity.
+# unreadable to another authorized runtime identity on the same host.
 PORTABLE_EXECUTABLES=frozenset({
     'python/bin/python3.12','python.sh','run.sh','init.sh','start.sh'})
 def normalize_bundle_permissions(root):

@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Offline portable EG archive relocation and no-root fresh bootstrap E2E.
 
-Only a disposable TEST security domain is used: executor public signing key is
-test-only and is never used to claim root-protected isolation. Requires Linux
-root to impersonate a dedicated nonroot identity for disposable E2E.
+Only a disposable TEST security domain is used: signing roots are test-only.
+A privileged test runner additionally tests another UID; an unprivileged test
+runner uses its own identity without claiming cross-UID signer isolation.
 """
 from __future__ import annotations
-import base64,hashlib,json,os,re,secrets,shutil,subprocess,tarfile,tempfile,time
+import base64,hashlib,json,os,pwd,re,secrets,shutil,subprocess,tarfile,tempfile,time
 from build_portable_bundle import PORTABLE_CONTEXT_DOCS
 from pathlib import Path
 from urllib.request import Request,urlopen
 from urllib.error import URLError
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
-UID=65532
-GID=65532
+CAN_CHANGE_IDENTITY = os.geteuid() == 0
+UID = pwd.getpwnam('nobody').pw_uid if CAN_CHANGE_IDENTITY else os.getuid()
+GID = pwd.getpwnam('nobody').pw_gid if CAN_CHANGE_IDENTITY else os.getgid()
 DIST=Path(__file__).resolve().parents[2]/'dist'
 RELEASE_VERSION=(Path(__file__).resolve().parents[1]/'VERSION').read_text().strip()
 ARCH=Path(os.environ.get('EG_PORTABLE_ARCHIVE', str(DIST/f'eg-portable-{RELEASE_VERSION}-linux-amd64.tar.gz'))).resolve()
@@ -31,7 +32,8 @@ def check(name,success):
     checks.append({'check':name,'pass':bool(success)})
     if not success:raise RuntimeError('FAILED_CHECK '+name)
 def switch():
-    os.setgroups([]);os.setgid(GID);os.setuid(UID)
+    if CAN_CHANGE_IDENTITY:
+        os.setgroups([]);os.setgid(GID);os.setuid(UID)
 def hexhash(p):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 def get(path,headers=None):
@@ -154,13 +156,14 @@ def main():
     env.update({'EG_STATE_DIR':str(STATE),'EG_EXECUTOR_PUBLIC_KEY_B64':test_public,
                 'EG_NOTARY_PUBLIC_KEY_B64':notary_public,
                 'EG_PORT':PORT,'PYTHONNOUSERSITE':'1','HOME':'/tmp'})
-    # Root is an accepted installation identity; state permissions and admission govern effects.
-    admin_state=ROOT/'admin-state'
-    admin_env=dict(env,EG_STATE_DIR=str(admin_state))
-    admin_init=subprocess.run([str(extracted/'init.sh')],env=admin_env,
-                              capture_output=True,text=True,timeout=10)
-    check('root_initialization_supported',admin_init.returncode==0)
-    check('root_state_0700',(admin_state.stat().st_mode&0o777)==0o700)
+    # Privileged CI additionally verifies an independent root-owned state.
+    if CAN_CHANGE_IDENTITY:
+        admin_state=ROOT/'admin-state'
+        admin_env=dict(env,EG_STATE_DIR=str(admin_state))
+        admin_init=subprocess.run([str(extracted/'init.sh')],env=admin_env,
+                                  capture_output=True,text=True,timeout=10)
+        check('root_initialization_supported',admin_init.returncode==0)
+        check('root_state_0700',(admin_state.stat().st_mode&0o777)==0o700)
     denied=subprocess.run([str(extracted/'start.sh')],env=env,capture_output=True,text=True,timeout=10,
                           preexec_fn=switch)
     check('start_without_state_denied',denied.returncode==77)
@@ -249,7 +252,9 @@ def main():
       'checks_count':len(checks),'all_checks_pass':all(x['pass'] for x in checks),
       'python_bundled':True,'offline':True,'relocation_count':2,
       'eg_version':audit2['version'],
-      'state_outside_binary':True,'isolation_level':'same-host nonroot UID only',
+      'state_outside_binary':True,
+      'isolation_level':('distinct host UID' if CAN_CHANGE_IDENTITY else 'caller UID'),
+      'root_identity_tested':CAN_CHANGE_IDENTITY,
       'host_root_security':'NOT PROVEN','checks':checks}
     RESULT.write_text(json.dumps(output,indent=2))
     print(json.dumps({k:output[k] for k in ('status','archive_size','archive_sha256',

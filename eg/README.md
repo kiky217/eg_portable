@@ -80,7 +80,7 @@ use `uv venv --python python3.12 .venv-test`, then `uv pip install --python
 install --python .venv-test/bin/python -r requirements-test.txt`. The production
 runtime stays separate in either approach.
 
-`requirements-test.txt` (pytest, httpx, httpx2) is for development/testing **only**; do not put these packages in `requirements.lock`, Docker production images or the portable bundle. A full root-run may show deliberate non-root-only SKIPs; rerun those tests with eligible unprivileged user identities instead of calling SKIPs a PASS.
+`requirements-test.txt` (pytest, httpx, httpx2) is for development/testing **only**; do not put these packages in `requirements.lock`, Docker production images or the portable bundle. Some cross-UID isolation tests need a privileged test runner; a skipped test is not a PASS. Gateway runtime itself has no root/non-root prerequisite.
 
 The E2E tests use isolated test-only instances. They do not take ownership of a production task or replace the current gateway's authenticated state.
 

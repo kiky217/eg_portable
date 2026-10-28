@@ -62,3 +62,23 @@ def test_invocation_requires_explicit_paths_and_tasks():
     for arg in ("--db", "--anchor", "--evidence", "--runtime-env-file",
                 "--historical-task", "--open-task"):
         assert arg in result.stderr
+
+
+def test_rehearsal_identity_neutrality(monkeypatch):
+    import pytest
+
+    # Both root and non-root identities are valid when the OS allows switching.
+    monkeypatch.setattr(rehearsal.os, "geteuid", lambda: 0)
+    rehearsal.validate_identity(0, 0)
+    rehearsal.validate_identity(10001, 10001)
+
+    # Without privilege escalation only the caller's own UID/GID are allowed.
+    monkeypatch.setattr(rehearsal.os, "geteuid", lambda: 10001)
+    monkeypatch.setattr(rehearsal.os, "getegid", lambda: 10001)
+    rehearsal.validate_identity(10001, 10001)
+    with pytest.raises(RuntimeError, match="HOST_CANNOT_SWITCH"):
+        rehearsal.validate_identity(0, 0)
+    with pytest.raises(RuntimeError, match="HOST_CANNOT_SWITCH"):
+        rehearsal.validate_identity(10001, 10002)
+    with pytest.raises(RuntimeError, match="INVALID_STAGED_IDENTITY"):
+        rehearsal.validate_identity(-1, 10001)

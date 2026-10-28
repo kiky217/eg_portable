@@ -4,13 +4,13 @@
 
 **"Install EG completely as a generic system and test it end-to-end until every supported, authorized capability is operational."**
 
-**Required for every installation, including staging:** Follow [SKILL](../../SKILL.md) and the [runbook](PORTABLE_RUNBOOK.md). Register before work; verify PRE, execution receipt and POST for each action. The canonical worker supports bounded file reads, exclusive creation and verified replacement. No additional process workers are required.
+**Required for every installation, including staging:** Follow [SKILL](../../SKILL.md) and the [runbook](PORTABLE_RUNBOOK.md). Register before work; verify PRE, execution receipt and POST for each action. The bundled worker supports bounded file reads, exclusive creation and verified replacement. Optional bounded process execution uses a reusable generic adapter, independently provisioned under the operator's policy.
 
 **Mandatory acceptance:** For every admitted file operation, demonstrate **REGISTER → PRE → bounded execution → original signed receipt → fresh POST → VERIFIED → SATISFIED**, including evidence readback, denied operations and recovery. The rule applies to staging. CI, `/health`, source builds and listed capabilities do not prove a task completed.
 
 **Fail closed:** Missing task registration, matching bounded operation, trusted signer, original PRE, valid receipt or independently verified POST means **INCOMPLETE / BLOCKED**. Do not fabricate keys or claims and do not use a direct shell to turn an unsupported operation into EG-verified work.
 
-**One EG registry, one protocol, one runtime.**
+**One EG task registry and one active writer per durable state.** Different authorized host UIDs can run isolated EG instances concurrently with distinct state, audit anchor, evidence root, port and worker configuration.
 
 **Actual admission default:** `eg/app/main.py` uses
 `EVALUATION_GATEWAY_ADMISSION_MODE=enabled` when the variable is unset.
@@ -87,8 +87,8 @@ python tools/rehearse_ledger_migration.py \
 ```
 
 The rehearsal uses a transactionally consistent SQLite copy and a copied
-anchor. A temporary nonroot EG process runs the current canonical code only
-against that COPY, using `ADMISSION_MODE=disabled`. It authenticates the
+anchor. A temporary EG process runs under the operator-selected authorized
+host identity against that COPY, using `ADMISSION_MODE=disabled`. It authenticates the
 historical SATISFIED task and in-flight gate, checks audit integrity, and
 proves that concrete actions without an independently protected executor
 fail closed with HTTP 409. It verifies the source ledger and anchor are

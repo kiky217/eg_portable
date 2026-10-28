@@ -1,12 +1,12 @@
 services:
   evaluation-gateway-local:
     build: .
-    image: evaluation-gateway-local:3.1.148
+    image: evaluation-gateway-local:3.1.149
     user: "${EVALUATION_GATEWAY_UID:-10001}:${EVALUATION_GATEWAY_GID:-10001}"
     read_only: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:18765:8765"
+      - "${EVALUATION_GATEWAY_BIND_IP:-127.0.0.1}:${EVALUATION_GATEWAY_PORT:-18765}:8765"
     environment:
       EVALUATION_GATEWAY_API_KEY: ${EVALUATION_GATEWAY_API_KEY:?required}
       EVALUATION_GATEWAY_HITL_KEY: ${EVALUATION_GATEWAY_HITL_KEY:?required}
@@ -19,7 +19,7 @@ services:
       EVALUATION_GATEWAY_DB_PATH: /data/gateway.db
       EVALUATION_GATEWAY_ANCHOR_PATH: /anchor/audit.anchor
       EVALUATION_GATEWAY_EVIDENCE_ROOT: /evidence
-      EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID: ${EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID:-10001}
+      EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID: ${EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID:-${EVALUATION_GATEWAY_UID:-10001}}
       # retired external operations high-effect metadata is NOT forwarded: no independently
       # attested production high-effect transport exists in this distribution.
       # CI-only DisposableAdapter must never be auto-enabled in Compose.
@@ -30,7 +30,7 @@ services:
     volumes:
       - gateway_data:/data
       - gateway_anchor:/anchor
-      - ./evidence:/evidence:ro
+      - ${EVALUATION_GATEWAY_EVIDENCE_HOST_DIR:-./evidence}:/evidence:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
     cap_drop:

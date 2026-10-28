@@ -107,3 +107,25 @@ def test_docker_image_has_all_gateway_runtime_modules():
                  'runtime_source_fingerprint', 'capability_catalog',
                  'operator_runtime_registry', 'operator_adapter_binding'):
         assert f'tools/{name}.py' in dockerfile, name
+
+
+def test_portable_host_identity_is_not_restricted_to_one_uid():
+    from tools import rehearse_ledger_migration as rehearsal
+    source = Path(rehearsal.__file__).read_text(encoding="utf-8")
+    assert "STAGED_EG_MUST_USE_NONROOT_UID" not in source
+    assert "HOST_CANNOT_SWITCH_TO_REQUESTED_IDENTITY" in source
+
+    compose = (ROOT/"eg/docker-compose.yml").read_text(encoding="utf-8")
+    docker = (ROOT/"eg/Dockerfile").read_text(encoding="utf-8")
+    for setting in ("EVALUATION_GATEWAY_UID:-10001",
+                    "EVALUATION_GATEWAY_GID:-10001",
+                    "EVALUATION_GATEWAY_PORT:-18765",
+                    "EVALUATION_GATEWAY_EVIDENCE_HOST_DIR"):
+        assert setting in compose
+    assert "EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID:-" + chr(36) + "{EVALUATION_GATEWAY_UID:-10001}" in compose
+    assert "ARG EVALUATION_GATEWAY_IMAGE_USER=gateway" in docker
+    assert "USER " + chr(36) + "{EVALUATION_GATEWAY_IMAGE_USER}" in docker
+    for document in (ROOT/"README.md", ROOT/"SKILL.md",
+                     ROOT/"eg/docs/OPERATIONS.md", ROOT/"eg/docs/PORTABLE_RUNBOOK.md"):
+        assert "concurrent" in document.read_text(encoding="utf-8").lower(), document
+    assert "same database" in (ROOT/"eg/docs/PORTABLE_RUNBOOK.md").read_text()

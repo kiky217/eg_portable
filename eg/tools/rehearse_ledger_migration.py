@@ -80,6 +80,14 @@ def choose_port():
         return sock.getsockname()[1]
 
 
+def validate_identity(uid: int, gid: int):
+    """Either host identity is valid; switching users requires OS permission."""
+    if uid < 0 or gid < 0:
+        raise RuntimeError("INVALID_STAGED_IDENTITY")
+    if os.geteuid() != 0 and (uid, gid) != (os.geteuid(), os.getegid()):
+        raise RuntimeError("HOST_CANNOT_SWITCH_TO_REQUESTED_IDENTITY")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "anchor", "evidence", "runtime-env-file",
@@ -96,10 +104,7 @@ def main():
             raise RuntimeError("INPUT_NOT_FOUND_" + name.upper())
     if not paths["evidence"].is_dir():
         raise RuntimeError("EVIDENCE_ROOT_NOT_FOUND")
-    if args.uid == 0:
-        raise RuntimeError("STAGED_EG_MUST_USE_NONROOT_UID")
-    if os.geteuid() != 0 and args.uid != os.geteuid():
-        raise RuntimeError("NONROOT_CANNOT_SWITCH_UID")
+    validate_identity(args.uid, args.gid)
     source = source_state(paths["db"], args.open_task, args.historical_task)
     if not (source["historical"] and source["historical"][0] == "SATISFIED"):
         raise RuntimeError("HISTORICAL_TASK_NOT_SATISFIED")

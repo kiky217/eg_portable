@@ -26,6 +26,28 @@ Optional process execution is described in the [generic bounded process worker](
 
 The portable gateway and its bundled generic file worker each support authorized root or non-root host accounts. The runtime identity does not itself grant execution or prove signer independence; a root-controlled worker requires separate evidence of key custody and authorization. Keep durable state outside the source with private permissions. Registration, PRE, signed receipt, POST and independent verification are required regardless of environment.
 
+### Concurrent host identities
+
+The same EG source and release can serve root and non-root host identities
+at the same time, with no fixed UID prerequisite. Every running instance
+must use a different listening port and separately protected database,
+audit anchor, evidence root, worker configuration and trust roots.
+**Never run two writers against the same database or audit anchor.**
+Separate instances do not replace the single canonical evaluator for
+each instance's tasks.
+
+In Docker Compose set EVALUATION_GATEWAY_UID and EVALUATION_GATEWAY_GID
+to the authorized service account, EVALUATION_GATEWAY_PORT to an unused
+host port, and EVALUATION_GATEWAY_EVIDENCE_HOST_DIR to that instance's
+own evidence directory. Give each deployment a distinct Compose project
+name to avoid sharing named volumes. The trusted notary file owner
+defaults to the selected UID but can be set separately using
+EVALUATION_GATEWAY_TRUSTED_EVIDENCE_UID. Mounted directory ownership
+must match the configured identities. None of these settings grants
+execution authority, weakens private file permissions or replaces
+original PRE, signed receipt and independent POST.
+
+
 ## Installation preflight (read-only, any supported host)
 
 Before changing a new installation, run `PYTHONPATH=eg python3.12 -m tools.install_preflight --root /path/to/eg_portable` from the repository root. It prints JSON with explicit `SOURCE`, `PYTHON`, `EXTERNAL_STATE`, `DURABLE_STATE_EXISTS`, `HOST_IDENTITY`, `MODE`, `NOTARY_ROOT`, `EXECUTOR_ROOT` and `FULL_ADMISSION` checks. Exit 2 identifies missing prerequisites without producing keys or changing state. This is not a substitute for a protected operator bootstrap or live read/create/replace acceptance; a passing preflight never means capabilities are operational.
