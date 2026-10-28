@@ -54,6 +54,8 @@ def test_registered_external_adapter_discovered_but_not_self_admitted(monkeypatc
     assert len(found)==1
     assert found[0]["action_type"]=="scan_contract"
     assert found[0]["effect_class"]=="E3"
+    fingerprint = gw.high_effect_catalog()[0]["capability_sha256"][:16]
+    assert found[0]["id"] == f"registered.{cap['adapter_id']}.{cap['action_type']}.{fingerprint}"
     assert found[0]["status"]=="EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"
     assert not data["admission_is_execution"]
     monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","disabled")

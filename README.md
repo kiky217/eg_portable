@@ -117,6 +117,8 @@ EG is a **generic, provider-neutral work governance system**, not a remote root 
 
 The canonical portable installation supports **bounded file reading, exclusive creation and verified replacement** in its configured workspace. Other actions are not claimed as available or silently substituted.
 
+**Capability naming:** Use generic operation and adapter identities, not internal authorization-class labels. Internal classes remain protocol metadata for verification of existing signed contracts, not capabilities named after tasks or projects.
+
 EG verifies only work performed through its governed path. It cannot physically prevent an agent from using an unrelated external tool, but it rejects missing PRE, missing receipts, and retrospective evidence as grounds for task completion.
 
 **Generic evidence provenance:** Evidence producer names are validated as

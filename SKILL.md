@@ -25,6 +25,8 @@ Apply to **every** task governed by Evaluation Gateway. Read this file before at
 ## Live capability discovery (current runtime)
 Before any physical action, check the authenticated gateway's available operations and current step. Configuration or discovery does not grant execution permission; only a valid PRE for the exact supported operation does. This installation provides bounded file reading, creation and verified replacement. Do not use an external command as a substitute for an unavailable operation.
 
+Report capabilities by their generic action and adapter identity, never by internal authorization-class labels or project-specific names. Historical signed class fields are verification metadata, not user-facing capability names.
+
 ## Select capability before claiming a step
 - Distinguish logical evaluation from an actual physical effect; never relabel the immutable task contract.
 - Current bundled production worker handles bounded reads, exclusive **creation** and SHA-256 compare-and-swap **replacement** of existing worker-owned files in its protected output_root (each payload <= 512 KiB). Default suffixes remain `.txt` and valid `.json`.
