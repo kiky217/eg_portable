@@ -23,6 +23,8 @@ Apply to **every** task governed by Evaluation Gateway. Read this file before at
 3. Record whether service is live, admission is enabled, independently protected signing root is provisioned, required adapter exists, and action is presently PRE-authorized. Those are **separate** facts. A running production service does not imply unrestricted execution.
 
 ## Live capability discovery (current runtime)
+Both the generic gateway and bundled file worker support authorized root or non-root operation. Do not require a non-root UID as a prerequisite; root identity alone does not establish independent signer custody or authorize a physical action. Exact PRE, bound worker receipt and independently checked POST remain mandatory.
+
 Before any physical action, check the authenticated gateway's available operations and current step. Configuration or discovery does not grant execution permission; only a valid PRE for the exact supported operation does. This installation provides bounded file reading, creation and verified replacement. Do not use an external command as a substitute for an unavailable operation.
 
 Report capabilities by their generic action and adapter identity, never by internal authorization-class labels or project-specific names. Historical signed class fields are verification metadata, not user-facing capability names. A configured output directory that no longer exists must be reported unavailable, not advertised as an admitted worker. Discovery is never a substitute for a real PRE and signed receipt.

@@ -362,8 +362,6 @@ class TrustedWriter:
         return receipt
 
 def serve(config):
-    if os.geteuid()==0:
-        raise WorkerDenied('TRUSTED_WORKER_MUST_NOT_RUN_AS_ROOT')
     worker=TrustedWriter(config['output_root'],config['journal_root'],
                          config['private_key'],config['eg_url'],
                          config['eg_api_key'],config['executor_id'],
@@ -372,9 +370,9 @@ def serve(config):
     controller_uid=config.get('controller_uid')
     controller_gid=config.get('controller_group_gid')
     if controller_uid is not None or controller_gid is not None:
-        if (type(controller_uid) is not int or controller_uid<=0 or
+        if (type(controller_uid) is not int or controller_uid<0 or
             controller_uid==os.geteuid() or type(controller_gid) is not int or
-            controller_gid<=0 or controller_gid==os.getegid()):
+            controller_gid<0 or controller_gid==os.getegid()):
             raise WorkerDenied('INVALID_INDEPENDENT_CONTROLLER_IDENTITY')
         parent=sock.parent.lstat()
         mode=stat.S_IMODE(parent.st_mode)

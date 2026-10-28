@@ -6,7 +6,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-import pytest
 from tools import build_portable_bundle as builder
 
 
@@ -27,7 +26,6 @@ def test_init_rejects_missing_independent_notary_key(tmp_path):
     assert "EVALUATION_GATEWAY_EVIDENCE_PUBLIC_KEY_B64" in text
 
 
-@pytest.mark.skipif(os.geteuid()==0,reason="generated init intentionally refuses root")
 def test_generated_init_uses_external_notary_root_and_no_private_key(tmp_path):
     script=tmp_path/"init.sh"
     script.write_text(generated_script("installer"))

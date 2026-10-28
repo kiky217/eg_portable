@@ -26,6 +26,7 @@ active trusted RPC transport, original READY PRE and signed POST. Without these,
 - Install or extract the Linux/amd64 offline artifact from the single eg/
   source tree. No auxiliary `portable/bin` scripts are required.
 - The portable gateway accepts an authorized root or non-root host identity.
+  The bundled generic worker also accepts either root or non-root. Do not reject a legitimate host UID by itself; verify the actual signer custody, scoped worker permissions, PRE and signed POST separately. If the gateway controls a root-owned worker and its key, independent signer isolation is not proven by that deployment.
   Use durable external `EG_STATE_DIR`, protected credentials, notary and
   executor public roots. Root access to a host does **not** prove signing-key
   independence; keep private signing keys outside the agent's control.
