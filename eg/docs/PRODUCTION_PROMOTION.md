@@ -25,7 +25,7 @@ that any previous Colab deployment is available or current.
 
 A production deployment separately needs a trusted executor with independently
 protected Ed25519 private key, distinct notary root, valid PRE/POST receipts,
-durable backed-up SQLite and anchor, an operator-selected root or non-root host identity, and verified health/audit. Host root access does not itself establish independent signing authority.
+durable backed-up SQLite and anchor, an operator-selected root or non-root host identity, and verified health/audit. Host root access does not itself establish independent signing authority. Root and non-root EG can operate concurrently only with isolated writable ledgers, ports and trust configurations.
 Unsupported capabilities remain fail-closed. A GitHub release never implies
 a live server is deployed or a historic task is retrospectively VERIFIED.
 
