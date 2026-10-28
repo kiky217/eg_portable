@@ -25,7 +25,7 @@ Apply to **every** task governed by Evaluation Gateway. Read this file before at
 ## Live capability discovery (current runtime)
 Before any physical action, check the authenticated gateway's available operations and current step. Configuration or discovery does not grant execution permission; only a valid PRE for the exact supported operation does. This installation provides bounded file reading, creation and verified replacement. Do not use an external command as a substitute for an unavailable operation.
 
-Report capabilities by their generic action and adapter identity, never by internal authorization-class labels or project-specific names. Historical signed class fields are verification metadata, not user-facing capability names.
+Report capabilities by their generic action and adapter identity, never by internal authorization-class labels or project-specific names. Historical signed class fields are verification metadata, not user-facing capability names. A configured output directory that no longer exists must be reported unavailable, not advertised as an admitted worker. Discovery is never a substitute for a real PRE and signed receipt.
 
 ## Select capability before claiming a step
 - Distinguish logical evaluation from an actual physical effect; never relabel the immutable task contract.
