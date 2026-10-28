@@ -4,7 +4,7 @@ Evaluation Gateway (EG) is a portable, provider-neutral controller for tasks. It
 
 ## Canonical installation
 
-Install one gateway, one durable task and audit state, and the bundled trusted file worker. The active physical operations are **bounded reads, exclusive file creation and SHA-256-bound replacement** within the configured worker directory. No external process catalog or separate per-project worker is installed.
+Install one gateway, one durable task and audit state, and the bundled trusted file worker. The active physical operations are **bounded reads, exclusive file creation and SHA-256-bound replacement** within the configured worker directory. No external process catalog or separate per-project worker is installed. An optional reusable [bounded process worker](GENERIC_PROCESS_WORKER.md) can be provisioned using operator-signed fixed profiles; it is not automatically enabled.
 
 See [the operational SKILL](../../SKILL.md) and [the portable runbook](PORTABLE_RUNBOOK.md).
 

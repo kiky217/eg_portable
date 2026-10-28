@@ -20,6 +20,8 @@ With an already initialized state, set `EG_BUNDLE` to the extracted, versioned b
 ## Read-only capability health
 Check the authenticated gateway health, audit, task state and currently admitted actions. A listed capability is not execution authorization.
 
+Optional process execution is described in the [generic bounded process worker](GENERIC_PROCESS_WORKER.md) guide. Independent operator binding, HITL and signed POST are mandatory; installation does not auto-activate a signer.
+
 ## Host identity neutrality
 
 The portable gateway and its bundled generic file worker each support authorized root or non-root host accounts. The runtime identity does not itself grant execution or prove signer independence; a root-controlled worker requires separate evidence of key custody and authorization. Keep durable state outside the source with private permissions. Registration, PRE, signed receipt, POST and independent verification are required regardless of environment.
