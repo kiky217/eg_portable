@@ -43,7 +43,7 @@ def test_one_agent_run_task_performs_once_and_verifies_actual_file(monkeypatch):
             assert target.read_bytes()==raw
             ref=H.step_ref(task,'POST_EXECUTION',pre['gate_checkpoint_no'])
             return {'event_id':H.eid('post'),'claims':[H.claim(ref)]}
-        action=H.e2_action(task,0,target=str(target),payload=raw)
+        action=H.bounded_write_action(task,0,target=str(target),payload=raw)
         yield {'step_key':'01.01','action':action,'data_b64':base64.b64encode(raw).decode(),
                'pre_request':pre_request,'post_evidence':post_evidence}
     def dispatch_once(request):
