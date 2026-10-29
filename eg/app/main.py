@@ -1656,7 +1656,7 @@ def high_effect_capability(action: Action) -> AdapterCapability | None:
     # The sole repository adapter is in-process and CI-only. A production
     # provisioned transport must provide independent authenticated liveness
     # before this can be enabled for real external effects (see Issue #26).
-    if action.effect_class not in ("governed_operation","external_change","publication"):
+    if action.action_type in ("read", "write", "replace"):
         return None
     external = (not HIGH_EFFECT_CI_FIXTURE_ENABLED and
                 EXTERNAL_ADAPTER_MODE=="enabled" and ADMISSION_MODE=="enabled")
@@ -1728,7 +1728,7 @@ def external_route(cap: AdapterCapability, *, read_only=False) -> tuple[int,str]
 
 def worker_capability(action: Action) -> tuple[bool,str]:
     """Bounded capabilities of independently provisioned workers/adapters."""
-    if action.effect_class in ("governed_operation","external_change","publication"):
+    if action.action_type not in ("read", "write", "replace"):
         cap=high_effect_capability(action)
         if cap is None:
             return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
@@ -1768,7 +1768,7 @@ def _require_action_admission(action: Action | None, phase: str) -> None:
     if phase=="PRE_EXECUTION":
         ok,reason=worker_capability(action)
         if not ok:raise HTTPException(409,{"code":reason})
-        if action.effect_class in ("bounded_change","governed_operation","external_change","publication") and (
+        if action.action_type != "read" and (
             action.payload_sha256 is None or action.payload_bytes is None):
             raise HTTPException(409,{"code":"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"})
 
@@ -1995,7 +1995,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         if req.phase == "PRE_EXECUTION":
             if step_pass:
                 action_v, action_reason, action_rows = action_check(req.task_id, expected, req.action, req.checkpoint_no)
-                if action_v == Verdict.REQUIRES_HITL and req.action is not None and req.action.effect_class in ("governed_operation","external_change","publication"):
+                if action_v == Verdict.REQUIRES_HITL and req.action is not None and req.action.action_type not in ("read", "write", "replace"):
                     cap=high_effect_capability(req.action)
                     try:
                         if cap is None or not hitl_key_for(cap):
@@ -2173,11 +2173,11 @@ def reconcile_task(task_id: str, req: ReconcileRequest):
             raise HTTPException(409,{"code":"NO_UNCONSUMED_EXECUTION_GATE"})
         if not ct(gate["action_fingerprint"],action_fingerprint(req.action)):
             raise HTTPException(409,{"code":"RECONCILIATION_ACTION_MISMATCH"})
-        if req.action.effect_class in ("governed_operation","external_change","publication"):
+        if original_gate_has_adapter_pin(c,task_id,req.step_key,int(gate["pre_checkpoint_no"])):
             pin=pinned_high_effect_gate(c,task_id,req.step_key,int(gate["pre_checkpoint_no"]),req.action)
             expected_key=pin["public_key_b64"]
             expected_executor="trusted-worker-"+pin["adapter_id"]
-        elif req.action.action_type=="write" and req.action.effect_class=="bounded_change":
+        elif req.action.action_type=="write":
             expected_key=EXECUTOR_PUBLIC_KEY_B64
             expected_executor=None
         else:
