@@ -1,4 +1,4 @@
-"""Bounded E2 edits: exact preimage, one physical effect, signed POST, no replay."""
+"""Bounded bounded_change edits: exact preimage, one physical effect, signed POST, no replay."""
 import base64, hashlib
 from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,NoEncryption
 import pytest
@@ -8,7 +8,7 @@ from tools import trusted_execution_worker as worker
 
 
 def _action(task, target, old, new):
-    base={"action_type":"replace","effect_class":"E2","reversible":True,
+    base={"action_type":"replace","effect_class":"bounded_change","reversible":True,
           "real_world_effect":False,"target":str(target),
           "previous_sha256":hashlib.sha256(old).hexdigest(),
           "payload_sha256":hashlib.sha256(new).hexdigest(),"payload_bytes":len(new)}
