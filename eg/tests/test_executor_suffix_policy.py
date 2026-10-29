@@ -12,7 +12,7 @@ def test_default_is_backward_compatible():
 def test_generic_source_extensions_are_operator_opt_in(monkeypatch):
     monkeypatch.setenv("EVALUATION_GATEWAY_EXECUTOR_ALLOWED_SUFFIXES", ".txt,.json,.py,.rs,.toml")
     target = os.path.join(gw.EXECUTOR_OUTPUT_ROOT, "scanner.py")
-    a = gw.Action(action_type="write", target=target, effect_class="E2",
+    a = gw.Action(action_type="write", target=target, effect_class="bounded_change",
                   reversible=True, real_world_effect=False,
                   payload_sha256="a"*64, payload_bytes=5)
     assert gw.worker_capability(a)[0]
