@@ -2,7 +2,7 @@
 import time,secrets
 import pytest
 import harness as H
-from harness import gw,CLIENT,HEAD,register,do_pre,do_post,e2_action,claim,step_ref,raw_eval
+from harness import gw,CLIENT,HEAD,register,do_pre,do_post,bounded_write_action,claim,step_ref,raw_eval
 from app.execution_receipts import body,sign,verify
 
 def receipt(task,pre,action,key='01.01',signer=None,offset_ns=0,target=None):
@@ -20,7 +20,7 @@ def post_req(task,ch,pre,action,extra=None):
         phase='POST_EXECUTION',action=action,**(extra or {}))
 
 def test_mutating_post_without_receipt_rejected_even_with_signed_evidence():
-    task,ch=register(physical=True);action=e2_action(task,0)
+    task,ch=register(physical=True);action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     r=post_req(task,ch,pre,action)
     assert r.status_code==409
@@ -30,7 +30,7 @@ def test_mutating_post_without_receipt_rejected_even_with_signed_evidence():
     assert state['pending_execution_gate']
 
 def test_notary_key_cannot_impersonate_execution_worker():
-    task,ch=register(physical=True);action=e2_action(task,0)
+    task,ch=register(physical=True);action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action);j=pre.json()
     forged=receipt(task,j,action,signer=H.PRIV)
     r=post_req(task,ch,pre,action,{'execution_receipt':forged})
@@ -38,7 +38,7 @@ def test_notary_key_cannot_impersonate_execution_worker():
     assert r.json()['detail']['code']=='EXECUTION_RECEIPT_INVALID_SIGNATURE'
 
 def test_cross_step_and_action_bound_and_gate_nonce():
-    task,ch=register(physical=True);action=e2_action(task,0)
+    task,ch=register(physical=True);action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action);j=pre.json()
     foreign=receipt(task,j,action,key='01.02')
     r=post_req(task,ch,pre,action,{'execution_receipt':foreign})
@@ -49,7 +49,7 @@ def test_cross_step_and_action_bound_and_gate_nonce():
     assert r.status_code==409
 
 def test_prior_timestamp_rejected_without_consuming_gate():
-    task,ch=register(physical=True);action=e2_action(task,0)
+    task,ch=register(physical=True);action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action);j=pre.json()
     old=receipt(task,j,action,offset_ns=-int(5e9))
     r=post_req(task,ch,pre,action,{'execution_receipt':old})
@@ -61,7 +61,7 @@ def test_prior_timestamp_rejected_without_consuming_gate():
     assert CLIENT.get('/v1/audit/verify',headers=HEAD).json()['status']=='PASS'
 
 def test_future_timestamp_and_tampered_output_denied():
-    task,ch=register(physical=True);action=e2_action(task,0)
+    task,ch=register(physical=True);action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action);j=pre.json()
     future=receipt(task,j,action,offset_ns=int(65e9))
     x=post_req(task,ch,pre,action,{'execution_receipt':future})
