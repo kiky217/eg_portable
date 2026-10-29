@@ -95,10 +95,10 @@ def test_new_logical_high_effect_cannot_get_actionable_pre(monkeypatch):
     task,ch=register()
     human=Ed25519PrivateKey.generate()
     key=base64.b64encode(human.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
-    action={"action_type":"sandbox_cutover","effect_class":"E3","target":"/sandbox/fixture.json",
+    action={"action_type":"sandbox_cutover","effect_class":"governed_operation","target":"/sandbox/fixture.json",
             "reversible":True,"real_world_effect":True,"payload_sha256":hashlib.sha256(b"{}").hexdigest(),
             "payload_bytes":2,"proofs":[]}
-    cap={"adapter_id":"trusted-adapter-fixture","action_type":"sandbox_cutover","effect_class":"E3",
+    cap={"adapter_id":"trusted-adapter-fixture","action_type":"sandbox_cutover","effect_class":"governed_operation",
         "target_prefix":"/sandbox/","maximum_payload_bytes":524288,
         "isolated":True,"public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64}
     monkeypatch.setattr(gw,"HIGH_EFFECT_CI_FIXTURE_ENABLED",True)
@@ -116,10 +116,10 @@ def test_new_logical_high_effect_cannot_get_actionable_pre(monkeypatch):
 
 def test_immutable_logical_step_denies_e0_and_e2_concrete_pre():
     import harness as H
-    for klass in ("E0","E2"):
+    for klass in ("observation","bounded_change"):
         task,ch=H.register()
-        if klass=="E0":
-            action={"action_type":"read","effect_class":"E0",
+        if klass=="observation":
+            action={"action_type":"read","effect_class":"observation",
                 "target":str(H.WORKER_OUTPUT/"logical-read.txt"),"reversible":False,
                 "real_world_effect":False,"proofs":[]}
         else:
