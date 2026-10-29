@@ -46,7 +46,7 @@ def test_match_respects_type_scope_and_admission(monkeypatch):
     assert not disabled["candidates"]
 
 def test_bad_query_rejected():
-    response=CLIENT.get(URL,params={"effect_class":"unsupported_scope","action_type":"operate","target":"/a"},headers=HEAD)
+    response=CLIENT.get(URL,params={"effect_class":"invalid scope","action_type":"operate","target":"/a"},headers=HEAD)
     assert response.status_code==422
 
 
