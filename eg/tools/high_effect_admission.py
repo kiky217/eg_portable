@@ -53,7 +53,7 @@ class AdapterCapability:
             or type(self.ci_only) is not bool
             or (self.ci_only is False and not allow_external) or
             not isinstance(self.adapter_id,str) or not self.adapter_id.startswith("trusted-adapter-") or
-            self.effect_class in ("observation","bounded_change") or
+            not isinstance(self.effect_class,str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{0,127}",self.effect_class) or self.effect_class in ("observation","bounded_change") or
             not isinstance(self.action_type,str) or not self.action_type or
             not isinstance(self.target_prefix,str) or not self.target_prefix.startswith("/") or
             type(self.maximum_payload_bytes) is not int or not 0 < self.maximum_payload_bytes <= 512*1024 or
@@ -73,7 +73,7 @@ def admit_high_effect(*, action: dict, capability: AdapterCapability | None,
                       hitl_public_key_b64: str | None = None,
                       allow_external: bool = False) -> dict:
     """Fail-closed admission policy, not authorization to execute from an agent."""
-    if not isinstance(action,dict) or action.get("effect_class") in ("observation","bounded_change"):
+    if not isinstance(action,dict) or not isinstance(action.get("effect_class"),str) or action.get("effect_class") in ("observation","bounded_change"):
         raise AdmissionDenied("NOT_A_HIGH_EFFECT_ACTION")
     if capability is None:
         raise AdmissionDenied("HIGH_EFFECT_ADAPTER_UNAVAILABLE")
