@@ -142,5 +142,4 @@ def test_no_numbered_effect_class_identifiers_in_active_repo():
         if path.name in ("requirements.lock",):
             continue
         content = path.read_text(encoding="utf-8")
-        assert not re.search(r"\bE[0-9]\b", content), path
-        assert not re.search(r"\be[0-9]_action\b", content), path
+        assert not re.search(r"\be[0-9]{1,2}(?=\b|[_-])", content, re.IGNORECASE), path
