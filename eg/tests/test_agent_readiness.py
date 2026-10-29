@@ -17,11 +17,11 @@ def test_plain_cli_uses_operation_name_not_legacy_effect_code(monkeypatch, capsy
     assert _MODULE.main(["--action", "write", "--json"]) == 2
     data = json.loads(capsys.readouterr().out)
     assert data["operation"] == "write" and "effect" not in data
-    assert "E2" not in json.dumps(data)
+    assert "bounded_change" not in json.dumps(data)
 
 
 def test_disabled_rejects_even_with_key():
-    report = diagnose("E2", "write", {
+    report = diagnose("bounded_change", "write", {
         "EVALUATION_GATEWAY_ADMISSION_MODE": "disabled",
         "EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64": "public-not-secret",
         "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT": "/protected",
@@ -32,7 +32,7 @@ def test_disabled_rejects_even_with_key():
 
 
 def test_enabled_not_equal_live_ready():
-    report = diagnose("E2", "write", {
+    report = diagnose("bounded_change", "write", {
         "EVALUATION_GATEWAY_ADMISSION_MODE": "enabled",
         "EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64": "public-not-secret",
         "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT": "/protected",
@@ -43,23 +43,23 @@ def test_enabled_not_equal_live_ready():
 
 def test_unprovisioned_source_and_shell_and_github():
     env = {"EVALUATION_GATEWAY_ADMISSION_MODE": "enabled"}
-    for effect, action in [("E2", "edit_rust"), ("E2", "cargo_build"),
-                           ("E3", "service_control"), ("E5", "git_push")]:
+    for effect, action in [("bounded_change", "edit_rust"), ("bounded_change", "cargo_build"),
+                           ("governed_operation", "service_control"), ("publication", "git_push")]:
         report = diagnose(effect, action, env)
         assert "CAPABILITY_NOT_DISCOVERED" in report["reasons"]
         assert report["preflight"] == "NOT_ADMITTED"
 
 
 def test_invalid_mode_fails_closed():
-    assert "INVALID_ADMISSION_MODE" in diagnose("E0", "read", {
+    assert "INVALID_ADMISSION_MODE" in diagnose("observation", "read", {
         "EVALUATION_GATEWAY_ADMISSION_MODE": "maybe"
     })["reasons"]
 
 
 def test_external_adapter_never_requires_unrelated_builtin_e2_key():
     from tools.capability_catalog import parse_catalog
-    raw = '{"schema_version":1,"capabilities":[{"id":"build.worker","effect_class":"E3","action_type":"bounded_process_run","adapter_id":"trusted-adapter-build"}]}'
-    report = diagnose("E3", "bounded_process_run",
+    raw = '{"schema_version":1,"capabilities":[{"id":"build.worker","effect_class":"governed_operation","action_type":"bounded_process_run","adapter_id":"trusted-adapter-build"}]}'
+    report = diagnose("governed_operation", "bounded_process_run",
                       {"EVALUATION_GATEWAY_ADMISSION_MODE": "enabled"},
                       parse_catalog(raw))
     assert "EXTERNAL_CAPABILITY_UNVERIFIED" in report["reasons"]
@@ -69,7 +69,7 @@ def test_external_adapter_never_requires_unrelated_builtin_e2_key():
 
 
 def test_builtin_e2_still_requires_executor_signer():
-    report = diagnose("E2", "write",
+    report = diagnose("bounded_change", "write",
                       {"EVALUATION_GATEWAY_ADMISSION_MODE": "enabled",
                        "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT": "/bounded"})
     assert "EXECUTOR_PUBLIC_KEY_NOT_CONFIGURED" in report["reasons"]
@@ -86,7 +86,7 @@ def test_valid_e3_only_runtime_without_unrelated_e2_signer(monkeypatch):
         raw = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         return base64.b64encode(raw).decode()
     capability = {"adapter_id": "trusted-adapter-e3-only",
-        "action_type": "bounded_process_run", "effect_class": "E3",
+        "action_type": "bounded_process_run", "effect_class": "governed_operation",
         "target_prefix": "/tasks/e3-only/", "maximum_payload_bytes": 4096,
         "isolated": True, "public_key_b64": fresh_root(), "ci_only": False}
     monkeypatch.setattr(gw, "EXTERNAL_ADAPTER_MODE", "enabled")
@@ -110,7 +110,7 @@ def test_valid_e3_only_runtime_without_unrelated_e2_signer(monkeypatch):
     assert len(available) == 1
     assert all(x["status"] == "UNAVAILABLE" for x in response.json()["capabilities"][:3])
     assert response.json()["admission_mode"] == "enabled"
-    # Enabling bundled E2 additionally needs its own separate public signing key.
+    # Enabling bundled bounded_change additionally needs its own separate public signing key.
     monkeypatch.setattr(gw, "EXECUTOR_OUTPUT_ROOT", str(H.WORKER_OUTPUT))
     import pytest
     with pytest.raises(RuntimeError, match="independent executor public key missing"):
