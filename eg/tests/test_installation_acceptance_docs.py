@@ -11,5 +11,5 @@ def test_canonical_guides_require_ordered_verification(name):
     first = document[:3500].lower()
     for phrase in ('register','pre','post','verified','staging'):
         assert phrase in first, (name,phrase)
-    assert 'e3/e4/e5 process catalog workers' not in first
-    assert 'inventory **e0, e2, e3, e4, and e5**' not in first
+    assert 'numbered process catalog workers' not in first
+    assert 'inventory **numbered classes**' not in first
