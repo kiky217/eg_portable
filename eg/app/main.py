@@ -1541,7 +1541,7 @@ def agent_capability_match(action_type: str, target: str, effect_class: str | No
     """Read-only operation/scope matching. Never grants capability or PRE."""
     if effect_class is None:
         effect_class = {"read": "observation", "write": "bounded_change", "replace": "bounded_change"}.get(action_type)
-    if (effect_class not in ("observation","bounded_change","governed_operation","external_change","publication")
+    if (not isinstance(effect_class,str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{0,127}",effect_class)
         or not action_type or len(action_type)>128
         or not target.startswith("/") or len(target)>1024):
         raise HTTPException(422, {"code":"INVALID_CAPABILITY_QUERY"})
