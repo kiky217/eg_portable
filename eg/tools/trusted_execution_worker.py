@@ -117,7 +117,7 @@ class TrustedWriter:
             task=request["task_id"]; step=request["step_key"]; action=request["action"]
             if not isinstance(task,str) or not isinstance(step,str) or not isinstance(action,dict):
                 raise WorkerDenied("INVALID_RECONCILIATION_FIELDS")
-            if len(task)>127 or len(step)>18 or action.get("action_type") not in ("write","replace") or action.get("effect_class")!="bounded_change":
+            if len(task)>127 or len(step)>18 or action.get("action_type") not in ("write","replace") or not isinstance(action.get("effect_class"),str):
                 raise WorkerDenied("NO_EFFECT_PROOF_REQUIRES_BOUNDED_WRITE")
             try:
                 target=self.bounded_target(action.get("target",""))
