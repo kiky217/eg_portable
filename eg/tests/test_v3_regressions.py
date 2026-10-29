@@ -3,7 +3,7 @@ import json, os, shutil, subprocess, sys, threading, time
 import pytest
 from fastapi.testclient import TestClient
 import harness as H
-from harness import gw, CLIENT, SOFT, HEAD, HITL, RUNTIME, CRIT, eid, claim, evp, manual, notarized, register, raw_eval, step_ref, task_ref, task_claim, do_pre, do_post, e3_action, induce_three_failures, register_remedial, complete_remedial, sb
+from harness import gw, CLIENT, SOFT, HEAD, HITL, RUNTIME, CRIT, eid, claim, evp, manual, notarized, register, raw_eval, step_ref, task_ref, task_claim, do_pre, do_post, governed_action, induce_three_failures, register_remedial, complete_remedial, sb
 
 ROOT = H.ROOT
 
@@ -153,7 +153,7 @@ def test_b4_non_ascii_secrets_and_hashes_never_cause_500():
     body = {'event_id': eid('r'), 'task_id': eid('t'), 'protocol_hash': 'é', 'agent': 'a', 'original_instruction': 'x', 'acceptance_criteria': ['g'], 'steps': [{'step_key': '01', 'title': 'p', 'acceptance_criteria': ['c'],"execution_required":False}, {'step_key': '01.01', 'title': 'c', 'acceptance_criteria': ['c'],"execution_required":False}]}
     assert SOFT.post('/v1/tasks/register', headers=HEAD, json=body).status_code == 422
     task, ch = register(); ref = step_ref(task, 'PRE_EXECUTION', 0)
-    r = SOFT.post('/v1/evaluate', headers={**HEAD, 'X-Evaluation-HITL-Key': 'é'.encode('latin-1')}, json={'event_id': eid('e'), 'task_id': task, 'contract_hash': ch, 'protocol_hash': gw.protocol_hash(), 'checkpoint_no': 0, 'step_key': '01.01', 'agent': 'ChatGPT', 'phase': 'PRE_EXECUTION', 'claims': [claim(ref)], 'action': e3_action()})
+    r = SOFT.post('/v1/evaluate', headers={**HEAD, 'X-Evaluation-HITL-Key': 'é'.encode('latin-1')}, json={'event_id': eid('e'), 'task_id': task, 'contract_hash': ch, 'protocol_hash': gw.protocol_hash(), 'checkpoint_no': 0, 'step_key': '01.01', 'agent': 'ChatGPT', 'phase': 'PRE_EXECUTION', 'claims': [claim(ref)], 'action': governed_action()})
     assert r.status_code == 409 and r.json()['detail']['code'] == 'UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
@@ -207,7 +207,7 @@ def test_b6_failed_post_retries_on_same_gate_without_new_pre():
 
 
 def test_b6_hitl_does_not_create_an_E3_adapter():
-    task,ch=register();act=e3_action()
+    task,ch=register();act=governed_action()
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act,headers=HITL)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 

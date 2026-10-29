@@ -41,7 +41,7 @@ def test_disabled_admission_refuses_all_concrete_actions(monkeypatch):
     monkeypatch.setattr(gw,'EXECUTOR_PUBLIC_KEY_B64','')
     gw.require_config()
     action={'action_type':'read','target':'bounded-test.txt',
-            'effect_class':'E0','reversible':False,'real_world_effect':False,'proofs':[]}
+            'effect_class':'observation','reversible':False,'real_world_effect':False,'proofs':[]}
     ref=step_ref(task,'PRE_EXECUTION',0)
     response=raw_eval(task,ch,0,claims=[claim(ref)],action=action)
     assert response.status_code==409

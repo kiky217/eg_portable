@@ -1,11 +1,11 @@
 """Issue #5: physical gates cannot be superseded without reconciliation."""
-from harness import CLIENT,HEAD,register,do_pre,do_post,e2_action,claim,step_ref,raw_eval
+from harness import CLIENT,HEAD,register,do_pre,do_post,bounded_write_action,claim,step_ref,raw_eval
 from test_vnext_suspend import req as suspend
 
 
 def test_concrete_pre_cannot_replace_original_unconsumed_gate():
     task,ch=register(physical=True)
-    action=e2_action(task,0)
+    action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
     replacement=raw_eval(task,ch,1,
@@ -21,7 +21,7 @@ def test_concrete_pre_cannot_replace_original_unconsumed_gate():
 
 def test_failed_post_keeps_recovery_pending_until_same_gate_verified():
     task,ch=register(physical=True)
-    action=e2_action(task,0)
+    action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     assert suspend(task,ch,1,"pause").status_code==200
     resumed=suspend(task,ch,1,"resume")

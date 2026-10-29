@@ -121,9 +121,9 @@ def main():
     check("terminal state -> STOP", c.h.get(f"/v1/tasks/{task}/state", headers=HEAD).json()["next_action"] == "STOP")
     # HITL + abort
     t2 = f"t-{time.time_ns()}"; ch2 = c.reg(t2)
-    e3 = {"action_type": "external_change", "target": "x", "effect_class": "E3", "reversible": True, "real_world_effect": False, "proofs": []}
+    e3 = {"action_type": "external_change", "target": "x", "effect_class": "governed_operation", "reversible": True, "real_world_effect": False, "proofs": []}
     r_ref = notarize([sb(t2, "01.01", 0, crit, "PRE_EXECUTION", 0)]); p = c.ev(t2, ch2, 0, "01.01", [cl(r_ref, 0, crit)], "PRE_EXECUTION", action=e3)
-    check("unprovisioned E3 -> capability fail-closed 409", p.status_code == 409 and p.json().get("detail", {}).get("code") == "UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED")
+    check("unprovisioned governed_operation -> capability fail-closed 409", p.status_code == 409 and p.json().get("detail", {}).get("code") == "UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED")
     ab = {"event_id": f"a-{time.time_ns()}", "contract_hash": ch2, "protocol_hash": c.h.get("/v1/protocol", headers=HEAD).json()["hash"], "checkpoint_no": 0, "reason": "e2e abort"}
     check("abort without HITL key -> 403", c.h.post(f"/v1/tasks/{t2}/abort", headers=HEAD, json=ab).status_code == 403)
     check("abort with HITL key -> ABORTED", c.h.post(f"/v1/tasks/{t2}/abort", headers=HITL, json=ab).json().get("contract_status") == "ABORTED")

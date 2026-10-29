@@ -129,3 +129,18 @@ def test_portable_host_identity_is_not_restricted_to_one_uid():
                      ROOT/"eg/docs/OPERATIONS.md", ROOT/"eg/docs/PORTABLE_RUNBOOK.md"):
         assert "concurrent" in document.read_text(encoding="utf-8").lower(), document
     assert "same database" in (ROOT/"eg/docs/PORTABLE_RUNBOOK.md").read_text()
+
+
+def test_no_numbered_effect_class_identifiers_in_active_repo():
+    """Capabilities are described by their operations, not ordinal codes."""
+    import re
+    for path in ROOT.rglob("*"):
+        if not path.is_file() or ".git" in path.parts:
+            continue
+        if path.suffix not in (".py", ".md", ".yml", ".yaml", ".toml", ".json", ".sh"):
+            continue
+        if path.name in ("requirements.lock",):
+            continue
+        content = path.read_text(encoding="utf-8")
+        assert not re.search(r"\bE[0-9]\b", content), path
+        assert not re.search(r"\be[0-9]_action\b", content), path

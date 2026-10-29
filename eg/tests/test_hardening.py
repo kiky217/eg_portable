@@ -2,7 +2,7 @@
 import asyncio, json, shutil, sqlite3, stat
 import pytest
 import harness as H
-from harness import gw, CLIENT, HEAD, HITL, RUNTIME, CRIT, eid, claim, evp, manual, notarized, register, raw_eval, step_ref, task_claim, do_pre, do_post, e2_action, e3_action, finish_normal, induce_three_failures, register_remedial, complete_remedial, sb, tb
+from harness import gw, CLIENT, HEAD, HITL, RUNTIME, CRIT, eid, claim, evp, manual, notarized, register, raw_eval, step_ref, task_claim, do_pre, do_post, bounded_write_action, governed_action, finish_normal, induce_three_failures, register_remedial, complete_remedial, sb, tb
 
 
 def test_01_health_minimal_and_audit_verify_detailed():
@@ -85,32 +85,32 @@ def test_15_finalize_before_all_steps_blocked_and_post_rolled_back():
 def test_16_e2_without_proofs_blocked():
     task,ch=register(physical=True)
     action={'action_type':'write','target':str(H.WORKER_OUTPUT/'without-proof.txt'),
-            'effect_class':'E2','reversible':True,'real_world_effect':False,
+            'effect_class':'bounded_change','reversible':True,'real_world_effect':False,
             'payload_sha256':'a'*64,'payload_bytes':1,'proofs':[]}
     r,_=do_pre(task,ch,0,action=action)
     assert r.json()['verdict']=='UNVERIFIED'
 
 
 def test_17_e2_with_action_bound_notarized_proofs_ready_and_post_passes():
-    task, ch = register(physical=True); action = e2_action(task, 0)
+    task, ch = register(physical=True); action = bounded_write_action(task, 0)
     pre, _ = do_pre(task, ch, 0, action=action); assert pre.json()['verdict'] == 'READY_TO_EXECUTE', pre.text
     post, _ = do_post(task, ch, pre, action=action); assert post.status_code == 200 and post.json()['verdict'] == 'VERIFIED_PASS'
 
 
 def test_18_action_mutation_between_pre_and_post_blocked():
-    task, ch = register(physical=True); action = e2_action(task, 0, target='target-a')
+    task, ch = register(physical=True); action = bounded_write_action(task, 0, target='target-a')
     pre, _ = do_pre(task, ch, 0, action=action); assert pre.json()['verdict'] == 'READY_TO_EXECUTE'
     post, _ = do_post(task, ch, pre, action={**action, 'target': 'target-b'}); assert post.status_code == 409 and post.json()['detail']['code'] == 'ACTION_FINGERPRINT_MISMATCH'
 
 
 def test_19_e3_without_registered_adapter_refused():
-    task,ch=register();act=e3_action()
+    task,ch=register();act=governed_action()
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
 
 def test_20_hitl_not_a_missing_executor_adapter():
-    task,ch=register();act=e3_action()
+    task,ch=register();act=governed_action()
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act,headers=HITL)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
 
@@ -123,7 +123,7 @@ def test_21_hitl_key_must_differ_from_api_key(monkeypatch):
 
 def test_22_real_world_e2_not_supported_by_bounded_worker():
     task,ch=register()
-    action={'action_type':'write','target':str(H.WORKER_OUTPUT/'real.txt'),'effect_class':'E2','reversible':True,'real_world_effect':True,
+    action={'action_type':'write','target':str(H.WORKER_OUTPUT/'real.txt'),'effect_class':'bounded_change','reversible':True,'real_world_effect':True,
             'payload_sha256':'a'*64,'payload_bytes':1,'proofs':[]}
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=action,headers=HITL)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
@@ -229,7 +229,7 @@ def test_38_global_acceptance_criteria_are_mandatory_for_satisfaction():
 
 
 def test_39_e2_proofs_for_unrelated_action_are_rejected():
-    task, ch = register(physical=True); action = e2_action(task, 0, target='prod-db-primary', wrong_binding=True)
+    task, ch = register(physical=True); action = bounded_write_action(task, 0, target='prod-db-primary', wrong_binding=True)
     r, _ = do_pre(task, ch, 0, action=action); assert r.json()['verdict'] == 'UNVERIFIED' and 'binding' in r.json()['reason']
 
 
@@ -294,12 +294,12 @@ def test_46_fact_check_is_functional_and_read_only():
 
 
 def test_47_fact_check_rejects_mutating_fields():
-    task, ch = register(); ref = step_ref(task, 'FACT_CHECK', 0); r = raw_eval(task, ch, 0, claims=[claim(ref)], phase='FACT_CHECK', action=e3_action()); assert r.status_code == 409 and r.json()['detail']['code'] == 'FACT_CHECK_READ_ONLY'
+    task, ch = register(); ref = step_ref(task, 'FACT_CHECK', 0); r = raw_eval(task, ch, 0, claims=[claim(ref)], phase='FACT_CHECK', action=governed_action()); assert r.status_code == 409 and r.json()['detail']['code'] == 'FACT_CHECK_READ_ONLY'
 
 
 def test_48_duplicate_action_proof_purpose_rejected_by_schema():
     task, ch = register(); ref = step_ref(task, 'PRE_EXECUTION', 0); proof = notarized(eid('knid-task'), stdout='X', bindings=[{'kind': 'x'}])
-    action = {'action_type': 'write', 'target': 'x', 'effect_class': 'E2', 'reversible': True, 'proofs': [{'purpose': 'sandbox_pass', 'evidence': evp(proof)}, {'purpose': 'sandbox_pass', 'evidence': evp(proof)}]}
+    action = {'action_type': 'write', 'target': 'x', 'effect_class': 'bounded_change', 'reversible': True, 'proofs': [{'purpose': 'sandbox_pass', 'evidence': evp(proof)}, {'purpose': 'sandbox_pass', 'evidence': evp(proof)}]}
     assert raw_eval(task, ch, 0, claims=[claim(ref)], action=action).status_code == 422
 
 

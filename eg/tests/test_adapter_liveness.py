@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,
 
 from tools.adapter_liveness import ProbeDenied,attest,challenge,probe_unix,verify
 
-ADAPTER="trusted-adapter-e3-probe"
+ADAPTER="trusted-adapter-governed-probe"
 CAP="a"*64
 ACTION="b"*64
 

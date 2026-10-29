@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trusted, bounded E2 file writer for Evaluation Gateway.
+"""Trusted, bounded bounded_change file writer for Evaluation Gateway.
 
 Signer private key and output dir belong to a separate worker identity. The
 caller cannot request signatures or arbitrary commands, only an EG-preapproved
@@ -117,7 +117,7 @@ class TrustedWriter:
             task=request["task_id"]; step=request["step_key"]; action=request["action"]
             if not isinstance(task,str) or not isinstance(step,str) or not isinstance(action,dict):
                 raise WorkerDenied("INVALID_RECONCILIATION_FIELDS")
-            if len(task)>127 or len(step)>18 or action.get("action_type") not in ("write","replace") or action.get("effect_class")!="E2":
+            if len(task)>127 or len(step)>18 or action.get("action_type") not in ("write","replace") or not isinstance(action.get("effect_class"),str):
                 raise WorkerDenied("NO_EFFECT_PROOF_REQUIRES_BOUNDED_WRITE")
             try:
                 target=self.bounded_target(action.get("target",""))
@@ -196,9 +196,12 @@ class TrustedWriter:
         if len(request['data_b64'])>4*MAX_CONTENT//3+8:raise WorkerDenied('PAYLOAD_OVERSIZE')
         data=base64.b64decode(request['data_b64'],validate=True)
         is_replace=action.get("action_type")=="replace"
-        is_write=(action.get('action_type') in ('write','replace') and action.get('effect_class')=='E2'
+        # The original signed PRE binds the full action, including any archived scope.
+        is_write=(action.get('action_type') in ('write','replace')
+                  and isinstance(action.get('effect_class'),str)
                   and action.get('reversible') is True and action.get('real_world_effect') is False)
-        is_read=(action.get('action_type')=='read' and action.get('effect_class')=='E0'
+        is_read=(action.get('action_type')=='read'
+                 and isinstance(action.get('effect_class'),str)
                  and action.get('reversible') is False and action.get('real_world_effect') is False)
         if not (is_write or is_read):raise WorkerDenied('UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED')
         if is_write and not (0<len(data)<=MAX_CONTENT):

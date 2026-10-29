@@ -58,7 +58,7 @@ def ensure(bundle: Path, state: Path, port: int = 18766) -> dict:
         listed = {
             (item['adapter_id'], item['action_type'], item['effect_class'])
             for item in live.get('capabilities', [])
-            if item.get('effect_class') in ('E3', 'E4', 'E5')
+            if item.get('effect_class') in ('governed_operation', 'external_change', 'publication')
         }
         if (live.get('admission_mode') != config.get('EVALUATION_GATEWAY_ADMISSION_MODE', 'enabled')
                 or actual_caps != expected_caps

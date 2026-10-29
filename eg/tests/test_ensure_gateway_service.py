@@ -20,7 +20,7 @@ def sample_cap(public_key=None):
     if public_key is None:
         public_key = base64.b64encode(b'x'*32).decode()
     return {'adapter_id':'trusted-adapter-a','action_type':'bounded_process_run',
-            'effect_class':'E3','target_prefix':'/tasks/a/',
+            'effect_class':'governed_operation','target_prefix':'/tasks/a/',
             'maximum_payload_bytes':4096,'isolated':True,
             'public_key_b64':public_key,'ci_only':False}
 

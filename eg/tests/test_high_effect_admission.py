@@ -4,14 +4,14 @@ import base64
 from tools.high_effect_admission import (
     AdapterCapability,AdmissionDenied,admit_high_effect,action_fingerprint)
 
-ACTION={"action_type":"service_cutover","effect_class":"E3","target":"/sandbox/service",
+ACTION={"action_type":"service_cutover","effect_class":"governed_operation","target":"/sandbox/service",
         "payload_bytes":32,"reversible":True,"real_world_effect":True}
-CAP=AdapterCapability("trusted-adapter-sandbox","service_cutover","E3","/sandbox/",1024,True,base64.b64encode(b"r"*32).decode())
+CAP=AdapterCapability("trusted-adapter-sandbox","service_cutover","governed_operation","/sandbox/",1024,True,base64.b64encode(b"r"*32).decode())
 def approved(action=ACTION,**kwargs):
     return {"task_id":"t","step_key":"01.01","gate_checkpoint_no":1,
             "action_fingerprint":action_fingerprint(action),"adapter_id":CAP.adapter_id,
             "status":"APPROVED","consumed":False,"expires_at":2000,**kwargs}
-@pytest.mark.parametrize("effect",["E3","E4","E5"])
+@pytest.mark.parametrize("effect",["governed_operation","external_change","publication"])
 def test_absent_adapter_denied_for_all_high_effect_classes(effect):
     with pytest.raises(AdmissionDenied,match="UNAVAILABLE"):
         admit_high_effect(action={**ACTION,"effect_class":effect},capability=None,

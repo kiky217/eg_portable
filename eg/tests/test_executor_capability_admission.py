@@ -1,9 +1,9 @@
 """#8: only configured worker capabilities may authorize a new PRE gate."""
 import pytest
-from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,e2_action
+from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,bounded_write_action
 
 @pytest.mark.parametrize("action_type,effect",[
-    ("service_cutover","E3"),("delete","E2")])
+    ("service_cutover","governed_operation"),("delete","bounded_change")])
 def test_unsupported_action_rejected_without_checkpoint(action_type,effect):
     task,ch=register()
     a={"action_type":action_type,"target":"service","effect_class":effect,
@@ -15,7 +15,7 @@ def test_unsupported_action_rejected_without_checkpoint(action_type,effect):
 @pytest.mark.parametrize("target",["/tmp/bad.txt","relative.txt","/tmp/bad.sh"])
 def test_outside_worker_scope_rejected(target):
     task,ch=register()
-    a={"action_type":"read","target":target,"effect_class":"E0",
+    a={"action_type":"read","target":target,"effect_class":"observation",
        "reversible":False,"real_world_effect":False,"proofs":[]}
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_TARGET_OUTSIDE_PROVISIONED_BOUNDS"
@@ -23,7 +23,7 @@ def test_outside_worker_scope_rejected(target):
 @pytest.mark.parametrize("action_type", ["read", "write", "replace"])
 def test_canonical_action_can_omit_internal_class_without_changing_signed_payload(action_type):
     legacy={"action_type":action_type,"target":"workspace/example.txt",
-            "effect_class":("E0" if action_type=="read" else "E2"),
+            "effect_class":("observation" if action_type=="read" else "bounded_change"),
             "reversible":action_type!="read"}
     plain={k:v for k,v in legacy.items() if k!="effect_class"}
     assert gw.Action.model_validate(plain).model_dump(mode="json")==gw.Action.model_validate(legacy).model_dump(mode="json")
@@ -35,31 +35,34 @@ def test_unknown_action_without_class_is_rejected():
         gw.Action.model_validate({"action_type":"service_control","target":"server"})
 
 
-def test_e1_unimplemented_class_rejected_at_action_schema():
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        gw.Action.model_validate({"action_type":"shell","target":"/tasks/example",
-                                  "effect_class":"E1"})
+def test_unknown_scope_requires_provisioned_capability():
+    action = gw.Action.model_validate({
+        "action_type": "shell", "target": "/tasks/example",
+        "effect_class": "undefined_scope",
+    })
+    supported, reason = gw.worker_capability(action)
+    assert supported is False
+    assert reason == "UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
 
 
 def test_supported_write_can_ready_and_capabilities_advertised():
     task,ch=register(physical=True)
-    a=e2_action(task,0)
+    a=bounded_write_action(task,0)
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==200 and r.json()["verdict"]=="READY_TO_EXECUTE"
     p=CLIENT.get("/v1/protocol",headers=HEAD).json()
-    assert {(c["action_type"],c["effect_class"]) for c in p["executor_capabilities"]}=={("read","E0"),("write","E2"),("replace","E2")}
+    assert {(c["action_type"],c["effect_class"]) for c in p["executor_capabilities"]}=={("read","observation"),("write","bounded_change"),("replace","bounded_change")}
     assert p["executor_target_root_provisioned"]
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
 
 def test_missing_worker_configuration_rejects_new_pre(monkeypatch):
     task,ch=register()
-    a=e2_action(task,0)
+    a=bounded_write_action(task,0)
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT","")
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
 
-@pytest.mark.parametrize("effect",["E3","E4","E5"])
+@pytest.mark.parametrize("effect",["governed_operation","external_change","publication"])
 def test_hitl_approval_alone_cannot_admit_unsupported_effect(effect):
     """Hybrid HITL must never convert absent executor capability into READY."""
     task,ch=register()

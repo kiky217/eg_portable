@@ -16,11 +16,11 @@ def test_authenticated_live_adapter_discovery(monkeypatch):
     def fake_open(request, timeout):
         reqs.append(request)
         return _Response({"admission_mode":"enabled","catalog_valid":True,
-            "capabilities":[{"id":"registered.scanner","effect_class":"E3",
+            "capabilities":[{"id":"registered.scanner","effect_class":"governed_operation",
                 "action_type":"scan","adapter_id":"trusted-adapter-scan",
                 "status":"EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"}]})
     monkeypatch.setattr(readiness,"urlopen",fake_open)
-    report=readiness.diagnose_live("E3","scan",url="https://eg.example",api_key="hidden")
+    report=readiness.diagnose_live("governed_operation","scan",url="https://eg.example",api_key="hidden")
     assert report["registered_count"]==1
     assert report["preflight"]=="REQUIRES_LIVE_PRE" and report["live_verified"] is False
     assert reqs[0].get_header("X-evaluation-key")=="hidden"
@@ -31,19 +31,19 @@ def test_authenticated_live_adapter_discovery(monkeypatch):
 def test_untrusted_discovery_url_denied(monkeypatch,url):
     monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:pytest.fail("network"))
     with pytest.raises(ValueError,match="UNTRUSTED_EG_DISCOVERY_URL"):
-        readiness.diagnose_live("E3","scan",url=url,api_key="hidden")
+        readiness.diagnose_live("governed_operation","scan",url=url,api_key="hidden")
 
 
 @pytest.mark.parametrize("catalog_valid,admission_mode,capabilities,reason",[
-    (False,"enabled",[{"effect_class":"E3","action_type":"scan"}],"INVALID_LIVE_CAPABILITY_CATALOG"),
-    (True,"disabled",[{"effect_class":"E3","action_type":"scan"}],"ADMISSION_DISABLED"),
+    (False,"enabled",[{"effect_class":"governed_operation","action_type":"scan"}],"INVALID_LIVE_CAPABILITY_CATALOG"),
+    (True,"disabled",[{"effect_class":"governed_operation","action_type":"scan"}],"ADMISSION_DISABLED"),
     (True,"enabled",[],"CAPABILITY_NOT_DISCOVERED"),
 ])
 def test_live_discovery_unavailable_is_not_admitted(monkeypatch,catalog_valid,admission_mode,capabilities,reason):
     monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
         "admission_mode":admission_mode,"catalog_valid":catalog_valid,
         "capabilities":capabilities}))
-    report=readiness.diagnose_live("E3","scan",url="https://eg.example",api_key="fixture")
+    report=readiness.diagnose_live("governed_operation","scan",url="https://eg.example",api_key="fixture")
     assert report["preflight"]=="NOT_ADMITTED"
     assert reason in report["reasons"]
     assert report["live_verified"] is False
@@ -57,9 +57,9 @@ def test_live_discovery_unavailable_is_not_admitted(monkeypatch,catalog_valid,ad
 def test_untrusted_discovered_capability_cannot_be_misreported_as_live_pre(monkeypatch,status,reason):
     monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
         "admission_mode":"enabled","catalog_valid":True,
-        "capabilities":[{"id":"untrusted.proposed","effect_class":"E4",
+        "capabilities":[{"id":"untrusted.proposed","effect_class":"external_change",
                          "action_type":"update_file","status":status}]}))
-    report=readiness.diagnose_live("E4","update_file",
+    report=readiness.diagnose_live("external_change","update_file",
                                    url="https://eg.example",api_key="operator-api")
     assert report["preflight"]=="NOT_ADMITTED"
     assert report["reasons"]==[reason]
@@ -71,11 +71,11 @@ def test_trusted_adapter_not_suppressed_by_untrusted_matching_catalog_row(monkey
     monkeypatch.setattr(readiness,"urlopen",lambda *_a,**_kw:_Response({
         "admission_mode":"enabled","catalog_valid":True,
         "capabilities":[
-            {"id":"agent.unverified","effect_class":"E4","action_type":"update_file",
+            {"id":"agent.unverified","effect_class":"external_change","action_type":"update_file",
              "status":"UNVERIFIED_NOT_AUTHORIZED"},
-            {"id":"registered.operator","effect_class":"E4","action_type":"update_file",
+            {"id":"registered.operator","effect_class":"external_change","action_type":"update_file",
              "status":"EXTERNAL_LIVE_PRE_ATTESTATION_REQUIRED"}]}))
-    report=readiness.diagnose_live("E4","update_file",
+    report=readiness.diagnose_live("external_change","update_file",
                                    url="https://eg.example",api_key="operator-api")
     assert report["preflight"]=="REQUIRES_LIVE_PRE"
     assert report["registered_count"]==2

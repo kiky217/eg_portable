@@ -3,7 +3,7 @@ import base64
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
 import pytest
 import harness as H
-from harness import CLIENT, HEAD, register, do_pre, do_post, e2_action
+from harness import CLIENT, HEAD, register, do_pre, do_post, bounded_write_action
 from tools import trusted_execution_worker as worker
 
 
@@ -17,7 +17,7 @@ def test_sealed_receipt_survives_failed_post_and_retries_without_new_effect(tmp_
     monkeypatch.setattr(H.gw, 'EXECUTOR_OUTPUT_ROOT', str(output))
     target=output/'result.txt'
     payload=b'AFTER_PRE_ONLY'
-    action=e2_action(task,0,target=str(target),payload=payload)
+    action=bounded_write_action(task,0,target=str(target),payload=payload)
     key=tmp_path/'worker.key'
     key.write_bytes(H.EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
     key.chmod(0o600)

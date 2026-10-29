@@ -5,7 +5,7 @@ import sys
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
 import pytest
 import harness as H
-from harness import CLIENT, HEAD, register, do_pre, do_post, e2_action
+from harness import CLIENT, HEAD, register, do_pre, do_post, bounded_write_action
 from tools import trusted_execution_worker as worker
 
 
@@ -23,7 +23,7 @@ def test_source_creation_scanner_e2e(tmp_path, monkeypatch,nested):
     else:
         source = output / "scanner.py"
     payload = b"def scan_contract(value):\n    return value.upper()\n"
-    action = e2_action(task, 0, target=str(source), payload=payload)
+    action = bounded_write_action(task, 0, target=str(source), payload=payload)
     key = tmp_path / "signer.pem"
     key.write_bytes(H.EXEC_PRIV.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
     key.chmod(0o600)

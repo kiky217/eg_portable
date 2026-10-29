@@ -1,4 +1,4 @@
-"""One agent orchestrates a real signed E2 file creation; no simulated receipt."""
+"""One agent orchestrates a real signed bounded_change file creation; no simulated receipt."""
 import base64
 import json
 import pytest
@@ -12,7 +12,7 @@ def test_one_agent_run_task_performs_once_and_verifies_actual_file(monkeypatch):
     task=H.eid('orchestrated-project')
     raw=b'<!doctype html><html><h1>Real cafe</h1></html>'
     target=H.WORKER_OUTPUT / (H.eid('file')+'.txt')
-    journal=H.RUNTIME / H.eid('e2-journal')
+    journal=H.RUNTIME / H.eid('write-journal')
     journal.mkdir(mode=0o700)
     private=H.RUNTIME / (H.eid('worker')+'.pem')
     private.write_bytes(H.EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
@@ -43,7 +43,7 @@ def test_one_agent_run_task_performs_once_and_verifies_actual_file(monkeypatch):
             assert target.read_bytes()==raw
             ref=H.step_ref(task,'POST_EXECUTION',pre['gate_checkpoint_no'])
             return {'event_id':H.eid('post'),'claims':[H.claim(ref)]}
-        action=H.e2_action(task,0,target=str(target),payload=raw)
+        action=H.bounded_write_action(task,0,target=str(target),payload=raw)
         yield {'step_key':'01.01','action':action,'data_b64':base64.b64encode(raw).decode(),
                'pre_request':pre_request,'post_evidence':post_evidence}
     def dispatch_once(request):

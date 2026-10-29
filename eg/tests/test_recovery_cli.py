@@ -8,7 +8,7 @@ def setup(tmp_path):
     key=tmp_path/"eg-secret";key.write_text("local-fixture-credential")
     key.chmod(0o600)
     action={"action_type":"bounded_process_run","target":"/tasks/recover/item",
-            "effect_class":"E3","real_world_effect":True,"reversible":False,
+            "effect_class":"governed_operation","real_world_effect":True,"reversible":False,
             "payload_sha256":"a"*64,"payload_bytes":1}
     source=tmp_path/"action.json";source.write_text(json.dumps(action))
     source.chmod(0o600)

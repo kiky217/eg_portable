@@ -1,7 +1,7 @@
 """Read-only Ed25519 challenge/response for a separately running adapter.
 
 This proves control of a pinned signing key at probe time; it is NOT effect
-authorization, OS isolation attestation, or a production E3-E5 executor.
+authorization, OS isolation attestation, or a production governed_operation-publication executor.
 """
 from __future__ import annotations
 

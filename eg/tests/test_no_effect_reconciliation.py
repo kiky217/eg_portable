@@ -1,10 +1,10 @@
 """Reconciliation is audited and never replays a physical effect."""
-from harness import CLIENT, HEAD, gw, eid, register, e2_action, do_pre, EXEC_PRIV
+from harness import CLIENT, HEAD, gw, eid, register, bounded_write_action, do_pre, EXEC_PRIV
 from app.no_effect_receipts import sign_no_effect
 
 def test_signed_no_effect_closes_gate_without_advancing_step():
     task,ch=register(physical=True)
-    action=e2_action(task,0)
+    action=bounded_write_action(task,0)
     pre,_=do_pre(task,ch,0,action=action)
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
     cp=pre.json()["checkpoint_no"]
@@ -33,7 +33,7 @@ def test_signed_no_effect_closes_gate_without_advancing_step():
     assert again.status_code==200 and again.json()["idempotent_replay"] is True
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
     # A fresh PRE remains subject to a new payload/proof and all admission gates.
-    next_action=e2_action(task,cp)
+    next_action=bounded_write_action(task,cp)
     fresh,_=do_pre(task,ch,cp,action=next_action)
     assert fresh.json()["verdict"]=="READY_TO_EXECUTE"
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
@@ -46,7 +46,7 @@ def test_actual_worker_attests_no_effect_and_gateway_reauthorizes(tmp_path,monke
     output=tmp_path/"outputs";journal=tmp_path/"journal"
     output.mkdir(mode=0o700);journal.mkdir(mode=0o700)
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT",str(output))
-    action=e2_action(task,0,target=str(output/"result.txt"),payload=b"APPROVED")
+    action=bounded_write_action(task,0,target=str(output/"result.txt"),payload=b"APPROVED")
     key=tmp_path/"worker.key"
     key.write_bytes(EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
     key.chmod(0o600)
@@ -77,7 +77,7 @@ def test_actual_worker_attests_no_effect_and_gateway_reauthorizes(tmp_path,monke
     assert response.status_code==200,response.text
     assert not (output/"result.txt").exists()
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
-    fresh=e2_action(task,cp,target=str(output/"result.txt"),payload=b"APPROVED")
+    fresh=bounded_write_action(task,cp,target=str(output/"result.txt"),payload=b"APPROVED")
     next_pre,_=do_pre(task,ch,cp,action=fresh)
     assert next_pre.json()["verdict"]=="READY_TO_EXECUTE"
 
@@ -91,7 +91,7 @@ def test_durable_intent_before_create_is_reconciled_without_write(tmp_path,monke
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT",str(output))
     payload=b"CANONICAL"
     target=output/"new.txt"
-    action=e2_action(task,0,target=str(target),payload=payload)
+    action=bounded_write_action(task,0,target=str(target),payload=payload)
     key=tmp_path/"key.pem"
     key.write_bytes(EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
     key.chmod(0o600)
@@ -132,6 +132,6 @@ def test_durable_intent_before_create_is_reconciled_without_write(tmp_path,monke
                  "executor_public_key_b64":gw.EXECUTOR_PUBLIC_KEY_B64})
     assert result.status_code==200,result.text
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
-    new_action=e2_action(task,cp,target=str(target),payload=payload)
+    new_action=bounded_write_action(task,cp,target=str(target),payload=payload)
     pre2,_=do_pre(task,ch,cp,action=new_action)
     assert pre2.json()["verdict"]=="READY_TO_EXECUTE"

@@ -161,10 +161,10 @@ def intent_fp(action):
     return gw.action_intent_fingerprint(gw.Action(**action))
 
 
-def e2_action(task, cp, step="01.01", target="sandbox-target", wrong_binding=False, payload=b"TEST_RUNTIME_OUTPUT"):
+def bounded_write_action(task, cp, step="01.01", target="sandbox-target", wrong_binding=False, payload=b"TEST_RUNTIME_OUTPUT"):
     if not str(target).startswith("/"):
         target=str(WORKER_OUTPUT/(str(target)+".txt"))
-    skeleton = {"action_type": "write", "target": target, "effect_class": "E2", "reversible": True, "real_world_effect": False,
+    skeleton = {"action_type": "write", "target": target, "effect_class": "bounded_change", "reversible": True, "real_world_effect": False,
                 "payload_sha256":hashlib.sha256(payload).hexdigest(),"payload_bytes":len(payload),"proofs": []}
     bound = {**skeleton, "target": "unrelated-target"} if wrong_binding else skeleton
     values = {"sandbox_pass": "SANDBOX=PASS", "rollback_ready": "ROLLBACK=READY", "reversible": "REVERSIBLE=YES"}
@@ -174,8 +174,8 @@ def e2_action(task, cp, step="01.01", target="sandbox-target", wrong_binding=Fal
     return action
 
 
-def e3_action(real=False):
-    return {"action_type": "external_change", "target": "bounded-target", "effect_class": "E3", "reversible": True, "real_world_effect": real, "proofs": []}
+def governed_action(real=False):
+    return {"action_type": "external_change", "target": "bounded-target", "effect_class": "governed_operation", "reversible": True, "real_world_effect": real, "proofs": []}
 
 
 def finish_normal(task, ch):

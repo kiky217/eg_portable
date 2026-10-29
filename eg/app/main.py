@@ -64,7 +64,7 @@ HIGH_EFFECT_CI_FIXTURE_ENABLED = False
 HIGH_EFFECT_REQUIRE_RPC_LIVENESS = False
 HIGH_EFFECT_RPC_SOCKET = ""
 HIGH_EFFECT_RPC_WORKER_UID = None
-# Optional external E3-E5 executor. CI-only adapter remains unreachable through env.
+# Optional external governed_operation-publication executor. CI-only adapter remains unreachable through env.
 EXTERNAL_ADAPTER_MODE = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_MODE", "disabled")
 LOCAL_HOST_MODE = os.getenv("EVALUATION_GATEWAY_LOCAL_HOST_MODE", "disabled") == "enabled"
 EXTERNAL_ADAPTER_SOCKET = os.getenv("EVALUATION_GATEWAY_EXTERNAL_ADAPTER_SOCKET", "")
@@ -238,7 +238,7 @@ class Action(Strict):
     target: str = Field(min_length=1, max_length=500)
     # Optional for the canonical read/write/replace operations. Retain the
     # serialized legacy field so historical action hashes remain identical.
-    effect_class: Literal["E0", "E2", "E3", "E4", "E5"] | None = None
+    effect_class: str | None = Field(default=None, min_length=1, max_length=128)
     reversible: bool = False
     real_world_effect: bool = False
     payload_sha256: str | None = Field(default=None, pattern=HASH_RE.pattern)
@@ -251,7 +251,7 @@ class Action(Strict):
     @model_validator(mode="after")
     def unique_proof_purposes(self):
         if self.effect_class is None:
-            inferred = {"read": "E0", "write": "E2", "replace": "E2"}.get(self.action_type)
+            inferred = {"read": "observation", "write": "bounded_change", "replace": "bounded_change"}.get(self.action_type)
             if inferred is None:
                 raise ValueError("operation is not supported by the canonical worker")
             self.effect_class = inferred
@@ -1365,17 +1365,16 @@ def action_fingerprint(action: Action | None) -> str:
 def action_check(task_id: str, step_key: str, action: Action | None, checkpoint_ref: int) -> tuple[Verdict, str, list[tuple[str, Evidence, EvidenceResult]]]:
     if action is None:
         return Verdict.READY_TO_EXECUTE, "pre-execution verified; no material action", []
-    effect = int(action.effect_class[1])
-    if effect >= 3 or action.real_world_effect:
+    if action.action_type not in ("read", "write", "replace") or action.real_world_effect:
         return Verdict.REQUIRES_HITL, "material/real-world action requires human authorization", []
-    if effect <= 1:
+    if action.action_type == "read":
         return Verdict.READY_TO_EXECUTE, "low-effect action with verified factual criteria", []
     if not action.reversible:
-        return Verdict.REQUIRES_HITL, "E2 must be reversible for automatic readiness", []
+        return Verdict.REQUIRES_HITL, "bounded_change must be reversible for automatic readiness", []
     by = {p.purpose: p.evidence for p in action.proofs}
     needed = {"sandbox_pass", "rollback_ready", "reversible"}
     if set(by) != needed:
-        return Verdict.UNVERIFIED, "E2 requires exactly one notarized sandbox, rollback, and reversibility proof", []
+        return Verdict.UNVERIFIED, "bounded_change requires exactly one notarized sandbox, rollback, and reversibility proof", []
     rec: list[tuple[str, Evidence, EvidenceResult]] = []
     for purpose in sorted(needed):
         ev = by[purpose]
@@ -1383,7 +1382,7 @@ def action_check(task_id: str, step_key: str, action: Action | None, checkpoint_
         if not res.ok:
             return Verdict.UNVERIFIED, f"action proof {purpose} failed: {res.note}", []
         rec.append((purpose, ev, res))
-    return Verdict.READY_TO_EXECUTE, "E2 independently proved reversible with action-bound sandbox and rollback evidence", rec
+    return Verdict.READY_TO_EXECUTE, "bounded_change independently proved reversible with action-bound sandbox and rollback evidence", rec
 
 
 def validate_claim_coverage(criteria: list[str], claims: list[Claim], code: str) -> None:
@@ -1489,9 +1488,9 @@ def protocol():
     return {"version": PROTOCOL_VERSION, "hash": protocol_hash(),
             "runtime_source_sha256": RUNTIME_SOURCE_SHA256,
             "admission_mode": ADMISSION_MODE,
-            "executor_capabilities": ([{"action_type":"read","effect_class":"E0"},
-                                       {"action_type":"write","effect_class":"E2"},
-                                       {"action_type":"replace","effect_class":"E2"}]
+            "executor_capabilities": ([{"action_type":"read","effect_class":"observation"},
+                                       {"action_type":"write","effect_class":"bounded_change"},
+                                       {"action_type":"replace","effect_class":"bounded_change"}]
                                       if ADMISSION_MODE=="enabled" and builtin_worker_root_ready() else []),
             "high_effect_execution_mode": ("CI_DISPOSABLE_ONLY" if HIGH_EFFECT_CI_FIXTURE_ENABLED
                                            else "UNPROVISIONED_FAIL_CLOSED"),
@@ -1515,11 +1514,11 @@ def agent_capabilities():
         except (CatalogError, UnicodeError):
             invalid = True
     bundled = bool(ADMISSION_MODE == "enabled" and EXECUTOR_PUBLIC_KEY_B64 and builtin_worker_root_ready())
-    entries = [{"id": "builtin.read", "effect_class": "E0", "action_type": "read",
+    entries = [{"id": "builtin.read", "effect_class": "observation", "action_type": "read",
                 "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"},
-               {"id": "builtin.write", "effect_class": "E2", "action_type": "write",
+               {"id": "builtin.write", "effect_class": "bounded_change", "action_type": "write",
                 "adapter_id": "builtin.worker", "status": "CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"}]
-    entries.append({"id":"builtin.replace", "effect_class":"E2", "action_type":"replace",
+    entries.append({"id":"builtin.replace", "effect_class":"bounded_change", "action_type":"replace",
                     "adapter_id":"builtin.worker", "status":"CONFIGURED_NEEDS_LIVE_PRE" if bundled else "UNAVAILABLE"})
     entries.extend({"id": row["id"], "effect_class": row["effect_class"],
                     "action_type": row["action_type"], "adapter_id": row["adapter_id"],
@@ -1541,8 +1540,8 @@ def agent_capabilities():
 def agent_capability_match(action_type: str, target: str, effect_class: str | None = None):
     """Read-only operation/scope matching. Never grants capability or PRE."""
     if effect_class is None:
-        effect_class = {"read": "E0", "write": "E2", "replace": "E2"}.get(action_type)
-    if (effect_class not in ("E0","E2","E3","E4","E5")
+        effect_class = {"read": "observation", "write": "bounded_change", "replace": "bounded_change"}.get(action_type)
+    if (not isinstance(effect_class,str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,127}",effect_class)
         or not action_type or len(action_type)>128
         or not target.startswith("/") or len(target)>1024):
         raise HTTPException(422, {"code":"INVALID_CAPABILITY_QUERY"})
@@ -1556,12 +1555,12 @@ def agent_capability_match(action_type: str, target: str, effect_class: str | No
             matches.append({"adapter_id":cap.adapter_id,"version":cap.version,
                 "status":(external_discovery_status(cap).removeprefix("EXTERNAL_")
                     if not cap.ci_only else "CI_ONLY_NOT_PRODUCTION"),"maximum_payload_bytes":cap.maximum_payload_bytes})
-    if effect_class in ("E0","E2"):
+    if effect_class in ("observation","bounded_change"):
         try:
             candidate=Action(action_type=action_type,target=target,effect_class=effect_class,
-                             reversible=(effect_class=="E2"),real_world_effect=False,
-                             payload_sha256=("0"*64 if effect_class=="E2" else None),
-                             payload_bytes=(1 if effect_class=="E2" else None),
+                             reversible=(effect_class=="bounded_change"),real_world_effect=False,
+                             payload_sha256=("0"*64 if effect_class=="bounded_change" else None),
+                             payload_bytes=(1 if effect_class=="bounded_change" else None),
                              previous_sha256=("0"*64 if action_type=="replace" else None))
             supported,_=worker_capability(candidate)
             if supported:
@@ -1641,7 +1640,7 @@ def external_discovery_status(cap: AdapterCapability) -> str:
 
 
 def high_effect_catalog() -> list[dict]:
-    """Diagnostic metadata only, never advertise an online E3-E5 executor."""
+    """Diagnostic metadata only, never advertise an online governed_operation-publication executor."""
     return [{"adapter_id":cap.adapter_id,"version":cap.version,"ci_only":cap.ci_only,
              "capability_sha256":sha(canon(asdict(cap))),
              "effect_class":cap.effect_class,
@@ -1657,7 +1656,7 @@ def high_effect_capability(action: Action) -> AdapterCapability | None:
     # The sole repository adapter is in-process and CI-only. A production
     # provisioned transport must provide independent authenticated liveness
     # before this can be enabled for real external effects (see Issue #26).
-    if action.effect_class not in ("E3","E4","E5"):
+    if action.action_type in ("read", "write", "replace"):
         return None
     external = (not HIGH_EFFECT_CI_FIXTURE_ENABLED and
                 EXTERNAL_ADAPTER_MODE=="enabled" and ADMISSION_MODE=="enabled")
@@ -1695,6 +1694,18 @@ def pinned_high_effect_gate(c: sqlite3.Connection, task_id: str,
     raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_MISSING"})
 
 
+def original_gate_has_adapter_pin(c: sqlite3.Connection, task_id: str,
+                                  step_key: str, checkpoint_no: int) -> bool:
+    """Use audited PRE metadata, not a renamed class, for historical POST."""
+    for row in c.execute("SELECT response_json FROM audit WHERE task_id=? AND event_type='EVALUATION' ORDER BY seq",
+                         (task_id,)):
+        response = json.loads(row["response_json"])
+        if (response.get("checkpoint_no") == checkpoint_no and
+                response.get("step_key") == step_key):
+            return isinstance(response.get("high_effect_pin"), dict)
+    return False
+
+
 def external_route(cap: AdapterCapability, *, read_only=False) -> tuple[int,str]:
     """Resolve a pinned adapter's independently signed, live worker identity."""
     if not EXTERNAL_REGISTRY_DIR:
@@ -1717,7 +1728,7 @@ def external_route(cap: AdapterCapability, *, read_only=False) -> tuple[int,str]
 
 def worker_capability(action: Action) -> tuple[bool,str]:
     """Bounded capabilities of independently provisioned workers/adapters."""
-    if action.effect_class in ("E3","E4","E5"):
+    if action.action_type not in ("read", "write", "replace"):
         cap=high_effect_capability(action)
         if cap is None:
             return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
@@ -1726,7 +1737,7 @@ def worker_capability(action: Action) -> tuple[bool,str]:
         return True,"HIGH_EFFECT_ADAPTER_CAPABILITY_ADMITTED"
     if (action.action_type,action.effect_class,action.reversible,
             action.real_world_effect) not in (
-            ("read","E0",False,False),("write","E2",True,False),("replace","E2",True,False)):
+            ("read","observation",False,False),("write","bounded_change",True,False),("replace","bounded_change",True,False)):
         return False,"UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
     if action.action_type=="replace" and not action.previous_sha256:
         return False,"EXPECTED_PREVIOUS_DIGEST_REQUIRED"
@@ -1757,7 +1768,7 @@ def _require_action_admission(action: Action | None, phase: str) -> None:
     if phase=="PRE_EXECUTION":
         ok,reason=worker_capability(action)
         if not ok:raise HTTPException(409,{"code":reason})
-        if action.effect_class in ("E2","E3","E4","E5") and (
+        if action.action_type != "read" and (
             action.payload_sha256 is None or action.payload_bytes is None):
             raise HTTPException(409,{"code":"EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"})
 
@@ -1911,7 +1922,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             raise HTTPException(409, {"code": "FINAL_STEP_REQUIRES_FINALIZATION"})
 
         _require_action_admission(req.action,req.phase)
-        # A fresh E3-E5 PRE must never reclassify an immutable logical step
+        # A new concrete PRE must never reclassify an immutable logical step
         # as physical. Historical signed logical gates may still complete POST.
         if (req.phase=="PRE_EXECUTION" and req.action is not None
             and not step_contract.get("execution_required",False)):
@@ -1947,7 +1958,8 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             # A notarized claim alone never proves an action actually occurred.
             if req.action is not None:
                 pin=(pinned_high_effect_gate(c,req.task_id,expected,int(gate["pre_checkpoint_no"]),req.action)
-                     if req.action.effect_class in ("E3","E4","E5") else None)
+                     if original_gate_has_adapter_pin(c,req.task_id,expected,
+                                                      int(gate["pre_checkpoint_no"])) else None)
                 signer=(pin["public_key_b64"] if pin else EXECUTOR_PUBLIC_KEY_B64)
                 valid, receipt_reason = verify_execution_receipt(
                     req.execution_receipt, public_b64=signer,
@@ -1983,7 +1995,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
         if req.phase == "PRE_EXECUTION":
             if step_pass:
                 action_v, action_reason, action_rows = action_check(req.task_id, expected, req.action, req.checkpoint_no)
-                if action_v == Verdict.REQUIRES_HITL and req.action is not None and req.action.effect_class in ("E3","E4","E5"):
+                if action_v == Verdict.REQUIRES_HITL and req.action is not None and req.action.action_type not in ("read", "write", "replace"):
                     cap=high_effect_capability(req.action)
                     try:
                         if cap is None or not hitl_key_for(cap):
@@ -2161,11 +2173,11 @@ def reconcile_task(task_id: str, req: ReconcileRequest):
             raise HTTPException(409,{"code":"NO_UNCONSUMED_EXECUTION_GATE"})
         if not ct(gate["action_fingerprint"],action_fingerprint(req.action)):
             raise HTTPException(409,{"code":"RECONCILIATION_ACTION_MISMATCH"})
-        if req.action.effect_class in ("E3","E4","E5"):
+        if original_gate_has_adapter_pin(c,task_id,req.step_key,int(gate["pre_checkpoint_no"])):
             pin=pinned_high_effect_gate(c,task_id,req.step_key,int(gate["pre_checkpoint_no"]),req.action)
             expected_key=pin["public_key_b64"]
             expected_executor="trusted-worker-"+pin["adapter_id"]
-        elif req.action.action_type=="write" and req.action.effect_class=="E2":
+        elif req.action.action_type=="write":
             expected_key=EXECUTOR_PUBLIC_KEY_B64
             expected_executor=None
         else:

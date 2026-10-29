@@ -21,18 +21,18 @@ def test_canonical_operations_match_without_legacy_class_parameter(monkeypatch):
 
 
 def test_match_requires_authentication():
-    assert CLIENT.get(URL,params={"effect_class":"E3","action_type":"operate","target":"/scope/a"}).status_code==401
+    assert CLIENT.get(URL,params={"effect_class":"governed_operation","action_type":"operate","target":"/scope/a"}).status_code==401
 
 def test_match_respects_type_scope_and_admission(monkeypatch):
     key=Ed25519PrivateKey.generate()
     public=base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
     record={"adapter_id":"trusted-adapter-test","action_type":"operate",
-            "effect_class":"E3","target_prefix":"/scope/",
+            "effect_class":"governed_operation","target_prefix":"/scope/",
             "maximum_payload_bytes":4096,"isolated":True,
             "public_key_b64":public,"version":1,"ci_only":False}
     monkeypatch.setattr(gw,"HIGH_EFFECT_CAPABILITIES_JSON",json.dumps([record]))
     monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
-    params={"effect_class":"E3","action_type":"operate","target":"/scope/work"}
+    params={"effect_class":"governed_operation","action_type":"operate","target":"/scope/work"}
     matched=CLIENT.get(URL,params=params,headers=HEAD).json()
     assert matched["status"]=="MATCHED_PRE_REQUIRED"
     assert not matched["admission"]
@@ -46,7 +46,7 @@ def test_match_respects_type_scope_and_admission(monkeypatch):
     assert not disabled["candidates"]
 
 def test_bad_query_rejected():
-    response=CLIENT.get(URL,params={"effect_class":"E9","action_type":"operate","target":"/a"},headers=HEAD)
+    response=CLIENT.get(URL,params={"effect_class":"invalid scope","action_type":"operate","target":"/a"},headers=HEAD)
     assert response.status_code==422
 
 
@@ -64,7 +64,7 @@ def test_signed_operator_binding_discovery_is_read_only_and_actionable(monkeypat
         return base64.b64encode(key.public_key().public_bytes(
             Encoding.Raw,PublicFormat.Raw)).decode()
     spec={"adapter_id":"trusted-adapter-ready-demo","action_type":"scan",
-          "effect_class":"E3","target_prefix":"/sandbox/",
+          "effect_class":"governed_operation","target_prefix":"/sandbox/",
           "maximum_payload_bytes":512,"isolated":True,
           "public_key_b64":pub(worker),"version":1,"ci_only":False}
     cap=AdapterCapability(**spec)
@@ -74,7 +74,7 @@ def test_signed_operator_binding_discovery_is_read_only_and_actionable(monkeypat
     monkeypatch.setattr(gw,"EXTERNAL_ADAPTER_MODE","enabled")
     monkeypatch.setattr(gw,"EXTERNAL_REGISTRY_DIR",str(directory))
     monkeypatch.setattr(gw,"EXTERNAL_REGISTRY_KEY",pub(operator))
-    params={"effect_class":"E3","action_type":"scan","target":"/sandbox/a"}
+    params={"effect_class":"governed_operation","action_type":"scan","target":"/sandbox/a"}
     before=CLIENT.get(URL,params=params,headers=HEAD).json()
     assert before["status"]=="CAPABILITY_UNPROVISIONED"
     assert before["next_action"]=="RENEW_OR_ACTIVATE_OPERATOR_BINDING"
