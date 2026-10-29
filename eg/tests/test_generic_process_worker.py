@@ -27,7 +27,7 @@ def setup(tmp_path, monkeypatch):
     profile = {
         "adapter_id": "trusted-adapter-generic-process",
         "action_type": "bounded_process_run",
-        "effect_class": "E3",
+        "effect_class": "governed_operation",
         "target": "/tasks/build",
         "executable": str(executable),
         "executable_sha256": gp.digest(executable.read_bytes()),
@@ -43,7 +43,7 @@ def setup(tmp_path, monkeypatch):
     })
     payload = b"GENERIC_WORKER=PASS\n"
     action = {
-        "action_type": "bounded_process_run", "effect_class": "E3",
+        "action_type": "bounded_process_run", "effect_class": "governed_operation",
         "target": "/tasks/build", "payload_sha256": gp.digest(payload),
         "payload_bytes": len(payload), "reversible": False,
         "real_world_effect": True, "proofs": [],
@@ -69,7 +69,7 @@ def setup(tmp_path, monkeypatch):
     return worker, profile, state, details, request, payload, journal
 
 
-@pytest.mark.parametrize("effect", ["E3", "E4", "E5"])
+@pytest.mark.parametrize("effect", ["governed_operation", "external_change", "publication"])
 def test_process_profile_signed_receipt_and_no_replay(setup, effect):
     worker, profile, state, details, req, data, journal = setup
     profile["effect_class"] = effect
