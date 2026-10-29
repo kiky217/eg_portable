@@ -12,7 +12,7 @@ def test_one_agent_run_task_performs_once_and_verifies_actual_file(monkeypatch):
     task=H.eid('orchestrated-project')
     raw=b'<!doctype html><html><h1>Real cafe</h1></html>'
     target=H.WORKER_OUTPUT / (H.eid('file')+'.txt')
-    journal=H.RUNTIME / H.eid('e2-journal')
+    journal=H.RUNTIME / H.eid('write-journal')
     journal.mkdir(mode=0o700)
     private=H.RUNTIME / (H.eid('worker')+'.pem')
     private.write_bytes(H.EXEC_PRIV.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()))
