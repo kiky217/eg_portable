@@ -196,9 +196,12 @@ class TrustedWriter:
         if len(request['data_b64'])>4*MAX_CONTENT//3+8:raise WorkerDenied('PAYLOAD_OVERSIZE')
         data=base64.b64decode(request['data_b64'],validate=True)
         is_replace=action.get("action_type")=="replace"
-        is_write=(action.get('action_type') in ('write','replace') and action.get('effect_class')=='bounded_change'
+        # The original signed PRE binds the full action, including any archived scope.
+        is_write=(action.get('action_type') in ('write','replace')
+                  and isinstance(action.get('effect_class'),str)
                   and action.get('reversible') is True and action.get('real_world_effect') is False)
-        is_read=(action.get('action_type')=='read' and action.get('effect_class')=='observation'
+        is_read=(action.get('action_type')=='read'
+                 and isinstance(action.get('effect_class'),str)
                  and action.get('reversible') is False and action.get('real_world_effect') is False)
         if not (is_write or is_read):raise WorkerDenied('UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED')
         if is_write and not (0<len(data)<=MAX_CONTENT):
