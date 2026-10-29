@@ -15,7 +15,7 @@ def test_fork_crash_after_durable_claim_is_unknown_no_replay(tmp_path):
     human_pub=base64.b64encode(human.public_key().public_bytes(
         Encoding.Raw,PublicFormat.Raw)).decode()
     data=b"effect would run next"
-    action={"action_type":"bounded_process_run","effect_class":"E3",
+    action={"action_type":"bounded_process_run","effect_class":"governed_operation",
         "target":"/tasks/crash-before-effect","real_world_effect":True,"reversible":False,
         "payload_sha256":hashlib.sha256(data).hexdigest(),"payload_bytes":len(data)}
     fp=action_fingerprint(action);now=int(time.time())
