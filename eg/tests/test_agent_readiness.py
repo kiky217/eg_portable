@@ -85,12 +85,12 @@ def test_valid_e3_only_runtime_without_unrelated_e2_signer(monkeypatch):
     def fresh_root():
         raw = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         return base64.b64encode(raw).decode()
-    capability = {"adapter_id": "trusted-adapter-e3-only",
+    capability = {"adapter_id": "trusted-adapter-governed-only",
         "action_type": "bounded_process_run", "effect_class": "governed_operation",
-        "target_prefix": "/tasks/e3-only/", "maximum_payload_bytes": 4096,
+        "target_prefix": "/tasks/governed-only/", "maximum_payload_bytes": 4096,
         "isolated": True, "public_key_b64": fresh_root(), "ci_only": False}
     monkeypatch.setattr(gw, "EXTERNAL_ADAPTER_MODE", "enabled")
-    monkeypatch.setattr(gw, "EXTERNAL_ADAPTER_SOCKET", "/tmp/eg-test-e3-only.sock")
+    monkeypatch.setattr(gw, "EXTERNAL_ADAPTER_SOCKET", "/tmp/eg-test-governed-only.sock")
     monkeypatch.setattr(gw, "EXTERNAL_ADAPTER_UID", 65533)
     monkeypatch.setattr(gw, "EXTERNAL_REGISTRY_DIR", "")
     monkeypatch.setattr(gw, "EXTERNAL_REGISTRY_KEY", "")
