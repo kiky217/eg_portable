@@ -49,7 +49,7 @@ class GenericProcessWorker:
         self.key = config["eg_api_key"]
         self.lock = threading.RLock()
         p = self.profile
-        if (not isinstance(p["effect_class"],str) or not re.fullmatch("[a-z][a-z0-9_.-]{0,127}",p["effect_class"]) or p["effect_class"] in ("observation", "bounded_change")
+        if (not isinstance(p["effect_class"],str) or not re.fullmatch("[A-Za-z][A-Za-z0-9_.-]{0,127}",p["effect_class"]) or p["effect_class"] in ("observation", "bounded_change")
             or p["action_type"] != "bounded_process_run"
             or not p["adapter_id"].startswith("trusted-adapter-")
             or not p["target"].startswith("/")
