@@ -3,7 +3,7 @@ import json
 import re
 
 _NAME = re.compile(r"^[a-z][a-z0-9_.-]{0,127}$")
-_EFFECT = frozenset(("E0", "E2", "E3", "E4", "E5"))
+_EFFECT = frozenset(("observation", "bounded_change", "governed_operation", "external_change", "publication"))
 
 class CatalogError(ValueError):
     pass
