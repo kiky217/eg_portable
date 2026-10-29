@@ -5,7 +5,7 @@ from harness import gw,CLIENT,HEAD,register,raw_eval,claim,step_ref,e2_action,WO
 def test_missing_payload_denied_before_pre_checkpoint():
     task,ch=register()
     a={"action_type":"write","target":str(WORKER_OUTPUT/"missing.txt"),
-       "effect_class":"E2","reversible":True,"real_world_effect":False,"proofs":[]}
+       "effect_class":"bounded_change","reversible":True,"real_world_effect":False,"proofs":[]}
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTION_PAYLOAD_NOT_BOUND_TO_PRE"
     assert CLIENT.get(f"/v1/tasks/{task}/state",headers=HEAD).json()["latest_checkpoint"] is None
