@@ -1,4 +1,4 @@
-"""One agent orchestrates a real signed E2 file creation; no simulated receipt."""
+"""One agent orchestrates a real signed bounded_change file creation; no simulated receipt."""
 import base64
 import json
 import pytest
