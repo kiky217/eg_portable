@@ -1702,7 +1702,7 @@ def original_gate_has_adapter_pin(c: sqlite3.Connection, task_id: str,
         response = json.loads(row["response_json"])
         if (response.get("checkpoint_no") == checkpoint_no and
                 response.get("step_key") == step_key):
-            return "high_effect_pin" in response
+            return isinstance(response.get("high_effect_pin"), dict)
     return False
 
 
