@@ -39,7 +39,7 @@ The scan inspected import tokens and textual references in each file (simple sin
 | [`eg/tests/test_recovery_crash_matrix.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_recovery_crash_matrix.py#L6) | 6 | `H` |
 | [`eg/tests/test_runtime_source_fingerprint.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_runtime_source_fingerprint.py#L2) | 2 | `Path` |
 | [`eg/tests/test_single_agent_workflow.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_single_agent_workflow.py#L3) | 3 | `hashlib, Path (L5)` |
-| [`eg/tests/test_unified_migration.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_unified_migration.py#L7) | 7 | `hashlib, H (L8), do_pre and e2_action (L9)` |
+| [`eg/tests/test_unified_migration.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_unified_migration.py#L7) | 7 | `hashlib, H (L8), do_pre and bounded_write_action (L9)` |
 | [`eg/tests/test_vnext_receipts.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_vnext_receipts.py#L2) | 2 | `base64, datetime` |
 | [`eg/tests/test_vnext_suspend.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_vnext_suspend.py#L2) | 2 | `pytest, H (L3)` |
 | [`eg/tests/test_worker_sealed_recovery.py`](https://github.com/kiky217/eg_portable/blob/8c1917387c33d84f53e598fd4ab3427b77b9a40e/eg/tests/test_worker_sealed_recovery.py#L3) | 3 | `Path` |
