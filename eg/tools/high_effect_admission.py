@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import base64
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import PurePosixPath
