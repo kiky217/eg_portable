@@ -123,7 +123,7 @@ def test_immutable_logical_step_denies_e0_and_e2_concrete_pre():
                 "target":str(H.WORKER_OUTPUT/"logical-read.txt"),"reversible":False,
                 "real_world_effect":False,"proofs":[]}
         else:
-            action=H.e2_action(task,0)
+            action=H.bounded_write_action(task,0)
         pre_ref=H.step_ref(task,"PRE_EXECUTION",0)
         result=H.raw_eval(task,ch,0,action=action,claims=[H.claim(pre_ref)])
         assert result.status_code==409,result.text
