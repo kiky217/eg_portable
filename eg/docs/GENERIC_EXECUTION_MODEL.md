@@ -8,6 +8,21 @@ Install one gateway, one durable task and audit state, and the bundled trusted f
 
 See [the operational SKILL](../../SKILL.md) and [the portable runbook](PORTABLE_RUNBOOK.md).
 
+## Semantic operation names
+
+Operation classes describe **what** a capability does; they are not numbered
+privilege levels. The built-in worker uses `observation` for bounded file reads
+and `bounded_change` for exclusive file creation or digest-bound replacement.
+`governed_operation` is an illustrative scope for an optional, separately
+provisioned adapter; an operator can define other descriptive scopes tied to
+an exact action, signed profile, bounded target, and independent approval.
+The class name alone never grants execution authority.
+
+The `effect_class` JSON field remains solely for wire-format and historical
+signed-action compatibility. New integrations should use descriptive scope
+values, not infer permissions from a label. Existing signed task and receipt
+bytes must not be rewritten to rename an archived scope.
+
 ## Required sequence — including staging
 
 1. **REGISTER:** Save the task, step order, preconditions and independent acceptance criteria before starting work.

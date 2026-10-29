@@ -56,7 +56,7 @@ def test_invalid_mode_fails_closed():
     })["reasons"]
 
 
-def test_external_adapter_never_requires_unrelated_builtin_e2_key():
+def test_external_adapter_never_requires_unrelated_builtin_write_signer():
     from tools.capability_catalog import parse_catalog
     raw = '{"schema_version":1,"capabilities":[{"id":"build.worker","effect_class":"governed_operation","action_type":"bounded_process_run","adapter_id":"trusted-adapter-build"}]}'
     report = diagnose("governed_operation", "bounded_process_run",
@@ -68,7 +68,7 @@ def test_external_adapter_never_requires_unrelated_builtin_e2_key():
     assert report["live_verified"] is False
 
 
-def test_builtin_e2_still_requires_executor_signer():
+def test_builtin_write_still_requires_executor_signer():
     report = diagnose("bounded_change", "write",
                       {"EVALUATION_GATEWAY_ADMISSION_MODE": "enabled",
                        "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT": "/bounded"})
@@ -76,7 +76,7 @@ def test_builtin_e2_still_requires_executor_signer():
     assert report["preflight"] == "NOT_ADMITTED"
 
 
-def test_valid_e3_only_runtime_without_unrelated_e2_signer(monkeypatch):
+def test_valid_governed_operation_without_unrelated_builtin_signer(monkeypatch):
     import json, base64
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat

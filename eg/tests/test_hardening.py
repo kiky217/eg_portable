@@ -82,7 +82,7 @@ def test_15_finalize_before_all_steps_blocked_and_post_rolled_back():
     assert child['verified'] == 0 and d['task']['checkpoint_no'] == 1
 
 
-def test_16_e2_without_proofs_blocked():
+def test_16_bounded_change_without_proofs_blocked():
     task,ch=register(physical=True)
     action={'action_type':'write','target':str(H.WORKER_OUTPUT/'without-proof.txt'),
             'effect_class':'bounded_change','reversible':True,'real_world_effect':False,
@@ -91,7 +91,7 @@ def test_16_e2_without_proofs_blocked():
     assert r.json()['verdict']=='UNVERIFIED'
 
 
-def test_17_e2_with_action_bound_notarized_proofs_ready_and_post_passes():
+def test_17_bounded_change_with_action_bound_notarized_proofs_ready_and_post_passes():
     task, ch = register(physical=True); action = bounded_write_action(task, 0)
     pre, _ = do_pre(task, ch, 0, action=action); assert pre.json()['verdict'] == 'READY_TO_EXECUTE', pre.text
     post, _ = do_post(task, ch, pre, action=action); assert post.status_code == 200 and post.json()['verdict'] == 'VERIFIED_PASS'
@@ -103,7 +103,7 @@ def test_18_action_mutation_between_pre_and_post_blocked():
     post, _ = do_post(task, ch, pre, action={**action, 'target': 'target-b'}); assert post.status_code == 409 and post.json()['detail']['code'] == 'ACTION_FINGERPRINT_MISMATCH'
 
 
-def test_19_e3_without_registered_adapter_refused():
+def test_19_governed_operation_without_registered_adapter_refused():
     task,ch=register();act=governed_action()
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'
@@ -121,7 +121,7 @@ def test_21_hitl_key_must_differ_from_api_key(monkeypatch):
     assert CLIENT.get('/health').status_code == 503
 
 
-def test_22_real_world_e2_not_supported_by_bounded_worker():
+def test_22_real_world_write_not_supported_by_bounded_worker():
     task,ch=register()
     action={'action_type':'write','target':str(H.WORKER_OUTPUT/'real.txt'),'effect_class':'bounded_change','reversible':True,'real_world_effect':True,
             'payload_sha256':'a'*64,'payload_bytes':1,'proofs':[]}
@@ -228,7 +228,7 @@ def test_38_global_acceptance_criteria_are_mandatory_for_satisfaction():
     d = CLIENT.get(f'/v1/tasks/{task}', headers=HEAD).json(); assert d['task']['contract_status'] == 'OPEN' and [x for x in d['steps'] if x['step_key'] == '01'][0]['verified'] == 0
 
 
-def test_39_e2_proofs_for_unrelated_action_are_rejected():
+def test_39_bounded_change_proofs_for_unrelated_action_are_rejected():
     task, ch = register(physical=True); action = bounded_write_action(task, 0, target='prod-db-primary', wrong_binding=True)
     r, _ = do_pre(task, ch, 0, action=action); assert r.json()['verdict'] == 'UNVERIFIED' and 'binding' in r.json()['reason']
 

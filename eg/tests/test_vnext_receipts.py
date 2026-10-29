@@ -88,7 +88,7 @@ def test_nonmutating_action_disallows_unrelated_receipt():
     assert r.json()['detail']['code']=='EXECUTION_RECEIPT_FOR_LOGICAL_STEP_WITHOUT_ACTION'
 
 
-def test_E0_concrete_read_requires_same_independent_execution_receipt():
+def test_bounded_read_requires_same_independent_execution_receipt():
     task,ch=register(physical=True)
     action={'action_type':'read','target':str(H.WORKER_OUTPUT/'bounded-test-file.txt'),'effect_class':'observation',
             'reversible':False,'real_world_effect':False,'proofs':[]}
