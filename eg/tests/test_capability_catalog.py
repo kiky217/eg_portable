@@ -16,7 +16,7 @@ def test_generic_nonhardcoded(effect, action):
     assert match[0]["admission"] == "NOT_AUTHORIZED"
 
 def test_malformed_and_invalid_catalogs_fail_closed():
-    for raw in ['{}', '[]', 'not json', _fixture("unsupported_scope"), _fixture("undefined_scope")]:
+    for raw in ['{}', '[]', 'not json', _fixture("invalid scope"), _fixture("9invalid_scope")]:
         with pytest.raises(CatalogError):
             parse_catalog(raw)
 
@@ -27,3 +27,10 @@ def test_duplicate_rejected():
 
 def test_no_false_match():
     assert not lookup(parse_catalog(_fixture()), "bounded_change", "write")
+
+
+def test_arbitrary_operator_scope_does_not_grant_authority():
+    records = parse_catalog(_fixture("scoped_custom_tool", "prepare"))
+    result = lookup(records, "scoped_custom_tool", "prepare")
+    assert result[0]["trust"] == "UNVERIFIED"
+    assert result[0]["admission"] == "NOT_AUTHORIZED"
