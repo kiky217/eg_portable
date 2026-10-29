@@ -1,6 +1,6 @@
 """#8: only configured worker capabilities may authorize a new PRE gate."""
 import pytest
-from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,e2_action
+from harness import gw,CLIENT,HEAD,HITL,register,raw_eval,claim,step_ref,bounded_write_action
 
 @pytest.mark.parametrize("action_type,effect",[
     ("service_cutover","governed_operation"),("delete","bounded_change")])
@@ -44,7 +44,7 @@ def test_e1_unimplemented_class_rejected_at_action_schema():
 
 def test_supported_write_can_ready_and_capabilities_advertised():
     task,ch=register(physical=True)
-    a=e2_action(task,0)
+    a=bounded_write_action(task,0)
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==200 and r.json()["verdict"]=="READY_TO_EXECUTE"
     p=CLIENT.get("/v1/protocol",headers=HEAD).json()
@@ -54,7 +54,7 @@ def test_supported_write_can_ready_and_capabilities_advertised():
 
 def test_missing_worker_configuration_rejects_new_pre(monkeypatch):
     task,ch=register()
-    a=e2_action(task,0)
+    a=bounded_write_action(task,0)
     monkeypatch.setattr(gw,"EXECUTOR_OUTPUT_ROOT","")
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,"PRE_EXECUTION",0))],action=a)
     assert r.status_code==409 and r.json()["detail"]["code"]=="EXECUTOR_OUTPUT_ROOT_NOT_PROVISIONED"
