@@ -18,7 +18,7 @@ def test_inspector_recovers_only_original_signed_receipt(tmp_path):
     journal=ApprovalLedger(root)
     task,step,cp,adapter="task-inspect","01.01",4,"trusted-adapter-inspector"
     payload=b'{"work":"physical"}';nonce="independent_inspect_nonce_123"
-    action={"action_type":"bounded_process_run","effect_class":"E3",
+    action={"action_type":"bounded_process_run","effect_class":"governed_operation",
             "target":"/tasks/inspect/item","real_world_effect":True,
             "reversible":False,"payload_sha256":hashlib.sha256(payload).hexdigest(),
             "payload_bytes":len(payload)}
