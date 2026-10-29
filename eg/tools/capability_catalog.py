@@ -3,6 +3,7 @@ import json
 import re
 
 _NAME = re.compile(r"^[a-z][a-z0-9_.-]{0,127}$")
+_SCOPE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
 
 class CatalogError(ValueError):
     pass
@@ -25,7 +26,7 @@ def parse_catalog(blob: str) -> tuple[dict, ...]:
             raise CatalogError("CATALOG_INVALID_CAPABILITY")
         if any(not isinstance(row[k], str) or not _NAME.fullmatch(row[k]) for k in ("id", "action_type", "adapter_id")):
             raise CatalogError("CATALOG_INVALID_NAME")
-        if not isinstance(row["effect_class"], str) or not _NAME.fullmatch(row["effect_class"]):
+        if not isinstance(row["effect_class"], str) or not _SCOPE.fullmatch(row["effect_class"]):
             raise CatalogError("CATALOG_INVALID_EFFECT")
         if row["id"] in seen:
             raise CatalogError("CATALOG_DUPLICATE_ID")
