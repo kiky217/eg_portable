@@ -137,9 +137,9 @@ def test_no_numbered_effect_class_identifiers_in_active_repo():
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts:
             continue
-        if path.suffix not in (".py", ".md", ".yml", ".yaml", ".toml", ".json", ".sh"):
+        if path.suffix not in (".py", ".md", ".yml", ".yaml", ".toml", ".json", ".sh", ".txt", ".svg"):
             continue
         if path.name in ("requirements.lock",):
             continue
         content = path.read_text(encoding="utf-8")
-        assert not re.search(r"\be[0-9]{1,2}(?=\b|[_-])", content, re.IGNORECASE), path
+        assert not re.search(r"(?<![A-Za-z0-9])e[0-9](?![A-Za-z0-9])", content, re.IGNORECASE), path

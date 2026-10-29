@@ -206,7 +206,7 @@ def test_b6_failed_post_retries_on_same_gate_without_new_pre():
     c = gw.conn(); g = c.execute('SELECT consumed,post_checkpoint_no FROM execution_gates WHERE task_id=?', (task,)).fetchone(); assert g['consumed'] == 1 and g['post_checkpoint_no'] == ok.json()['checkpoint_no']; assert gw.verify_materialized_state(c); c.close()
 
 
-def test_b6_hitl_does_not_create_an_E3_adapter():
+def test_b6_hitl_does_not_create_an_unprovisioned_adapter():
     task,ch=register();act=governed_action()
     r=raw_eval(task,ch,0,claims=[claim(step_ref(task,'PRE_EXECUTION',0))],action=act,headers=HITL)
     assert r.status_code==409 and r.json()['detail']['code']=='UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED'

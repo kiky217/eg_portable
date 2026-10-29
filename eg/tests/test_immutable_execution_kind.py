@@ -114,7 +114,7 @@ def test_new_logical_high_effect_cannot_get_actionable_pre(monkeypatch):
     assert CLIENT.get(f"/v1/tasks/{task}/state",headers=HEAD).json()["latest_checkpoint"] is None
     assert CLIENT.get("/v1/audit/verify",headers=HEAD).json()["status"]=="PASS"
 
-def test_immutable_logical_step_denies_e0_and_e2_concrete_pre():
+def test_immutable_logical_step_denies_concrete_read_and_write_pre():
     import harness as H
     for klass in ("observation","bounded_change"):
         task,ch=H.register()
