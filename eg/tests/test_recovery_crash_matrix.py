@@ -3,7 +3,7 @@ import base64
 import hashlib
 from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,NoEncryption
 import pytest
-from harness import CLIENT,HEAD,gw,eid,register,e2_action,do_pre,do_post,EXEC_PRIV
+from harness import CLIENT,HEAD,gw,eid,register,bounded_write_action,do_pre,do_post,EXEC_PRIV
 from tools import trusted_execution_worker as worker
 
 def make_worker(tmp_path,monkeypatch,task):
@@ -38,7 +38,7 @@ def test_crash_after_physical_write_uses_original_receipt_path(tmp_path,monkeypa
     w,output,journal=make_worker(tmp_path,monkeypatch,task)
     target=output/"written.txt"
     payload=b"WRITTEN_AFTER_PRE"
-    action=e2_action(task,0,target=str(target),payload=payload)
+    action=bounded_write_action(task,0,target=str(target),payload=payload)
     pre,_=do_pre(task,ch,0,action=action)
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
     cp=pre.json()["checkpoint_no"]
@@ -66,7 +66,7 @@ def test_unknown_journal_remains_blocked_without_replay(tmp_path,monkeypatch):
     task,ch=register(physical=True)
     w,output,journal=make_worker(tmp_path,monkeypatch,task)
     target=output/"unknown.txt"
-    action=e2_action(task,0,target=str(target))
+    action=bounded_write_action(task,0,target=str(target))
     pre,_=do_pre(task,ch,0,action=action)
     assert pre.json()["verdict"]=="READY_TO_EXECUTE"
     cp=pre.json()["checkpoint_no"]
