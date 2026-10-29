@@ -1,7 +1,7 @@
 """Real bounded worker E2E: distinct preconditions, effect once, receipt and POST."""
 import base64
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
-from harness import CLIENT,HEAD,gw,eid,step_ref,claim,raw_eval,e2_action,EXEC_PRIV
+from harness import CLIENT,HEAD,gw,eid,step_ref,claim,raw_eval,bounded_write_action,EXEC_PRIV
 from tools import trusted_execution_worker as worker
 
 
@@ -25,7 +25,7 @@ def test_physical_pre_execute_once_and_distinct_post(tmp_path,monkeypatch):
     assert reg.status_code==200,reg.text
     ch=reg.json()["contract_hash"]
     payload=b"OK"
-    action=e2_action(task,0,target=str(target),payload=payload)
+    action=bounded_write_action(task,0,target=str(target),payload=payload)
     assert not target.exists()
     ref=step_ref(task,"PRE_EXECUTION",0,step="01.01",
                  criteria=[(0,"target absent and executor ready")],
