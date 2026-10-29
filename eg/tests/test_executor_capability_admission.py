@@ -35,11 +35,14 @@ def test_unknown_action_without_class_is_rejected():
         gw.Action.model_validate({"action_type":"service_control","target":"server"})
 
 
-def test_e1_unimplemented_class_rejected_at_action_schema():
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        gw.Action.model_validate({"action_type":"shell","target":"/tasks/example",
-                                  "effect_class":"undefined_scope"})
+def test_unknown_scope_requires_provisioned_capability():
+    action = gw.Action.model_validate({
+        "action_type": "shell", "target": "/tasks/example",
+        "effect_class": "undefined_scope",
+    })
+    supported, reason = gw.worker_capability(action)
+    assert supported is False
+    assert reason == "UNSUPPORTED_ACTION_CAPABILITY_FAIL_CLOSED"
 
 
 def test_supported_write_can_ready_and_capabilities_advertised():
