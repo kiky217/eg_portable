@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from no_redirect_http import urlopen
 from capability_catalog import parse_catalog, lookup, CatalogError
 
-BUILTIN = {"E0": {"read"}, "E2": {"write", "replace"}}
+BUILTIN = {"observation": {"read"}, "bounded_change": {"write", "replace"}}
 ENV_MODE = "EVALUATION_GATEWAY_ADMISSION_MODE"
 ENV_ROOT = "EVALUATION_GATEWAY_EXECUTOR_OUTPUT_ROOT"
 ENV_KEY = "EVALUATION_GATEWAY_EXECUTOR_PUBLIC_KEY_B64"
@@ -35,7 +35,7 @@ def diagnose(effect: str, action: str, env: dict[str, str], catalog=()) -> dict:
         reasons.append("EXECUTOR_PUBLIC_KEY_NOT_CONFIGURED")
     if effect not in BUILTIN or action not in BUILTIN.get(effect, set()):
         reasons.append("EXTERNAL_CAPABILITY_UNVERIFIED" if candidates else "CAPABILITY_NOT_DISCOVERED")
-    if effect == "E2" and action in ("write", "replace") and not output_root_present:
+    if effect == "bounded_change" and action in ("write", "replace") and not output_root_present:
         reasons.append("EXECUTOR_OUTPUT_ROOT_NOT_CONFIGURED")
     # Even with every local setting present, runtime authentication, separate
     # signer identity and exact PRE must be checked against live EG.
@@ -95,13 +95,13 @@ def diagnose_live(effect: str, action: str, *, url: str, api_key: str) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--effect", choices=["E0", "E2", "E3", "E4", "E5"], help=argparse.SUPPRESS)
+    parser.add_argument("--effect", help=argparse.SUPPRESS)
     parser.add_argument("--action", required=True, help="Typed action name, e.g. read, write, service_control")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable diagnostics")
     parser.add_argument("--catalog", type=Path, help="Optional untrusted local JSON capability catalog")
     parser.add_argument("--url", help="Live EG URL (HTTPS or local loopback HTTP only)")
     args = parser.parse_args(argv)
-    effect = args.effect or {"read": "E0", "write": "E2", "replace": "E2"}.get(args.action, "unsupported")
+    effect = args.effect or {"read": "observation", "write": "bounded_change", "replace": "bounded_change"}.get(args.action, "unsupported")
     try:
         catalog = parse_catalog(args.catalog.read_text(encoding="utf-8")) if args.catalog else ()
     except (OSError, CatalogError) as exc:
