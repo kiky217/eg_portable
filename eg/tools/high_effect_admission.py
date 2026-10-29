@@ -54,7 +54,7 @@ class AdapterCapability:
             or type(self.ci_only) is not bool
             or (self.ci_only is False and not allow_external) or
             not isinstance(self.adapter_id,str) or not self.adapter_id.startswith("trusted-adapter-") or
-            not isinstance(self.effect_class,str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{0,127}",self.effect_class) or self.effect_class in ("observation","bounded_change") or
+            not isinstance(self.effect_class,str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,127}",self.effect_class) or self.effect_class in ("observation","bounded_change") or
             not isinstance(self.action_type,str) or not self.action_type or
             not isinstance(self.target_prefix,str) or not self.target_prefix.startswith("/") or
             type(self.maximum_payload_bytes) is not int or not 0 < self.maximum_payload_bytes <= 512*1024 or
