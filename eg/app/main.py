@@ -1694,6 +1694,18 @@ def pinned_high_effect_gate(c: sqlite3.Connection, task_id: str,
     raise HTTPException(409,{"code":"HIGH_EFFECT_PRE_SIGNER_MISSING"})
 
 
+def original_gate_has_adapter_pin(c: sqlite3.Connection, task_id: str,
+                                  step_key: str, checkpoint_no: int) -> bool:
+    """Use audited PRE metadata, not a renamed class, for historical POST."""
+    for row in c.execute("SELECT response_json FROM audit WHERE task_id=? AND event_type='EVALUATION' ORDER BY seq",
+                         (task_id,)):
+        response = json.loads(row["response_json"])
+        if (response.get("checkpoint_no") == checkpoint_no and
+                response.get("step_key") == step_key):
+            return "high_effect_pin" in response
+    return False
+
+
 def external_route(cap: AdapterCapability, *, read_only=False) -> tuple[int,str]:
     """Resolve a pinned adapter's independently signed, live worker identity."""
     if not EXTERNAL_REGISTRY_DIR:
@@ -1910,7 +1922,7 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             raise HTTPException(409, {"code": "FINAL_STEP_REQUIRES_FINALIZATION"})
 
         _require_action_admission(req.action,req.phase)
-        # A fresh governed_operation-publication PRE must never reclassify an immutable logical step
+        # A new concrete PRE must never reclassify an immutable logical step
         # as physical. Historical signed logical gates may still complete POST.
         if (req.phase=="PRE_EXECUTION" and req.action is not None
             and not step_contract.get("execution_required",False)):
@@ -1946,7 +1958,8 @@ def evaluate(req: EvalRequest, x_evaluation_hitl_key: str | None = Header(defaul
             # A notarized claim alone never proves an action actually occurred.
             if req.action is not None:
                 pin=(pinned_high_effect_gate(c,req.task_id,expected,int(gate["pre_checkpoint_no"]),req.action)
-                     if req.action.effect_class in ("governed_operation","external_change","publication") else None)
+                     if original_gate_has_adapter_pin(c,req.task_id,expected,
+                                                      int(gate["pre_checkpoint_no"])) else None)
                 signer=(pin["public_key_b64"] if pin else EXECUTOR_PUBLIC_KEY_B64)
                 valid, receipt_reason = verify_execution_receipt(
                     req.execution_receipt, public_b64=signer,
